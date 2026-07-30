@@ -10,7 +10,7 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
 ## Setup
 
 1. Install dependencies: 
-   ```
+   ``` 
    npm install
    ```
 
