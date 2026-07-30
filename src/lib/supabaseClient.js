@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+// The project URL is hardcoded here (it isn't a secret - it's a public
+// endpoint, protected by Row Level Security) after repeated trouble getting
+// it saved correctly as a Cloudflare build variable. The anon key still
+// comes from the environment variable, since that one saved correctly.
+const supabaseUrl = 'https://wmvcdjmoxdfmyrtxwbc.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  // This fires if .env is missing or the dev server wasn't restarted after adding it.
+if (!supabaseAnonKey) {
   console.error(
-    'Missing Supabase environment variables. Check that .env has ' +
-    'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY set, then restart `npm run dev`.'
+    'Missing VITE_SUPABASE_ANON_KEY. Check Cloudflare: osbusiness -> Settings -> Build -> Variables and secrets.'
   )
 }
 
