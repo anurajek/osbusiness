@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+:root {
+  --ink: #0f1720;
+  --panel: #16212c;
+  --panel-alt: #1c2a38;
+  --rule: #2a3744;
+  --paper: #ede6d6;
+  --paper-dim: #93a2ac;
+  --brass: #c9a227;
+  --brass-dim: #8a701c;
+  --teal: #3fa796;
+  --brick: #c1554d;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-serif-display {
+  font-family: 'Lora', serif;
+}
+
+.font-mono-ledger {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
