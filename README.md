@@ -15,7 +15,7 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
    ```
 
 2. Copy the environment template and fill in your real Supabase project values
-   (found in Supabase Dashboard → Settings → API):
+   (found in Supabase Dashboard → Settings → API): 
    ```
    cp .env.example .env
    ```
