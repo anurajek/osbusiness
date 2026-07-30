@@ -5,7 +5,7 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
 ## Stack
 - React + Vite
 - Tailwind CSS v4
-- Supabase (Postgres + Auth + Row Level Security)
+- Supabase (Postgres + Auth + Row Level Security) 
 
 ## Setup
 
