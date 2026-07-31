@@ -9,40 +9,39 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
 
 ## Setup
 
-1. Install dependencies: 
-   ``` 
-   npm install
-   ```
+1. `npm install`
+2. `cp .env.example .env` and fill in your real Supabase URL + anon key
+   (Supabase Dashboard → Settings → API)
+3. Run `ledger_os_schema.sql` in Supabase's SQL Editor if you haven't already,
+   then `migration_multitenant.sql` (enables self-service signup + invites)
+4. Enable Email auth: Supabase → Authentication → Providers
+5. `npm run dev`
 
-2. Copy the environment template and fill in your real Supabase project values
-   (found in Supabase Dashboard → Settings → API): 
-   ```
-   cp .env.example .env
-   ```
+## Onboarding a new firm (no SQL needed anymore)
 
-3. Make sure you've already run `ledger_os_schema.sql` in your Supabase project's
-   SQL Editor, and that Email auth is enabled under Authentication → Providers.
+Go to the app, click "New here? Create your firm" on the login screen, fill
+in your name/firm/email/password. You're automatically the Owner.
 
-4. Run locally:
-   ```
-   npm run dev
-   ```
+## Inviting a teammate
 
-5. Sign in with a user that has a matching row in `firm_members`. If you haven't
-   created one yet:
-   - Sign up a user via the app's login screen (or Supabase Dashboard → Authentication)
-   - In SQL Editor, insert a firm and link that user to it:
-     ```sql
-     insert into firms (name, gstin) values ('Your Firm Name', 'GSTIN_HERE');
-
-     insert into firm_members (firm_id, user_id, full_name, role)
-     values ('<firm-id-from-above>', '<auth-user-id>', 'Your Name', 'Owner');
-     ```
+Users & Permissions → "Invite a teammate" → enter their name, email, role.
+Tell them (outside the app - no invite email is sent yet) to go create an
+account or sign in using that exact email. The moment they do, they're
+automatically linked to the firm with the role you set.
 
 ## Status
 
-- [x] Project scaffold (Vite + React + Tailwind)
-- [x] Supabase client configured
-- [x] Real login screen (Supabase Auth, email + password)
-- [ ] Dashboard, Sales, Purchases, Receivables, Payables, Cash & Bank wired to real data
-- [ ] Users & Permissions screen wired to `firm_members`
+- [x] Self-service signup: create account + firm together, auto-Owner
+- [x] Team invites: pending membership by email, auto-linked on signup/login
+- [x] Customers/Suppliers: add directly from the Sales/Purchases screens
+- [x] Full app: Dashboard, Sales, Purchases, Receivables (+ comm log),
+      Payables, Cash & Bank, Users & Permissions — all real data
+- [ ] No actual invite email is sent - the invited person has to be told
+      separately to go sign up. Real email invites need a Supabase Edge
+      Function + email service (a solid v2 addition, more infra).
+- [ ] No UI yet for creating new invoices/bills/bank transactions directly -
+      only customers/suppliers can be added from the UI so far.
+- [ ] RLS currently lets any *active* firm member send an invite, not just
+      Owners - the UI hides the button from non-Owners, but a technically
+      savvy non-Owner could still call the API directly. Worth tightening
+      later with a role-aware RLS policy.

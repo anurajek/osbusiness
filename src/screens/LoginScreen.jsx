@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function LoginScreen({ onSignIn, authError }) {
+export default function LoginScreen({ onSignIn, authError, onSwitchToSignup }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -90,6 +90,11 @@ export default function LoginScreen({ onSignIn, authError }) {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <p className="login-footnote">
+          New here?{' '}
+          <button onClick={onSwitchToSignup} className="link-btn" style={{ padding: 0 }}>Create your firm</button>
+        </p>
       </div>
     </div>
   )
