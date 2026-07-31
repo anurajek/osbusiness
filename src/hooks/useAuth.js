@@ -13,6 +13,14 @@ export function useAuth() {
   const [memberships, setMemberships] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // True for the entire duration of signUpWithFirm's async work. The auth
+  // state listener below sees the new session almost immediately after
+  // auth.signUp() resolves - well before the firm/member rows this same
+  // function goes on to create actually exist. Without this flag, App.jsx
+  // has no way to distinguish "authenticated, firm creation still running"
+  // from "authenticated, firm creation genuinely never happened" and shows
+  // the no-firm dead-end for both. See signUpWithFirm below.
+  const [provisioning, setProvisioning] = useState(false)
 
   // Guards a race: right after signup, the auth-state-change listener
   // fires a membership check immediately (before the firm even exists
@@ -103,9 +111,10 @@ export function useAuth() {
   // the new user its Owner. This is the self-service "sign up" path.
   const signUpWithFirm = useCallback(async ({ fullName, email, password, firmName, gstin }) => {
     setError(null)
+    setProvisioning(true)
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) { setError(signUpError.message); return false }
+    if (signUpError) { setError(signUpError.message); setProvisioning(false); return false }
 
     const user = signUpData.user
     const hasSession = !!signUpData.session
@@ -114,6 +123,7 @@ export function useAuth() {
       // was created, but we can't create the firm until they're actually
       // signed in for the first time (RLS needs a real auth.uid()).
       setError('Account created. If email confirmation is required on this project, check your email to confirm it, then sign in to finish setting up your firm.')
+      setProvisioning(false)
       return false
     }
 
@@ -122,7 +132,7 @@ export function useAuth() {
       .insert({ name: firmName, gstin: gstin || null })
       .select('id')
       .single()
-    if (firmError) { setError(firmError.message); return false }
+    if (firmError) { setError(firmError.message); setProvisioning(false); return false }
 
     const { error: memberError } = await supabase.from('firm_members').insert({
       firm_id: firm.id,
@@ -132,14 +142,46 @@ export function useAuth() {
       permissions: OWNER_PERMISSIONS,
       status: 'active',
     })
-    if (memberError) { setError(memberError.message); return false }
+    if (memberError) { setError(memberError.message); setProvisioning(false); return false }
 
     // This call is issued after the firm/membership rows exist, so the
     // request-id guard in loadMemberships ensures this result wins even if
     // the auth-listener's earlier (premature) check resolves later.
     await loadMemberships(user.id)
+    setProvisioning(false)
     return true
   }, [loadMemberships])
+
+  // Self-heal path for an account that's authenticated but has zero firm
+  // memberships — e.g. a user created directly in the Supabase dashboard,
+  // or one where the signup flow's auth step succeeded but the firm/member
+  // inserts that follow it never ran. Unlike signUpWithFirm, there's no
+  // auth.signUp call here: the session already exists, so this just creates
+  // the firm and attaches the current user to it as Owner.
+  const createFirmForSession = useCallback(async ({ fullName, firmName, gstin }) => {
+    if (!session?.user) return { ok: false, error: 'No active session.' }
+    const user = session.user
+
+    const { data: firm, error: firmError } = await supabase
+      .from('firms')
+      .insert({ name: firmName, gstin: gstin || null })
+      .select('id')
+      .single()
+    if (firmError) return { ok: false, error: firmError.message }
+
+    const { error: memberError } = await supabase.from('firm_members').insert({
+      firm_id: firm.id,
+      user_id: user.id,
+      full_name: fullName,
+      role: 'Owner',
+      permissions: OWNER_PERMISSIONS,
+      status: 'active',
+    })
+    if (memberError) return { ok: false, error: memberError.message }
+
+    await loadMemberships(user.id)
+    return { ok: true }
+  }, [session, loadMemberships])
 
   // Owner (or anyone with the permissions.permissions right) invites a
   // teammate by email. Creates a pending row with no user_id yet - it gets
@@ -162,5 +204,5 @@ export function useAuth() {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, memberships, loading, error, signIn, signUpWithFirm, inviteTeammate, signOut }
+  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, inviteTeammate, signOut }
 }

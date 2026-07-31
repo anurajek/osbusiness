@@ -19,6 +19,12 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
 
 Login screen → "New here? Create your firm." Creates the account and firm together, auto-Owner.
 
+If a user is already authenticated (has a Supabase Auth account) but belongs
+to zero firms — e.g. an account created directly in the Supabase dashboard,
+or one where firm creation failed after the auth step succeeded — they now
+see a "Set up your firm" form in-app instead of a dead-end message, and can
+create their firm right there without re-registering.
+
 ## Inviting a teammate
 
 Users & Permissions → "Invite a teammate." Tell them to sign up/log in with that
@@ -28,6 +34,20 @@ a future addition needing a proper email service).
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
+- [x] Self-heal for an authenticated-but-firmless account: the old
+      "No firm linked yet" dead-end (which told you to go edit Supabase's
+      firm_members table by hand) is now a real "Set up your firm" form
+      that creates the firm and Owner membership for the current session
+- [x] Fixed a race condition in self-service signup: Supabase's auth-session
+      event fires right after account creation but *before* the firm and
+      Owner-membership rows are actually inserted. The app used to switch
+      into the main view during that gap and show the no-firm dead-end (or
+      silently drop the error if firm creation actually failed). A
+      `provisioning` flag now keeps a "Setting up your firm…" screen up
+      until firm creation genuinely finishes, and any real failure is
+      carried into the "Set up your firm" self-heal form instead of being
+      lost
+
 - [x] Full app: Dashboard, Sales, Purchases, Receivables (+ comm log),
       Payables, Cash & Bank, Users & Permissions — all real data
 - [x] Status is now **calculated automatically** everywhere (Sales,
