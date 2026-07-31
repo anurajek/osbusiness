@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, computeStatus } from '../lib/format'
+import { inr, computeStatus, toISODate } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
+const CASH_FLOW_PERIODS = ['This Fiscal Year', 'Previous Fiscal Year', 'Last 12 Months']
 
 function bucketFor(daysOverdue) {
   if (daysOverdue <= 0) return 'Current'
@@ -47,11 +49,66 @@ function buildForecast(openInvoices, openBills, startingBalance) {
   return weeks
 }
 
+// India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.
+function getFiscalYearRange(offset, today) {
+  const fyStartCalendarYear = (today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1) + offset
+  return {
+    start: new Date(fyStartCalendarYear, 3, 1),
+    end: new Date(fyStartCalendarYear + 1, 2, 31, 23, 59, 59, 999),
+  }
+}
+
+function buildMonthBuckets(start, end) {
+  const buckets = []
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1)
+  const last = new Date(end.getFullYear(), end.getMonth(), 1)
+  while (cur <= last) {
+    const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0, 23, 59, 59, 999)
+    buckets.push({
+      label: cur.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      start: new Date(cur),
+      end: monthEnd,
+    })
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+  }
+  return buckets
+}
+
+// Reconstructs a month-by-month cash flow trend purely from the transaction
+// log plus today's known total balance - working backward from "now" so the
+// historical balance line stays correct even though we only store the
+// current balance on each account, not a balance-as-of-every-day snapshot.
+function buildCashFlowSeries(bankTxns, period, currentTotalBalance) {
+  const today = new Date()
+  const range = period === 'Last 12 Months'
+    ? { start: new Date(today.getFullYear(), today.getMonth() - 11, 1), end: today }
+    : getFiscalYearRange(period === 'Previous Fiscal Year' ? -1 : 0, today)
+
+  const buckets = buildMonthBuckets(range.start, range.end)
+
+  const series = buckets.map(({ label, start, end }) => {
+    const inMonth = bankTxns.filter((t) => { const d = new Date(t.txn_date); return d >= start && d <= end })
+    const incoming = inMonth.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+    const outgoing = inMonth.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+    const sumAfter = bankTxns.filter((t) => new Date(t.txn_date) > end).reduce((s, t) => s + t.amount, 0)
+    const balance = currentTotalBalance - sumAfter
+    return { label, incoming, outgoing, balance }
+  })
+
+  const totalIncoming = series.reduce((s, m) => s + m.incoming, 0)
+  const totalOutgoing = series.reduce((s, m) => s + m.outgoing, 0)
+  const asOfDate = range.end > today ? today : range.end
+
+  return { series, totalIncoming, totalOutgoing, finalBalance: currentTotalBalance, asOfDate }
+}
+
 export default function DashboardScreen({ onNavigate }) {
   const { firmId, firm } = useFirm()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [cashFlowPeriod, setCashFlowPeriod] = useState('Last 12 Months')
+  const [periodMenuOpen, setPeriodMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!firmId) return
@@ -66,15 +123,17 @@ export default function DashboardScreen({ onNavigate }) {
         { data: invoices, error: invErr },
         { data: bills, error: billErr },
         { data: activity, error: actErr },
+        { data: bankTxns, error: txnErr },
       ] = await Promise.all([
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
         supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
         supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
         supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
+        supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || actErr
+      const err = accErr || invErr || billErr || actErr || txnErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => computeStatus(i, 'Sent') !== 'Paid')
@@ -90,6 +149,7 @@ export default function DashboardScreen({ onNavigate }) {
         apAgeing: buildAgeing(openBills),
         forecast: buildForecast(openInvoices, openBills, totalCash),
         activity: activity ?? [],
+        bankTxns: bankTxns ?? [],
       })
       setLoading(false)
     }
@@ -97,6 +157,11 @@ export default function DashboardScreen({ onNavigate }) {
     load()
     return () => { cancelled = true }
   }, [firmId])
+
+  const cashFlow = useMemo(() => {
+    if (!data) return null
+    return buildCashFlowSeries(data.bankTxns, cashFlowPeriod, data.totalCash)
+  }, [data, cashFlowPeriod])
 
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
@@ -113,6 +178,81 @@ export default function DashboardScreen({ onNavigate }) {
         <StatCard label="Receivable (AR)" value={inr(data.totalAR)} sub="open invoices" onClick={() => onNavigate('arap', 'receivables')} />
         <StatCard label="Payable (AP)" value={inr(data.totalAP)} sub="open bills" onClick={() => onNavigate('arap', 'payables')} />
         <StatCard label="Net position" value={inr(data.totalCash + data.totalAR - data.totalAP)} sub="cash + AR − AP" />
+      </div>
+
+      <div className="card chart-card">
+        <div className="section-header" style={{ marginBottom: 12 }}>
+          <h2>Cash Flow</h2>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="period-pill period-pill--active"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setPeriodMenuOpen((v) => !v)}
+            >
+              {cashFlowPeriod} <ChevronDown size={14} />
+            </button>
+            {periodMenuOpen && (
+              <div className="card" style={{ position: 'absolute', top: '110%', right: 0, zIndex: 30, minWidth: 190, padding: 6 }}>
+                {CASH_FLOW_PERIODS.map((p) => (
+                  <button
+                    key={p}
+                    className={`nav-item ${p === cashFlowPeriod ? 'nav-item--active' : ''}`}
+                    onClick={() => { setCashFlowPeriod(p); setPeriodMenuOpen(false) }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={cashFlow.series} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="cashFlowFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--brass)" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="var(--brass)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--rule)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--paper-dim)', fontSize: 11 }} axisLine={{ stroke: 'var(--rule)' }} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--paper-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
+                  tickFormatter={(v) => `₹${Math.round(v / 100000)}L`} width={50} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--panel)', border: '1px solid var(--rule)', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: 'var(--paper)' }}
+                  formatter={(value) => [inr(value), 'Cash balance']}
+                />
+                <Area type="monotone" dataKey="balance" stroke="var(--brass)" strokeWidth={2} fill="url(#cashFlowFill)" dot={{ r: 3, fill: 'var(--brass)' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--teal)', display: 'inline-block' }} />
+                <span className="stat-card__label" style={{ margin: 0 }}>Incoming</span>
+              </div>
+              <div className="stat-card__value" style={{ fontSize: 16, color: 'var(--teal)' }}>+{inr(cashFlow.totalIncoming)}</div>
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--brick)', display: 'inline-block' }} />
+                <span className="stat-card__label" style={{ margin: 0 }}>Outgoing</span>
+              </div>
+              <div className="stat-card__value" style={{ fontSize: 16, color: 'var(--brick)' }}>−{inr(cashFlow.totalOutgoing)}</div>
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--brass)', display: 'inline-block' }} />
+                <span className="stat-card__label" style={{ margin: 0 }}>Cash as on {toISODate(cashFlow.asOfDate)}</span>
+              </div>
+              <div className="stat-card__value" style={{ fontSize: 16 }}>{inr(cashFlow.finalBalance)}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="card chart-card">
