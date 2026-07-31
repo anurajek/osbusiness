@@ -40,7 +40,18 @@ a future addition needing a proper email service).
 - [x] Create **and edit** sales invoices and purchase bills directly from
       the UI (Sales/Purchases screens → "+ New invoice"/"bill", or "Edit"
       on any existing row — same form, prefilled)
-- [ ] No deleting of invoices/bills yet - only creation and editing
+- [x] Add cash/bank accounts directly from the UI (Cash & Bank → "+ New
+      account") — set up "Cash in hand", "HDFC Current A/c", etc. yourself
+- [x] "Record payment" now asks which account the money moved through -
+      it creates a real transaction on that account and updates its
+      balance automatically, alongside marking the invoice/bill paid
+- [ ] The invoice-update + transaction-insert + balance-update aren't
+      wrapped in a single database transaction - if one step fails after
+      an earlier one succeeded, you'll get an error telling you to check
+      Cash & Bank manually rather than a silent inconsistency. A proper
+      fix would move this into a Postgres function; noted as a solid
+      next hardening step, not done yet.
+- [ ] No deleting of invoices/bills/accounts yet - only creation and editing
 - [ ] No invite email sent - invited person must be told separately
 - [ ] RLS lets any active member send an invite, not just Owners (UI hides
       the button, but the API itself doesn't enforce it yet)

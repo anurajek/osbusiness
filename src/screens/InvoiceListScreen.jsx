@@ -19,6 +19,7 @@ export default function InvoiceListScreen({ type }) {
 
   const [rows, setRows] = useState([])
   const [parties, setParties] = useState([])
+  const [bankAccounts, setBankAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -50,6 +51,7 @@ export default function InvoiceListScreen({ type }) {
 
   const [payingId, setPayingId] = useState(null)
   const [payAmount, setPayAmount] = useState('')
+  const [payAccountId, setPayAccountId] = useState('')
   const [payingBusy, setPayingBusy] = useState(false)
   const [payError, setPayError] = useState(null)
 
@@ -66,18 +68,22 @@ export default function InvoiceListScreen({ type }) {
     const { data: partyRows, error: partyErr } = await supabase
       .from(partyTable).select('id, name').eq('firm_id', firmId).order('name')
 
+    const { data: acctRows, error: acctErr } = await supabase
+      .from('bank_accounts').select('id, name, account_mask, balance').eq('firm_id', firmId).order('name')
+
     const { data: invoiceRows, error: invErr } = await supabase
       .from(table)
       .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status`)
       .eq('firm_id', firmId)
       .order('issued_date', { ascending: false })
 
-    if (partyErr || invErr) {
-      setError((partyErr || invErr).message)
+    if (partyErr || acctErr || invErr) {
+      setError((partyErr || acctErr || invErr).message)
       setLoading(false)
       return
     }
     setParties(partyRows ?? [])
+    setBankAccounts(acctRows ?? [])
     setRows(invoiceRows ?? [])
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,6 +212,7 @@ export default function InvoiceListScreen({ type }) {
   const openPayForm = (row) => {
     setPayingId(row.id)
     setPayAmount('')
+    setPayAccountId(bankAccounts[0]?.id || '')
     setPayError(null)
   }
 
@@ -213,25 +220,64 @@ export default function InvoiceListScreen({ type }) {
     setPayError(null)
     const extra = parseFloat(payAmount)
     if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
+    if (!payAccountId) { setPayError('Select which cash or bank account this moved through.'); return }
+
+    const account = bankAccounts.find((a) => a.id === payAccountId)
+    if (!account) { setPayError('That account could not be found - try reopening this form.'); return }
 
     const newPaid = Math.min((Number(row.paid_amount) || 0) + extra, row.amount)
     const computed = computeStatus({ amount: row.amount, paid_amount: newPaid, due_date: row.due_date }, baseStatus)
+    // Sales: money comes in (credit, balance up). Purchases: money goes out (debit, balance down).
+    const txnAmount = isSales ? extra : -extra
 
     setPayingBusy(true)
-    const { error: err } = await supabase
+
+    const { error: invErr } = await supabase
       .from(table)
       .update({ paid_amount: newPaid, status: statusForStorage(computed, isSales) })
       .eq('id', row.id)
 
-    if (!err) {
-      await supabase.from('activity_log').insert({
+    let txnErr = null
+    let acctErr = null
+    if (!invErr) {
+      const txnResult = await supabase.from('bank_transactions').insert({
         firm_id: firmId,
-        description: `Payment of ${inr(extra)} recorded on ${row[numberField]} (${partyName(row[partyJoinKey])})`,
+        bank_account_id: payAccountId,
+        txn_date: toISODate(new Date()),
+        description: `Payment ${isSales ? 'received' : 'made'} — ${row[numberField]} (${partyName(row[partyJoinKey])})`,
+        amount: txnAmount,
+        reconciled: true,
       })
+      txnErr = txnResult.error
+
+      if (!txnErr) {
+        const acctResult = await supabase
+          .from('bank_accounts')
+          .update({ balance: Number(account.balance) + txnAmount })
+          .eq('id', payAccountId)
+        acctErr = acctResult.error
+      }
+
+      if (!txnErr && !acctErr) {
+        await supabase.from('activity_log').insert({
+          firm_id: firmId,
+          description: `Payment of ${inr(extra)} recorded on ${row[numberField]} (${partyName(row[partyJoinKey])}) via ${account.name}`,
+        })
+      }
     }
 
     setPayingBusy(false)
-    if (err) { setPayError(err.message); return }
+
+    if (invErr) { setPayError(invErr.message); return }
+    if (txnErr || acctErr) {
+      setPayError(
+        `The invoice was updated, but recording the ${account.name} transaction failed: ${(txnErr || acctErr).message}. ` +
+        `Check Cash & Bank and add it manually if needed.`
+      )
+      load()
+      return
+    }
+
     setPayingId(null)
     load()
   }
@@ -387,19 +433,30 @@ export default function InvoiceListScreen({ type }) {
                   {payingId === r.id && (
                     <tr>
                       <td colSpan={7} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
-                        <div className="add-comm-row" style={{ alignItems: 'center' }}>
+                        <div className="add-comm-row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                           <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
-                            Amount received now (₹) — {inr(r.amount - r.paid_amount)} still due
+                            {inr(r.amount - r.paid_amount)} still due
                           </span>
                           <input
-                            type="number" min="0" step="0.01" className="text-input" style={{ maxWidth: 160 }}
-                            value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0.00" autoFocus
+                            type="number" min="0" step="0.01" className="text-input" style={{ maxWidth: 140 }}
+                            value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount received" autoFocus
                           />
+                          <select className="select select--sm" style={{ maxWidth: 220 }} value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
+                            <option value="">{isSales ? 'Received into...' : 'Paid from...'}</option>
+                            {bankAccounts.map((a) => (
+                              <option key={a.id} value={a.id}>{a.name} {a.account_mask ? `(${a.account_mask})` : ''}</option>
+                            ))}
+                          </select>
                           <button className="btn-primary" disabled={payingBusy} onClick={() => handleRecordPayment(r)}>
                             {payingBusy ? 'Saving…' : 'Save payment'}
                           </button>
                           <button className="link-btn" onClick={() => setPayingId(null)}>Cancel</button>
                         </div>
+                        {bankAccounts.length === 0 && (
+                          <p className="login-footnote" style={{ marginTop: 6 }}>
+                            No cash/bank accounts set up yet — add one on the Cash & Bank screen first.
+                          </p>
+                        )}
                         {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 6 }}>{payError}</p>}
                       </td>
                     </tr>
