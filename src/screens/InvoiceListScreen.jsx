@@ -398,6 +398,7 @@ export default function InvoiceListScreen({ type }) {
           </form>
         )}
 
+        <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
@@ -440,10 +441,10 @@ export default function InvoiceListScreen({ type }) {
                             {inr(r.amount - r.paid_amount)} still due
                           </span>
                           <input
-                            type="number" min="0" step="0.01" className="text-input" style={{ maxWidth: 140 }}
+                            type="number" min="0" step="0.01" className="text-input pay-amount-input"
                             value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount received" autoFocus
                           />
-                          <select className="select select--sm" style={{ maxWidth: 220 }} value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
+                          <select className="select select--sm pay-account-select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
                             <option value="">{isSales ? 'Received into...' : 'Paid from...'}</option>
                             {bankAccounts.map((a) => (
                               <option key={a.id} value={a.id}>{a.name} {a.account_mask ? `(${a.account_mask})` : ''}</option>
@@ -469,6 +470,7 @@ export default function InvoiceListScreen({ type }) {
             {filtered.length === 0 && <EmptyRow colSpan={8}>No records match these filters.</EmptyRow>}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   )

@@ -157,6 +157,7 @@ export default function ReceivablesScreen() {
           <h2>Pending clients</h2>
           <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''} with open bills</span>
         </div>
+        <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
@@ -186,6 +187,7 @@ export default function ReceivablesScreen() {
             {rows.length === 0 && <EmptyRow colSpan={6}>No open receivables match these filters.</EmptyRow>}
           </tbody>
         </table>
+        </div>
       </div>
 
       {selectedCustomer && (

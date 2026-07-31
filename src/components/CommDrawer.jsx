@@ -40,6 +40,7 @@ export default function CommDrawer({ customer, invoices, comms, onAddComm, onClo
 
         <div>
           <div className="drawer__label">Bills</div>
+          <div className="table-scroll">
           <table className="ledger-table">
             <thead><tr><th>Invoice</th><th>Issued</th><th className="num">Amount due</th><th>Status</th></tr></thead>
             <tbody>
@@ -56,6 +57,7 @@ export default function CommDrawer({ customer, invoices, comms, onAddComm, onClo
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div>

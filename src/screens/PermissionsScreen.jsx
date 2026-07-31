@@ -116,6 +116,7 @@ export default function PermissionsScreen() {
       )}
 
       <div className="card">
+        <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
@@ -157,6 +158,7 @@ export default function PermissionsScreen() {
             )}
           </tbody>
         </table>
+        </div>
         {!isOwner && (
           <p className="login-footnote" style={{ marginTop: 14 }}>
             Only an Owner can invite people or change permissions.

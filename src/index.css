@@ -57,7 +57,7 @@ body {
 
 /* ---------- Shared ---------- */
 .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; }
-.section-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.section-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; flex-wrap: wrap; gap: 8px; }
 .section-header h2 { font-family: 'Lora', serif; font-size: 16px; font-weight: 600; margin: 0; }
 .section-header__note { font-size: 12px; color: var(--paper-dim); }
 .section-header--link { cursor: pointer; }
@@ -93,6 +93,7 @@ body {
 
 /* Tables */
 .ledger-table { width: 100%; border-collapse: collapse; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .ledger-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--paper-dim); font-weight: 500; padding: 0 10px 10px; border-bottom: 1px solid var(--rule); }
 .ledger-table th.num, .ledger-table td.num { text-align: right; }
 .ledger-row td { padding: 10px; font-size: 13.5px; border-bottom: 1px solid var(--rule); }
@@ -186,6 +187,15 @@ body {
 .text-input:focus { outline: none; border-color: var(--brass); }
 .text-input::placeholder { color: var(--paper-dim); }
 
+/* Cash Flow widget (Dashboard) */
+.cashflow-body { display: flex; gap: 20px; flex-wrap: wrap; }
+.cashflow-chart { flex: 1 1 420px; min-width: 240px; }
+.cashflow-stats { flex: 0 0 200px; display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+
+/* Record-payment inline row inputs */
+.pay-amount-input { max-width: 140px; }
+.pay-account-select { max-width: 220px; }
+
 /* Login screen reused bits */
 .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .login-footnote { font-size: 11.5px; color: var(--paper-dim); margin-top: 18px; line-height: 1.5; }
@@ -199,4 +209,24 @@ body {
   .drawer { width: 100%; }
   .period-custom { width: 100%; margin-left: 0; margin-top: 4px; }
   .filter-field--search { min-width: 0; width: 100%; }
+
+  /* Wide tables scroll horizontally instead of squishing illegibly or
+     breaking the page layout - the table keeps a real minimum width so
+     columns stay readable, and the wrapper handles the overflow. */
+  .table-scroll .ledger-table { min-width: 640px; }
+
+  /* Multi-field forms (New customer/invoice/account, Record payment,
+     Invite teammate, Log update) stack into one field per row instead of
+     cramming 3-4 side by side. */
+  .add-comm-row { flex-direction: column; }
+  .add-comm-row > * { width: 100%; max-width: none; }
+
+  /* The Cash Flow chart + summary numbers stack instead of squeezing
+     into a barely-readable side-by-side layout. */
+  .cashflow-chart { flex-basis: 100%; }
+  .cashflow-stats { flex-basis: 100%; flex-direction: row; flex-wrap: wrap; gap: 20px; }
+
+  /* Topbar: let the firm name/GSTIN wrap instead of overflowing off-screen. */
+  .topbar { flex-wrap: wrap; row-gap: 8px; padding: 12px 16px; }
+  .topbar__user { margin-left: 0; }
 }

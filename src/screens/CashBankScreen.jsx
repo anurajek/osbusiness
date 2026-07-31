@@ -197,6 +197,7 @@ export default function CashBankScreen() {
           <h2>Transactions</h2>
           <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
         </div>
+        <div className="table-scroll">
         <table className="ledger-table">
           <thead><tr><th>Date</th><th>Account</th><th>Description</th><th className="num">Amount</th><th>Status</th></tr></thead>
           <tbody>
@@ -214,6 +215,7 @@ export default function CashBankScreen() {
             {filtered.length === 0 && <EmptyRow colSpan={5}>No transactions match these filters.</EmptyRow>}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   )

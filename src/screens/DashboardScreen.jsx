@@ -186,8 +186,8 @@ export default function DashboardScreen({ onNavigate }) {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+        <div className="cashflow-body">
+          <div className="cashflow-chart">
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={cashFlow.series} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                 <defs>
@@ -209,7 +209,7 @@ export default function DashboardScreen({ onNavigate }) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
+          <div className="cashflow-stats">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--teal)', display: 'inline-block' }} />

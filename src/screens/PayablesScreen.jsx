@@ -131,6 +131,7 @@ export default function PayablesScreen() {
           <h2>Pending suppliers</h2>
           <span className="section-header__note">{rows.length} supplier{rows.length !== 1 ? 's' : ''} with open bills</span>
         </div>
+        <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
@@ -152,6 +153,7 @@ export default function PayablesScreen() {
             {rows.length === 0 && <EmptyRow colSpan={4}>No open payables match these filters.</EmptyRow>}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   )
