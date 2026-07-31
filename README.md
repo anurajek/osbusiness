@@ -87,6 +87,14 @@ a future addition needing a proper email service).
       the rest of the app: This Fiscal Year, Previous Fiscal Year (India's
       Apr-Mar year), or Last 12 Months
 - [ ] No deleting of invoices/bills/accounts yet - only creation and editing
+- [x] Owners can edit the firm's name and GSTIN from Users & Permissions →
+      "Firm details" - updates everywhere the firm name/GSTIN is shown
+      (topbar, firm switcher) since it refreshes the shared firm data on save
+- [x] Owners can remove a team member (or cancel a pending invite) from
+      Users & Permissions - asks for confirmation first. An Owner-role row
+      and your own row can't be removed from the UI, so a firm can't be left
+      without its Owner or have someone accidentally remove themselves
 - [ ] No invite email sent - invited person must be told separately
-- [ ] RLS lets any active member send an invite, not just Owners (UI hides
-      the button, but the API itself doesn't enforce it yet)
+- [ ] RLS lets any active member send an invite or remove a member, not just
+      Owners (UI hides these actions for non-Owners, but the API itself
+      doesn't enforce it yet)

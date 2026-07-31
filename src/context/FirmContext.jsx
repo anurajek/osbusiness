@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, useState, useEffect } from 'react'
 
 const FirmContext = createContext(null)
 
-export function FirmProvider({ memberships, children }) {
+export function FirmProvider({ memberships, refreshMemberships, children }) {
   const [firmId, setFirmId] = useState(memberships[0]?.firm_id ?? null)
 
   // If memberships change (e.g. after a fresh login) and the previously
@@ -25,7 +25,12 @@ export function FirmProvider({ memberships, children }) {
     firm: current?.firms ?? null,
     role: current?.role ?? null,
     permissions: current?.permissions ?? {},
-  }), [memberships, firmId, current])
+    // This user's own firm_members row id for the selected firm - lets a
+    // screen tell "my own membership row" apart from everyone else's (e.g.
+    // to stop someone removing themselves from the member list).
+    membershipId: current?.id ?? null,
+    refreshMemberships,
+  }), [memberships, firmId, current, refreshMemberships])
 
   return <FirmContext.Provider value={value}>{children}</FirmContext.Provider>
 }

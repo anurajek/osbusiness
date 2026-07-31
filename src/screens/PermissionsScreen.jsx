@@ -16,11 +16,12 @@ const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, arap:
 const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, permissions: false }
 
 export default function PermissionsScreen() {
-  const { firmId, role: myRole } = useFirm()
+  const { firmId, role: myRole, firm, membershipId, refreshMemberships } = useFirm()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [savingId, setSavingId] = useState(null)
+  const [removingId, setRemovingId] = useState(null)
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
@@ -28,6 +29,19 @@ export default function PermissionsScreen() {
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState(null)
   const [inviteSuccess, setInviteSuccess] = useState(null)
+
+  const [firmName, setFirmName] = useState(firm?.name ?? '')
+  const [firmGstin, setFirmGstin] = useState(firm?.gstin ?? '')
+  const [savingFirm, setSavingFirm] = useState(false)
+  const [firmError, setFirmError] = useState(null)
+  const [firmSuccess, setFirmSuccess] = useState(null)
+
+  // Keep the form in sync if the selected firm changes (multi-firm users)
+  // or after a save refreshes `firm` with the latest saved values.
+  useEffect(() => {
+    setFirmName(firm?.name ?? '')
+    setFirmGstin(firm?.gstin ?? '')
+  }, [firm?.name, firm?.gstin])
 
   const isOwner = myRole === 'Owner'
 
@@ -90,12 +104,61 @@ export default function PermissionsScreen() {
     load()
   }
 
+  const handleSaveFirm = async (e) => {
+    e.preventDefault()
+    setFirmError(null)
+    setFirmSuccess(null)
+    if (!firmName.trim()) {
+      setFirmError('Firm name cannot be empty.')
+      return
+    }
+    setSavingFirm(true)
+    const { error: err } = await supabase
+      .from('firms')
+      .update({ name: firmName.trim(), gstin: firmGstin.trim() || null })
+      .eq('id', firmId)
+    setSavingFirm(false)
+    if (err) {
+      setFirmError(err.message)
+      return
+    }
+    setFirmSuccess('Saved.')
+    await refreshMemberships?.()
+  }
+
+  const handleRemove = async (member) => {
+    if (!window.confirm(`Remove ${member.full_name} from this firm? They'll lose access immediately.`)) return
+    setRemovingId(member.id)
+    const { error: err } = await supabase.from('firm_members').delete().eq('id', member.id)
+    setRemovingId(null)
+    if (err) {
+      alert(`Couldn't remove them: ${err.message}`)
+      return
+    }
+    setMembers((prev) => prev.filter((m) => m.id !== member.id))
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (
     <>
       <SectionHeader title="Users & Permissions" note="who can see which module" />
+
+      {isOwner && (
+        <div className="card">
+          <div className="section-header" style={{ marginBottom: 8 }}><h2>Firm details</h2></div>
+          <form onSubmit={handleSaveFirm} className="add-comm-form">
+            <div className="add-comm-row">
+              <input className="text-input" placeholder="Firm name" value={firmName} onChange={(e) => setFirmName(e.target.value)} />
+              <input className="text-input" placeholder="GSTIN (optional)" value={firmGstin} onChange={(e) => setFirmGstin(e.target.value)} />
+            </div>
+            {firmError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{firmError}</p>}
+            {firmSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{firmSuccess}</p>}
+            <button className="btn-primary" disabled={savingFirm}>{savingFirm ? 'Saving…' : 'Save firm details'}</button>
+          </form>
+        </div>
+      )}
 
       {isOwner && (
         <div className="card">
@@ -124,6 +187,7 @@ export default function PermissionsScreen() {
               <th>Role</th>
               <th>Status</th>
               {MODULES.map((m) => <th key={m.key} className="num">{m.label}</th>)}
+              {isOwner && <th className="num">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -150,11 +214,27 @@ export default function PermissionsScreen() {
                       </td>
                     )
                   })}
+                  {isOwner && (
+                    <td className="num">
+                      {member.role === 'Owner' || member.id === membershipId ? (
+                        <span className="login-footnote" style={{ margin: 0 }}>—</span>
+                      ) : (
+                        <button
+                          className="link-btn"
+                          style={{ color: 'var(--brick)' }}
+                          disabled={removingId === member.id}
+                          onClick={() => handleRemove(member)}
+                        >
+                          {removingId === member.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )
             })}
             {members.length === 0 && (
-              <tr><td colSpan={3 + MODULES.length} className="empty-state">No team members yet.</td></tr>
+              <tr><td colSpan={3 + MODULES.length + (isOwner ? 1 : 0)} className="empty-state">No team members yet.</td></tr>
             )}
           </tbody>
         </table>

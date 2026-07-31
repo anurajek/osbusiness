@@ -73,12 +73,12 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
   )
 }
 
-function AuthenticatedApp({ memberships, userEmail, onCreateFirm, initialError, onSignOut }) {
+function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut }) {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [arapTab, setArapTab] = useState('receivables')
 
   return (
-    <FirmProvider memberships={memberships}>
+    <FirmProvider memberships={memberships} refreshMemberships={refreshMemberships}>
       <RoutedShell
         activeModule={activeModule}
         setActiveModule={setActiveModule}
@@ -128,7 +128,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 }
 
 export default function App() {
-  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, signOut } = useAuth()
+  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, refreshMemberships, signOut } = useAuth()
   const [authMode, setAuthMode] = useState('login')
 
   if (loading) {
@@ -159,6 +159,7 @@ export default function App() {
   return (
     <AuthenticatedApp
       memberships={memberships}
+      refreshMemberships={refreshMemberships}
       userEmail={session?.user?.email}
       onCreateFirm={createFirmForSession}
       initialError={memberships.length === 0 ? error : null}

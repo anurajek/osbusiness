@@ -167,6 +167,13 @@ export function useAuth() {
   // teammate by email. Creates a pending row with no user_id yet - it gets
   // linked automatically the moment that person signs up or logs in with
   // this exact email (see linkPendingInvites above).
+  // Lets a screen pull fresh firm_members/firms data after an edit that
+  // happened outside the normal auth flow - e.g. renaming the firm, or
+  // removing a teammate - without needing a full page reload.
+  const refreshMemberships = useCallback(() => {
+    if (session?.user) return loadMemberships(session.user.id)
+  }, [session, loadMemberships])
+
   const inviteTeammate = useCallback(async ({ firmId, email, fullName, role }) => {
     const permissions = role === 'Owner' ? OWNER_PERMISSIONS : DEFAULT_ACCOUNTANT_PERMISSIONS
     const { error: inviteError } = await supabase.from('firm_members').insert({
@@ -184,5 +191,5 @@ export function useAuth() {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, inviteTeammate, signOut }
+  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, inviteTeammate, refreshMemberships, signOut }
 }
