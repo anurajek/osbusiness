@@ -406,6 +406,7 @@ export default function InvoiceListScreen({ type }) {
               <th>Issued</th>
               <th className="num">Amount</th>
               <th className="num">Paid</th>
+              <th className="num">Balance</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -422,6 +423,7 @@ export default function InvoiceListScreen({ type }) {
                     <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
                     <td className="num mono">{inr(r.amount)}</td>
                     <td className="num mono">{inr(r.paid_amount)}</td>
+                    <td className={`num mono ${r.amount - r.paid_amount > 0 ? 'amt-neg' : ''}`}>{inr(r.amount - r.paid_amount)}</td>
                     <td><StatusPill status={status} /></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {!fullyPaid && (
@@ -432,7 +434,7 @@ export default function InvoiceListScreen({ type }) {
                   </tr>
                   {payingId === r.id && (
                     <tr>
-                      <td colSpan={7} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
+                      <td colSpan={8} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
                         <div className="add-comm-row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                           <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
                             {inr(r.amount - r.paid_amount)} still due
@@ -464,7 +466,7 @@ export default function InvoiceListScreen({ type }) {
                 </Fragment>
               )
             })}
-            {filtered.length === 0 && <EmptyRow colSpan={7}>No records match these filters.</EmptyRow>}
+            {filtered.length === 0 && <EmptyRow colSpan={8}>No records match these filters.</EmptyRow>}
           </tbody>
         </table>
       </div>
