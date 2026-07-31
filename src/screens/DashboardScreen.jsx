@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ComposedChart, Bar, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
@@ -28,25 +28,6 @@ function buildAgeing(openRows) {
     totals[bucketFor(daysOverdue)] += (r.amount - r.paid_amount)
   }
   return AGE_BUCKETS.map((bucket) => ({ bucket, amount: totals[bucket] }))
-}
-
-function buildForecast(openInvoices, openBills, startingBalance) {
-  const weeks = []
-  const today = new Date()
-  let running = startingBalance
-  for (let w = 0; w < 6; w++) {
-    const weekStart = new Date(today); weekStart.setDate(today.getDate() + w * 7)
-    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + (w + 1) * 7)
-    const inflow = openInvoices
-      .filter((i) => { const d = new Date(i.due_date || i.issued_date); return d >= weekStart && d < weekEnd })
-      .reduce((s, i) => s + (i.amount - i.paid_amount), 0)
-    const outflow = openBills
-      .filter((b) => { const d = new Date(b.due_date || b.issued_date); return d >= weekStart && d < weekEnd })
-      .reduce((s, b) => s + (b.amount - b.paid_amount), 0)
-    running = running + inflow - outflow
-    weeks.push({ week: `Wk ${w + 1}`, inflow, outflow, closing: running })
-  }
-  return weeks
 }
 
 // India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.
@@ -147,7 +128,6 @@ export default function DashboardScreen({ onNavigate }) {
         accountCount: (accounts ?? []).length,
         arAgeing: buildAgeing(openInvoices),
         apAgeing: buildAgeing(openBills),
-        forecast: buildForecast(openInvoices, openBills, totalCash),
         activity: activity ?? [],
         bankTxns: bankTxns ?? [],
       })
@@ -253,29 +233,6 @@ export default function DashboardScreen({ onNavigate }) {
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="card chart-card">
-        <div className="section-header" style={{ marginBottom: 4 }}>
-          <h2>6-week cashflow forecast</h2>
-          <span className="section-header__note">inflow / outflow / projected closing balance</span>
-        </div>
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={data.forecast} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="var(--rule)" vertical={false} />
-            <XAxis dataKey="week" tick={{ fill: 'var(--paper-dim)', fontSize: 12 }} axisLine={{ stroke: 'var(--rule)' }} tickLine={false} />
-            <YAxis tick={{ fill: 'var(--paper-dim)', fontSize: 11 }} axisLine={false} tickLine={false}
-              tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} width={54} />
-            <Tooltip
-              contentStyle={{ background: 'var(--panel)', border: '1px solid var(--rule)', borderRadius: 8, fontSize: 12 }}
-              labelStyle={{ color: 'var(--paper)' }}
-              formatter={(value, name) => [inr(value), name === 'closing' ? 'Closing balance' : name === 'inflow' ? 'Inflow' : 'Outflow']}
-            />
-            <Bar dataKey="inflow" fill="var(--teal)" radius={[3, 3, 0, 0]} barSize={16} />
-            <Bar dataKey="outflow" fill="var(--brick)" radius={[3, 3, 0, 0]} barSize={16} />
-            <Line type="monotone" dataKey="closing" stroke="var(--brass)" strokeWidth={2} dot={{ r: 3, fill: 'var(--brass)' }} />
-          </ComposedChart>
-        </ResponsiveContainer>
       </div>
 
       <div className="grid-2">

@@ -51,10 +51,12 @@ a future addition needing a proper email service).
       Cash & Bank manually rather than a silent inconsistency. A proper
       fix would move this into a Postgres function; noted as a solid
       next hardening step, not done yet.
-- [x] Dashboard now has a **Cash Flow** trend chart (separate from the
-      6-week forecast) — historical incoming/outgoing/balance reconstructed
-      from real bank transactions, with a period picker: This Fiscal Year,
-      Previous Fiscal Year (India's Apr-Mar year), or Last 12 Months
+- [x] Dashboard has one **Cash Flow** trend chart (the earlier separate
+      "6-week forecast" chart was removed to avoid showing two overlapping
+      cashflow views) — historical incoming/outgoing/balance reconstructed
+      from real bank transactions, with a period picker styled to match
+      the rest of the app: This Fiscal Year, Previous Fiscal Year (India's
+      Apr-Mar year), or Last 12 Months
 - [ ] No deleting of invoices/bills/accounts yet - only creation and editing
 - [ ] No invite email sent - invited person must be told separately
 - [ ] RLS lets any active member send an invite, not just Owners (UI hides
