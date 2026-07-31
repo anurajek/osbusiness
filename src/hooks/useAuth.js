@@ -127,22 +127,12 @@ export function useAuth() {
       return false
     }
 
-    const { data: firm, error: firmError } = await supabase
-      .from('firms')
-      .insert({ name: firmName, gstin: gstin || null })
-      .select('id')
-      .single()
-    if (firmError) { setError(firmError.message); setProvisioning(false); return false }
-
-    const { error: memberError } = await supabase.from('firm_members').insert({
-      firm_id: firm.id,
-      user_id: user.id,
-      full_name: fullName,
-      role: 'Owner',
-      permissions: OWNER_PERMISSIONS,
-      status: 'active',
+    const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
+      p_firm_name: firmName,
+      p_full_name: fullName,
+      p_gstin: gstin || null,
     })
-    if (memberError) { setError(memberError.message); setProvisioning(false); return false }
+    if (rpcError) { setError(rpcError.message); setProvisioning(false); return false }
 
     // This call is issued after the firm/membership rows exist, so the
     // request-id guard in loadMemberships ensures this result wins even if
@@ -162,22 +152,12 @@ export function useAuth() {
     if (!session?.user) return { ok: false, error: 'No active session.' }
     const user = session.user
 
-    const { data: firm, error: firmError } = await supabase
-      .from('firms')
-      .insert({ name: firmName, gstin: gstin || null })
-      .select('id')
-      .single()
-    if (firmError) return { ok: false, error: firmError.message }
-
-    const { error: memberError } = await supabase.from('firm_members').insert({
-      firm_id: firm.id,
-      user_id: user.id,
-      full_name: fullName,
-      role: 'Owner',
-      permissions: OWNER_PERMISSIONS,
-      status: 'active',
+    const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
+      p_firm_name: firmName,
+      p_full_name: fullName,
+      p_gstin: gstin || null,
     })
-    if (memberError) return { ok: false, error: memberError.message }
+    if (rpcError) return { ok: false, error: rpcError.message }
 
     await loadMemberships(user.id)
     return { ok: true }

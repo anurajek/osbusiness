@@ -65,6 +65,15 @@ a future addition needing a proper email service).
 - [x] "Record payment" now asks which account the money moved through -
       it creates a real transaction on that account and updates its
       balance automatically, alongside marking the invoice/bill paid
+- [x] Fixed the real cause of "new row violates row-level security policy for
+      table firms" on firm creation: the client was doing
+      `insert().select().single()`, and Postgres checks a RETURNING row
+      against the table's *SELECT* policy, not just the INSERT policy - a
+      brand-new firm has no membership row yet, so that SELECT check always
+      failed. Firm + Owner-membership creation now happens inside a single
+      `create_firm_with_owner()` SECURITY DEFINER function
+      (`migration_create_firm_rpc.sql`), which bypasses this entirely and is
+      atomic as a bonus - both rows or neither, always
 - [ ] The invoice-update + transaction-insert + balance-update aren't
       wrapped in a single database transaction - if one step fails after
       an earlier one succeeded, you'll get an error telling you to check
