@@ -30,9 +30,10 @@ a future addition needing a proper email service).
 - [x] Self-service signup, team invites, customer/supplier creation
 - [x] Full app: Dashboard, Sales, Purchases, Receivables (+ comm log),
       Payables, Cash & Bank, Users & Permissions — all real data
-- [x] Create new sales invoices and purchase bills directly from the UI
-      (Sales/Purchases screens → "+ New invoice" / "+ New bill")
-- [ ] No editing or deleting of existing invoices/bills yet - only creation
+- [x] Create **and edit** sales invoices and purchase bills directly from
+      the UI (Sales/Purchases screens → "+ New invoice"/"bill", or "Edit"
+      on any existing row — same form, prefilled)
+- [ ] No deleting of invoices/bills yet - only creation and editing
 - [ ] No invite email sent - invited person must be told separately
 - [ ] RLS lets any active member send an invite, not just Owners (UI hides
       the button, but the API itself doesn't enforce it yet)

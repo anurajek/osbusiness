@@ -37,6 +37,7 @@ export default function InvoiceListScreen({ type }) {
   const [addPartyError, setAddPartyError] = useState(null)
 
   const [showAddDoc, setShowAddDoc] = useState(false)
+  const [editingDocId, setEditingDocId] = useState(null)
   const [newDocPartyId, setNewDocPartyId] = useState('')
   const [newDocNumber, setNewDocNumber] = useState('')
   const [newDocIssuedDate, setNewDocIssuedDate] = useState(() => toISODate(new Date()))
@@ -121,10 +122,28 @@ export default function InvoiceListScreen({ type }) {
   }
 
   const resetDocForm = () => {
+    setEditingDocId(null)
     setNewDocPartyId(''); setNewDocNumber('')
     setNewDocIssuedDate(toISODate(new Date())); setNewDocDueDate('')
     setNewDocAmount(''); setNewDocPaid('0')
     setNewDocStatus(isSales ? 'Sent' : 'Approved')
+  }
+
+  const openCreateForm = () => {
+    resetDocForm()
+    setShowAddDoc(true)
+  }
+
+  const openEditForm = (row) => {
+    setEditingDocId(row.id)
+    setNewDocPartyId(row[partyJoinKey] || '')
+    setNewDocNumber(row[numberField] || '')
+    setNewDocIssuedDate(row.issued_date ? toISODate(new Date(row.issued_date)) : toISODate(new Date()))
+    setNewDocDueDate(row.due_date ? toISODate(new Date(row.due_date)) : '')
+    setNewDocAmount(String(row.amount ?? ''))
+    setNewDocPaid(String(row.paid_amount ?? '0'))
+    setNewDocStatus(row.status || (isSales ? 'Sent' : 'Approved'))
+    setShowAddDoc(true)
   }
 
   const handleAddDoc = async (e) => {
@@ -137,9 +156,7 @@ export default function InvoiceListScreen({ type }) {
     if (!amountNum || amountNum <= 0) { setAddDocError('Enter a valid amount.'); return }
     const paidNum = parseFloat(newDocPaid) || 0
 
-    setAddingDoc(true)
-    const { error: err } = await supabase.from(table).insert({
-      firm_id: firmId,
+    const payload = {
       [partyJoinKey]: newDocPartyId,
       [numberField]: newDocNumber.trim(),
       issued_date: newDocIssuedDate,
@@ -147,13 +164,18 @@ export default function InvoiceListScreen({ type }) {
       amount: amountNum,
       paid_amount: paidNum,
       status: newDocStatus,
-    })
+    }
+
+    setAddingDoc(true)
+    const { error: err } = editingDocId
+      ? await supabase.from(table).update(payload).eq('id', editingDocId)
+      : await supabase.from(table).insert({ firm_id: firmId, ...payload })
 
     if (!err) {
       // Best-effort activity log entry - if this fails, don't block the user
       await supabase.from('activity_log').insert({
         firm_id: firmId,
-        description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${newDocNumber.trim()} added for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
+        description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${newDocNumber.trim()} ${editingDocId ? 'updated' : 'added'} for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
       })
     }
 
@@ -215,7 +237,7 @@ export default function InvoiceListScreen({ type }) {
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-            onClick={() => setShowAddDoc((v) => !v)}
+            onClick={() => (showAddDoc && !editingDocId ? setShowAddDoc(false) : openCreateForm())}
             disabled={parties.length === 0}
             title={parties.length === 0 ? `Add a ${partyLabel} first` : undefined}
           >
@@ -231,6 +253,9 @@ export default function InvoiceListScreen({ type }) {
 
         {showAddDoc && (
           <form onSubmit={handleAddDoc} className="add-comm-form" style={{ marginBottom: 16 }}>
+            <div className="drawer__label" style={{ marginBottom: -4 }}>
+              {editingDocId ? `Editing ${docLabel}` : `New ${docLabel}`}
+            </div>
             <div className="add-comm-row">
               <select className="select select--sm" value={newDocPartyId} onChange={(e) => setNewDocPartyId(e.target.value)}>
                 <option value="">{isSales ? 'Select customer' : 'Select supplier'}</option>
@@ -265,7 +290,18 @@ export default function InvoiceListScreen({ type }) {
               </div>
             </div>
             {addDocError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addDocError}</p>}
-            <button className="btn-primary" disabled={addingDoc}>{addingDoc ? 'Adding…' : `Add ${docLabel}`}</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-primary" disabled={addingDoc}>
+                {addingDoc ? 'Saving…' : editingDocId ? 'Save changes' : `Add ${docLabel}`}
+              </button>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => { resetDocForm(); setShowAddDoc(false) }}
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         )}
 
@@ -277,6 +313,7 @@ export default function InvoiceListScreen({ type }) {
               <th>Issued</th>
               <th className="num">Amount</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -287,9 +324,10 @@ export default function InvoiceListScreen({ type }) {
                 <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
                 <td className="num mono">{inr(r.amount)}</td>
                 <td><StatusPill status={r.status} /></td>
+                <td><button className="link-btn" onClick={() => openEditForm(r)}>Edit</button></td>
               </tr>
             ))}
-            {filtered.length === 0 && <EmptyRow colSpan={5}>No records match these filters.</EmptyRow>}
+            {filtered.length === 0 && <EmptyRow colSpan={6}>No records match these filters.</EmptyRow>}
           </tbody>
         </table>
       </div>
