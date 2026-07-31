@@ -14,6 +14,7 @@ export default function InvoiceListScreen({ type }) {
   const isSales = type === 'sales'
   const statusOptions = isSales ? SALES_STATUSES : PURCHASE_STATUSES
   const partyLabel = isSales ? 'customer' : 'supplier'
+  const docLabel = isSales ? 'invoice' : 'bill'
 
   const [rows, setRows] = useState([])
   const [parties, setParties] = useState([])
@@ -34,6 +35,17 @@ export default function InvoiceListScreen({ type }) {
   const [newPartyContact, setNewPartyContact] = useState('')
   const [addingParty, setAddingParty] = useState(false)
   const [addPartyError, setAddPartyError] = useState(null)
+
+  const [showAddDoc, setShowAddDoc] = useState(false)
+  const [newDocPartyId, setNewDocPartyId] = useState('')
+  const [newDocNumber, setNewDocNumber] = useState('')
+  const [newDocIssuedDate, setNewDocIssuedDate] = useState(() => toISODate(new Date()))
+  const [newDocDueDate, setNewDocDueDate] = useState('')
+  const [newDocAmount, setNewDocAmount] = useState('')
+  const [newDocPaid, setNewDocPaid] = useState('0')
+  const [newDocStatus, setNewDocStatus] = useState(isSales ? 'Sent' : 'Approved')
+  const [addingDoc, setAddingDoc] = useState(false)
+  const [addDocError, setAddDocError] = useState(null)
 
   const partyTable = isSales ? 'customers' : 'suppliers'
   const table = isSales ? 'sales_invoices' : 'purchase_bills'
@@ -108,6 +120,50 @@ export default function InvoiceListScreen({ type }) {
     load()
   }
 
+  const resetDocForm = () => {
+    setNewDocPartyId(''); setNewDocNumber('')
+    setNewDocIssuedDate(toISODate(new Date())); setNewDocDueDate('')
+    setNewDocAmount(''); setNewDocPaid('0')
+    setNewDocStatus(isSales ? 'Sent' : 'Approved')
+  }
+
+  const handleAddDoc = async (e) => {
+    e.preventDefault()
+    setAddDocError(null)
+
+    if (!newDocPartyId) { setAddDocError(`Select a ${partyLabel}.`); return }
+    if (!newDocNumber.trim()) { setAddDocError(`Enter a ${docLabel} number.`); return }
+    const amountNum = parseFloat(newDocAmount)
+    if (!amountNum || amountNum <= 0) { setAddDocError('Enter a valid amount.'); return }
+    const paidNum = parseFloat(newDocPaid) || 0
+
+    setAddingDoc(true)
+    const { error: err } = await supabase.from(table).insert({
+      firm_id: firmId,
+      [partyJoinKey]: newDocPartyId,
+      [numberField]: newDocNumber.trim(),
+      issued_date: newDocIssuedDate,
+      due_date: newDocDueDate || null,
+      amount: amountNum,
+      paid_amount: paidNum,
+      status: newDocStatus,
+    })
+
+    if (!err) {
+      // Best-effort activity log entry - if this fails, don't block the user
+      await supabase.from('activity_log').insert({
+        firm_id: firmId,
+        description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${newDocNumber.trim()} added for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
+      })
+    }
+
+    setAddingDoc(false)
+    if (err) { setAddDocError(err.message); return }
+    resetDocForm()
+    setShowAddDoc(false)
+    load()
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -154,9 +210,65 @@ export default function InvoiceListScreen({ type }) {
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
       />
       <div className="card">
-        <div className="section-header" style={{ marginBottom: 8 }}>
+        <div className="section-header" style={{ marginBottom: showAddDoc ? 12 : 8 }}>
           <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+          <button
+            className="link-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => setShowAddDoc((v) => !v)}
+            disabled={parties.length === 0}
+            title={parties.length === 0 ? `Add a ${partyLabel} first` : undefined}
+          >
+            <Plus size={14} /> New {docLabel}
+          </button>
         </div>
+
+        {parties.length === 0 && !showAddDoc && (
+          <p className="login-footnote" style={{ marginTop: -4, marginBottom: 12 }}>
+            Add a {partyLabel} above before creating a {docLabel}.
+          </p>
+        )}
+
+        {showAddDoc && (
+          <form onSubmit={handleAddDoc} className="add-comm-form" style={{ marginBottom: 16 }}>
+            <div className="add-comm-row">
+              <select className="select select--sm" value={newDocPartyId} onChange={(e) => setNewDocPartyId(e.target.value)}>
+                <option value="">{isSales ? 'Select customer' : 'Select supplier'}</option>
+                {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input
+                className="text-input"
+                placeholder={isSales ? 'Invoice # (e.g. INV-1045)' : 'Bill # (e.g. PB-2240)'}
+                value={newDocNumber}
+                onChange={(e) => setNewDocNumber(e.target.value)}
+              />
+              <select className="select select--sm" value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)}>
+                {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="add-comm-row">
+              <div style={{ flex: 1 }}>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Issued date</label>
+                <input type="date" className="text-input" value={newDocIssuedDate} onChange={(e) => setNewDocIssuedDate(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Due date (optional)</label>
+                <input type="date" className="text-input" value={newDocDueDate} onChange={(e) => setNewDocDueDate(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Amount (₹)</label>
+                <input type="number" min="0" step="0.01" className="text-input" value={newDocAmount} onChange={(e) => setNewDocAmount(e.target.value)} placeholder="0.00" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Already paid (₹)</label>
+                <input type="number" min="0" step="0.01" className="text-input" value={newDocPaid} onChange={(e) => setNewDocPaid(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            {addDocError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addDocError}</p>}
+            <button className="btn-primary" disabled={addingDoc}>{addingDoc ? 'Adding…' : `Add ${docLabel}`}</button>
+          </form>
+        )}
+
         <table className="ledger-table">
           <thead>
             <tr>

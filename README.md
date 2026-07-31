@@ -11,37 +11,28 @@ Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, a
 
 1. `npm install`
 2. `cp .env.example .env` and fill in your real Supabase URL + anon key
-   (Supabase Dashboard → Settings → API)
-3. Run `ledger_os_schema.sql` in Supabase's SQL Editor if you haven't already,
-   then `migration_multitenant.sql` (enables self-service signup + invites)
+3. Run `ledger_os_schema.sql` then `migration_multitenant.sql` in Supabase's SQL Editor
 4. Enable Email auth: Supabase → Authentication → Providers
 5. `npm run dev`
 
-## Onboarding a new firm (no SQL needed anymore)
+## Onboarding a new firm
 
-Go to the app, click "New here? Create your firm" on the login screen, fill
-in your name/firm/email/password. You're automatically the Owner.
+Login screen → "New here? Create your firm." Creates the account and firm together, auto-Owner.
 
 ## Inviting a teammate
 
-Users & Permissions → "Invite a teammate" → enter their name, email, role.
-Tell them (outside the app - no invite email is sent yet) to go create an
-account or sign in using that exact email. The moment they do, they're
-automatically linked to the firm with the role you set.
+Users & Permissions → "Invite a teammate." Tell them to sign up/log in with that
+exact email — they're linked automatically (no invite email sent yet, that's
+a future addition needing a proper email service).
 
 ## Status
 
-- [x] Self-service signup: create account + firm together, auto-Owner
-- [x] Team invites: pending membership by email, auto-linked on signup/login
-- [x] Customers/Suppliers: add directly from the Sales/Purchases screens
+- [x] Self-service signup, team invites, customer/supplier creation
 - [x] Full app: Dashboard, Sales, Purchases, Receivables (+ comm log),
       Payables, Cash & Bank, Users & Permissions — all real data
-- [ ] No actual invite email is sent - the invited person has to be told
-      separately to go sign up. Real email invites need a Supabase Edge
-      Function + email service (a solid v2 addition, more infra).
-- [ ] No UI yet for creating new invoices/bills/bank transactions directly -
-      only customers/suppliers can be added from the UI so far.
-- [ ] RLS currently lets any *active* firm member send an invite, not just
-      Owners - the UI hides the button from non-Owners, but a technically
-      savvy non-Owner could still call the API directly. Worth tightening
-      later with a role-aware RLS policy.
+- [x] Create new sales invoices and purchase bills directly from the UI
+      (Sales/Purchases screens → "+ New invoice" / "+ New bill")
+- [ ] No editing or deleting of existing invoices/bills yet - only creation
+- [ ] No invite email sent - invited person must be told separately
+- [ ] RLS lets any active member send an invite, not just Owners (UI hides
+      the button, but the API itself doesn't enforce it yet)
