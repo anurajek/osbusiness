@@ -40,8 +40,8 @@ a future addition needing a proper email service).
 - [x] Create **and edit** sales invoices and purchase bills directly from
       the UI (Sales/Purchases screens → "+ New invoice"/"bill", or "Edit"
       on any existing row — same form, prefilled)
-- [x] Add cash/bank accounts directly from the UI (Cash & Bank → "+ New
-      account") — set up "Cash in hand", "HDFC Current A/c", etc. yourself
+- [x] Add **and edit** cash/bank accounts directly from the UI (Cash & Bank
+      → "+ New account", or "Edit" on any existing account card)
 - [x] "Record payment" now asks which account the money moved through -
       it creates a real transaction on that account and updates its
       balance automatically, alongside marking the invoice/bill paid

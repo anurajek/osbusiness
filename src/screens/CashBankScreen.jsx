@@ -24,6 +24,7 @@ export default function CashBankScreen() {
   const [search, setSearch] = useState('')
 
   const [showAddAccount, setShowAddAccount] = useState(false)
+  const [editingAccountId, setEditingAccountId] = useState(null)
   const [newAccountName, setNewAccountName] = useState('')
   const [newAccountMask, setNewAccountMask] = useState('')
   const [newAccountBalance, setNewAccountBalance] = useState('0')
@@ -67,22 +68,43 @@ export default function CashBankScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [txns, range, accountFilter, typeFilter, reconFilter, search, sortBy, accounts])
 
-  const handleAddAccount = async (e) => {
+  const resetAccountForm = () => {
+    setEditingAccountId(null)
+    setNewAccountName(''); setNewAccountMask(''); setNewAccountBalance('0')
+  }
+
+  const openCreateAccountForm = () => {
+    resetAccountForm()
+    setShowAddAccount(true)
+  }
+
+  const openEditAccountForm = (a) => {
+    setEditingAccountId(a.id)
+    setNewAccountName(a.name || '')
+    setNewAccountMask(a.account_mask || '')
+    setNewAccountBalance(String(a.balance ?? '0'))
+    setShowAddAccount(true)
+  }
+
+  const handleSaveAccount = async (e) => {
     e.preventDefault()
     setAddAccountError(null)
     if (!newAccountName.trim()) { setAddAccountError('Enter a name (e.g. "Cash in hand" or "HDFC Current A/c").'); return }
-    const openingBalance = parseFloat(newAccountBalance) || 0
+    const balanceNum = parseFloat(newAccountBalance) || 0
 
-    setAddingAccount(true)
-    const { error: err } = await supabase.from('bank_accounts').insert({
-      firm_id: firmId,
+    const payload = {
       name: newAccountName.trim(),
       account_mask: newAccountMask.trim() || null,
-      balance: openingBalance,
-    })
+      balance: balanceNum,
+    }
+
+    setAddingAccount(true)
+    const { error: err } = editingAccountId
+      ? await supabase.from('bank_accounts').update(payload).eq('id', editingAccountId)
+      : await supabase.from('bank_accounts').insert({ firm_id: firmId, ...payload })
     setAddingAccount(false)
     if (err) { setAddAccountError(err.message); return }
-    setNewAccountName(''); setNewAccountMask(''); setNewAccountBalance('0')
+    resetAccountForm()
     setShowAddAccount(false)
     load()
   }
@@ -97,22 +119,39 @@ export default function CashBankScreen() {
       <div className="card">
         <div className="section-header" style={{ marginBottom: showAddAccount ? 12 : 8 }}>
           <h2>Accounts</h2>
-          <button className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setShowAddAccount((v) => !v)}>
+          <button
+            className="link-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => (showAddAccount && !editingAccountId ? setShowAddAccount(false) : openCreateAccountForm())}
+          >
             <Plus size={14} /> New account
           </button>
         </div>
 
         {showAddAccount && (
-          <form onSubmit={handleAddAccount} className="add-comm-form" style={{ marginBottom: 16 }}>
+          <form onSubmit={handleSaveAccount} className="add-comm-form" style={{ marginBottom: 16 }}>
+            <div className="drawer__label" style={{ marginBottom: -4 }}>
+              {editingAccountId ? 'Editing account' : 'New account'}
+            </div>
             <div className="add-comm-row">
               <input className="text-input" placeholder='Name (e.g. "Cash in hand", "HDFC Current A/c")' value={newAccountName} onChange={(e) => setNewAccountName(e.target.value)} />
               <input className="text-input" placeholder="Account mask (optional, e.g. ****4521)" value={newAccountMask} onChange={(e) => setNewAccountMask(e.target.value)} />
-              <input type="number" step="0.01" className="text-input" placeholder="Opening balance (₹)" value={newAccountBalance} onChange={(e) => setNewAccountBalance(e.target.value)} />
+              <input type="number" step="0.01" className="text-input" placeholder="Balance (₹)" value={newAccountBalance} onChange={(e) => setNewAccountBalance(e.target.value)} />
             </div>
+            {editingAccountId && (
+              <p className="login-footnote" style={{ margin: 0 }}>
+                Editing the balance here overrides it directly — it won't create a transaction record.
+                Use "Record payment" on an invoice/bill, or add a transaction, for anything that should show up in the ledger below.
+              </p>
+            )}
             {addAccountError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addAccountError}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-primary" disabled={addingAccount}>{addingAccount ? 'Adding…' : 'Add account'}</button>
-              <button type="button" className="link-btn" onClick={() => setShowAddAccount(false)}>Cancel</button>
+              <button className="btn-primary" disabled={addingAccount}>
+                {addingAccount ? 'Saving…' : editingAccountId ? 'Save changes' : 'Add account'}
+              </button>
+              <button type="button" className="link-btn" onClick={() => { resetAccountForm(); setShowAddAccount(false) }}>
+                Cancel
+              </button>
             </div>
           </form>
         )}
@@ -120,7 +159,10 @@ export default function CashBankScreen() {
         <div className="grid-3">
           {accounts.map((a) => (
             <div key={a.id} className="card stat-card" style={{ border: 'none', background: 'var(--panel-alt)' }}>
-              <div className="stat-card__label">{a.name} {a.account_mask}</div>
+              <div className="stat-card__top">
+                <div className="stat-card__label">{a.name} {a.account_mask}</div>
+                <button className="link-btn" style={{ padding: 0 }} onClick={() => openEditAccountForm(a)}>Edit</button>
+              </div>
               <div className="stat-card__value">{inr(a.balance)}</div>
             </div>
           ))}
