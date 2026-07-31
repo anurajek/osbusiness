@@ -48,3 +48,39 @@ export function getPeriodRange(period, customFrom, customTo) {
 export function toISODate(d) {
   return d.toISOString().slice(0, 10);
 }
+
+// Determines the *real* status of an invoice/bill from its actual numbers,
+// rather than trusting a manually-set field that can go stale (e.g. nobody
+// remembers to flip it to "Overdue" once a due date quietly passes).
+export function computeStatus({ amount, paid_amount, due_date }, baseStatus) {
+  const paid = Number(paid_amount) || 0;
+  const total = Number(amount) || 0;
+
+  if (total > 0 && paid >= total) return "Paid";
+  if (paid > 0) return "Partial";
+
+  if (due_date) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date(due_date); due.setHours(0, 0, 0, 0);
+    if (due < today) return "Overdue";
+    if (due.getTime() === today.getTime()) return "Due today";
+  }
+
+  return baseStatus; // "Sent" for sales, "Approved" for purchases - nothing paid, not yet due
+}
+
+// The database columns only accept a fixed set of values per table (a
+// constraint from the original schema). The computed status above can
+// produce values outside that set for a given table (e.g. "Partial" isn't
+// in purchase_bills' allowed list) - this maps back to the nearest allowed
+// value so writes never fail, while the app always *displays* the fully
+// accurate computed value regardless of what's persisted.
+export function statusForStorage(computed, isSales) {
+  const salesAllowed = ["Sent", "Paid", "Partial", "Overdue"];
+  const purchaseAllowed = ["Approved", "Paid", "Due today", "Overdue"];
+  const allowed = isSales ? salesAllowed : purchaseAllowed;
+  if (allowed.includes(computed)) return computed;
+  if (computed === "Due today" && isSales) return "Sent";
+  if (computed === "Partial" && !isSales) return "Approved";
+  return isSales ? "Sent" : "Approved";
+}

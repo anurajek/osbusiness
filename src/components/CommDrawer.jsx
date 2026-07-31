@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { inr, toISODate } from '../lib/format'
+import { inr, toISODate, computeStatus } from '../lib/format'
 import { StatusPill } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
@@ -19,7 +19,10 @@ export default function CommDrawer({ customer, invoices, comms, onAddComm, onClo
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
 
-  const openInvoices = invoices.filter((i) => i.customer_id === customer.id && i.status !== 'Paid')
+  const openInvoices = invoices
+    .filter((i) => i.customer_id === customer.id)
+    .map((i) => ({ ...i, liveStatus: computeStatus(i, 'Sent') }))
+    .filter((i) => i.liveStatus !== 'Paid')
 
   const submit = async () => {
     if (!text.trim()) return
@@ -45,7 +48,7 @@ export default function CommDrawer({ customer, invoices, comms, onAddComm, onClo
                   <td className="mono">{i.invoice_no}</td>
                   <td className="mono">{toISODate(new Date(i.issued_date))}</td>
                   <td className="num mono">{inr(i.amount - i.paid_amount)}</td>
-                  <td><StatusPill status={i.status} /></td>
+                  <td><StatusPill status={i.liveStatus} /></td>
                 </tr>
               ))}
               {openInvoices.length === 0 && (

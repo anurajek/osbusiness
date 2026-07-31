@@ -30,6 +30,13 @@ a future addition needing a proper email service).
 - [x] Self-service signup, team invites, customer/supplier creation
 - [x] Full app: Dashboard, Sales, Purchases, Receivables (+ comm log),
       Payables, Cash & Bank, Users & Permissions — all real data
+- [x] Status is now **calculated automatically** everywhere (Sales,
+      Purchases, Receivables, Payables, Dashboard) from the actual amount,
+      amount paid, and due date - not a manually-picked field. Overdue
+      flips on its own once a due date passes, Partial/Paid follow from
+      how much has actually been paid. Nothing to remember to update.
+- [x] "Record payment" quick action on every invoice/bill row - enter the
+      amount received, status updates automatically, no need to open Edit
 - [x] Create **and edit** sales invoices and purchase bills directly from
       the UI (Sales/Purchases screens → "+ New invoice"/"bill", or "Edit"
       on any existing row — same form, prefilled)

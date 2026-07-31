@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange } from '../lib/format'
+import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow } from '../components/ui'
 
-const PURCHASE_STATUSES_OPEN = ['Approved', 'Due today', 'Overdue']
+const PURCHASE_STATUSES_OPEN = ['Approved', 'Partial', 'Due today', 'Overdue']
 
 export default function PayablesScreen() {
   const { firmId } = useFirm()
@@ -58,7 +58,7 @@ export default function PayablesScreen() {
 
   const tableBills = useMemo(() => {
     if (statusFilter === 'all') return billsInPeriod
-    return billsInPeriod.filter((b) => b.status === statusFilter)
+    return billsInPeriod.filter((b) => computeStatus(b, 'Approved') === statusFilter)
   }, [billsInPeriod, statusFilter])
 
   const rows = useMemo(() => {
@@ -67,7 +67,7 @@ export default function PayablesScreen() {
 
     let result = supList.map((sup) => {
       const supBills = tableBills.filter((b) => b.supplier_id === sup.id)
-      const openBills = supBills.filter((b) => b.status !== 'Paid')
+      const openBills = supBills.filter((b) => computeStatus(b, 'Approved') !== 'Paid')
       const amountDue = openBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
       const mostUrgent = openBills.slice().sort((a, b) => new Date(a.issued_date) - new Date(b.issued_date))[0] || null
       return { supplier: sup, openCount: openBills.length, amountDue, mostUrgent }
@@ -146,7 +146,7 @@ export default function PayablesScreen() {
                 <td>{r.supplier.name}</td>
                 <td className="num mono">{r.openCount}</td>
                 <td className="num mono">{inr(r.amountDue)}</td>
-                <td>{r.mostUrgent ? <StatusPill status={r.mostUrgent.status} /> : '—'}</td>
+                <td>{r.mostUrgent ? <StatusPill status={computeStatus(r.mostUrgent, 'Approved')} /> : '—'}</td>
               </tr>
             ))}
             {rows.length === 0 && <EmptyRow colSpan={4}>No open payables match these filters.</EmptyRow>}

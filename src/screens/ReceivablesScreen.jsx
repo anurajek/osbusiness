@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange } from '../lib/format'
+import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 
-const SALES_STATUSES_OPEN = ['Sent', 'Partial', 'Overdue']
+const SALES_STATUSES_OPEN = ['Sent', 'Partial', 'Due today', 'Overdue']
 
 export default function ReceivablesScreen() {
   const { firmId } = useFirm()
@@ -63,7 +63,7 @@ export default function ReceivablesScreen() {
 
   const tableInvoices = useMemo(() => {
     if (statusFilter === 'all') return invoicesInPeriod
-    return invoicesInPeriod.filter((i) => i.status === statusFilter)
+    return invoicesInPeriod.filter((i) => computeStatus(i, 'Sent') === statusFilter)
   }, [invoicesInPeriod, statusFilter])
 
   const lastCommFor = (customerId) => comms.find((c) => c.customer_id === customerId) || null
@@ -74,7 +74,7 @@ export default function ReceivablesScreen() {
 
     let result = custList.map((cust) => {
       const custInvoices = tableInvoices.filter((i) => i.customer_id === cust.id)
-      const openInvoices = custInvoices.filter((i) => i.status !== 'Paid')
+      const openInvoices = custInvoices.filter((i) => computeStatus(i, 'Sent') !== 'Paid')
       const amountDue = openInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
       return { customer: cust, openCount: openInvoices.length, amountDue, lastComm: lastCommFor(cust.id) }
     }).filter((r) => r.amountDue > 0)

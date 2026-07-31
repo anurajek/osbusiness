@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr } from '../lib/format'
+import { inr, computeStatus } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
@@ -77,8 +77,8 @@ export default function DashboardScreen({ onNavigate }) {
       const err = accErr || invErr || billErr || actErr
       if (err) { setError(err.message); setLoading(false); return }
 
-      const openInvoices = (invoices ?? []).filter((i) => i.status !== 'Paid')
-      const openBills = (bills ?? []).filter((b) => b.status !== 'Paid')
+      const openInvoices = (invoices ?? []).filter((i) => computeStatus(i, 'Sent') !== 'Paid')
+      const openBills = (bills ?? []).filter((b) => computeStatus(b, 'Approved') !== 'Paid')
       const totalCash = (accounts ?? []).reduce((s, a) => s + a.balance, 0)
       const totalAR = openInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
       const totalAP = openBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)

@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate } from '../lib/format'
+import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow } from '../components/ui'
 
-const SALES_STATUSES = ['Paid', 'Sent', 'Partial', 'Overdue']
-const PURCHASE_STATUSES = ['Paid', 'Approved', 'Due today', 'Overdue']
+// Full list of statuses a record can ever show as (computed live, not stored).
+const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
 
 export default function InvoiceListScreen({ type }) {
   const { firmId } = useFirm()
   const isSales = type === 'sales'
-  const statusOptions = isSales ? SALES_STATUSES : PURCHASE_STATUSES
+  const baseStatus = isSales ? 'Sent' : 'Approved'
+  const statusOptions = [baseStatus, ...ALL_STATUSES]
   const partyLabel = isSales ? 'customer' : 'supplier'
   const docLabel = isSales ? 'invoice' : 'bill'
 
@@ -44,9 +45,13 @@ export default function InvoiceListScreen({ type }) {
   const [newDocDueDate, setNewDocDueDate] = useState('')
   const [newDocAmount, setNewDocAmount] = useState('')
   const [newDocPaid, setNewDocPaid] = useState('0')
-  const [newDocStatus, setNewDocStatus] = useState(isSales ? 'Sent' : 'Approved')
   const [addingDoc, setAddingDoc] = useState(false)
   const [addDocError, setAddDocError] = useState(null)
+
+  const [payingId, setPayingId] = useState(null)
+  const [payAmount, setPayAmount] = useState('')
+  const [payingBusy, setPayingBusy] = useState(false)
+  const [payError, setPayError] = useState(null)
 
   const partyTable = isSales ? 'customers' : 'suppliers'
   const table = isSales ? 'sales_invoices' : 'purchase_bills'
@@ -82,6 +87,7 @@ export default function InvoiceListScreen({ type }) {
 
   const partyName = (id) => parties.find((p) => p.id === id)?.name || '—'
   const range = getPeriodRange(period, customFrom, customTo)
+  const liveStatus = (r) => computeStatus(r, baseStatus)
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -92,7 +98,7 @@ export default function InvoiceListScreen({ type }) {
       })
     }
     if (partyFilter !== 'all') list = list.filter((r) => r[partyJoinKey] === partyFilter)
-    if (statusFilter !== 'all') list = list.filter((r) => r.status === statusFilter)
+    if (statusFilter !== 'all') list = list.filter((r) => liveStatus(r) === statusFilter)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(
@@ -126,7 +132,6 @@ export default function InvoiceListScreen({ type }) {
     setNewDocPartyId(''); setNewDocNumber('')
     setNewDocIssuedDate(toISODate(new Date())); setNewDocDueDate('')
     setNewDocAmount(''); setNewDocPaid('0')
-    setNewDocStatus(isSales ? 'Sent' : 'Approved')
   }
 
   const openCreateForm = () => {
@@ -142,9 +147,18 @@ export default function InvoiceListScreen({ type }) {
     setNewDocDueDate(row.due_date ? toISODate(new Date(row.due_date)) : '')
     setNewDocAmount(String(row.amount ?? ''))
     setNewDocPaid(String(row.paid_amount ?? '0'))
-    setNewDocStatus(row.status || (isSales ? 'Sent' : 'Approved'))
     setShowAddDoc(true)
   }
+
+  // Live preview of what status this record will show as, based on what's
+  // currently typed into the form - updates as you type, nothing to pick.
+  const formPreviewStatus = useMemo(() => {
+    return computeStatus(
+      { amount: newDocAmount, paid_amount: newDocPaid, due_date: newDocDueDate },
+      baseStatus
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newDocAmount, newDocPaid, newDocDueDate])
 
   const handleAddDoc = async (e) => {
     e.preventDefault()
@@ -156,6 +170,7 @@ export default function InvoiceListScreen({ type }) {
     if (!amountNum || amountNum <= 0) { setAddDocError('Enter a valid amount.'); return }
     const paidNum = parseFloat(newDocPaid) || 0
 
+    const computed = computeStatus({ amount: amountNum, paid_amount: paidNum, due_date: newDocDueDate }, baseStatus)
     const payload = {
       [partyJoinKey]: newDocPartyId,
       [numberField]: newDocNumber.trim(),
@@ -163,7 +178,7 @@ export default function InvoiceListScreen({ type }) {
       due_date: newDocDueDate || null,
       amount: amountNum,
       paid_amount: paidNum,
-      status: newDocStatus,
+      status: statusForStorage(computed, isSales),
     }
 
     setAddingDoc(true)
@@ -172,7 +187,6 @@ export default function InvoiceListScreen({ type }) {
       : await supabase.from(table).insert({ firm_id: firmId, ...payload })
 
     if (!err) {
-      // Best-effort activity log entry - if this fails, don't block the user
       await supabase.from('activity_log').insert({
         firm_id: firmId,
         description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${newDocNumber.trim()} ${editingDocId ? 'updated' : 'added'} for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
@@ -183,6 +197,42 @@ export default function InvoiceListScreen({ type }) {
     if (err) { setAddDocError(err.message); return }
     resetDocForm()
     setShowAddDoc(false)
+    load()
+  }
+
+  // Lightweight one-click action for the most common update of all: "the
+  // customer paid X" / "I paid the supplier X" - no need to open the full
+  // edit form just to bump paid_amount. Status recalculates automatically.
+  const openPayForm = (row) => {
+    setPayingId(row.id)
+    setPayAmount('')
+    setPayError(null)
+  }
+
+  const handleRecordPayment = async (row) => {
+    setPayError(null)
+    const extra = parseFloat(payAmount)
+    if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
+
+    const newPaid = Math.min((Number(row.paid_amount) || 0) + extra, row.amount)
+    const computed = computeStatus({ amount: row.amount, paid_amount: newPaid, due_date: row.due_date }, baseStatus)
+
+    setPayingBusy(true)
+    const { error: err } = await supabase
+      .from(table)
+      .update({ paid_amount: newPaid, status: statusForStorage(computed, isSales) })
+      .eq('id', row.id)
+
+    if (!err) {
+      await supabase.from('activity_log').insert({
+        firm_id: firmId,
+        description: `Payment of ${inr(extra)} recorded on ${row[numberField]} (${partyName(row[partyJoinKey])})`,
+      })
+    }
+
+    setPayingBusy(false)
+    if (err) { setPayError(err.message); return }
+    setPayingId(null)
     load()
   }
 
@@ -253,8 +303,9 @@ export default function InvoiceListScreen({ type }) {
 
         {showAddDoc && (
           <form onSubmit={handleAddDoc} className="add-comm-form" style={{ marginBottom: 16 }}>
-            <div className="drawer__label" style={{ marginBottom: -4 }}>
-              {editingDocId ? `Editing ${docLabel}` : `New ${docLabel}`}
+            <div className="drawer__label" style={{ marginBottom: -4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{editingDocId ? `Editing ${docLabel}` : `New ${docLabel}`}</span>
+              <span className="comm-tag">Status: {formPreviewStatus}</span>
             </div>
             <div className="add-comm-row">
               <select className="select select--sm" value={newDocPartyId} onChange={(e) => setNewDocPartyId(e.target.value)}>
@@ -267,9 +318,6 @@ export default function InvoiceListScreen({ type }) {
                 value={newDocNumber}
                 onChange={(e) => setNewDocNumber(e.target.value)}
               />
-              <select className="select select--sm" value={newDocStatus} onChange={(e) => setNewDocStatus(e.target.value)}>
-                {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
             </div>
             <div className="add-comm-row">
               <div style={{ flex: 1 }}>
@@ -289,16 +337,15 @@ export default function InvoiceListScreen({ type }) {
                 <input type="number" min="0" step="0.01" className="text-input" value={newDocPaid} onChange={(e) => setNewDocPaid(e.target.value)} placeholder="0.00" />
               </div>
             </div>
+            <p className="login-footnote" style={{ margin: 0 }}>
+              Status is calculated automatically from the amount paid and the due date — nothing to set manually.
+            </p>
             {addDocError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addDocError}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-primary" disabled={addingDoc}>
                 {addingDoc ? 'Saving…' : editingDocId ? 'Save changes' : `Add ${docLabel}`}
               </button>
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => { resetDocForm(); setShowAddDoc(false) }}
-              >
+              <button type="button" className="link-btn" onClick={() => { resetDocForm(); setShowAddDoc(false) }}>
                 Cancel
               </button>
             </div>
@@ -312,22 +359,55 @@ export default function InvoiceListScreen({ type }) {
               <th>{isSales ? 'Customer' : 'Supplier'}</th>
               <th>Issued</th>
               <th className="num">Amount</th>
+              <th className="num">Paid</th>
               <th>Status</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="ledger-row">
-                <td className="mono">{r[numberField]}</td>
-                <td>{partyName(r[partyJoinKey])}</td>
-                <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
-                <td className="num mono">{inr(r.amount)}</td>
-                <td><StatusPill status={r.status} /></td>
-                <td><button className="link-btn" onClick={() => openEditForm(r)}>Edit</button></td>
-              </tr>
-            ))}
-            {filtered.length === 0 && <EmptyRow colSpan={6}>No records match these filters.</EmptyRow>}
+            {filtered.map((r) => {
+              const status = liveStatus(r)
+              const fullyPaid = status === 'Paid'
+              return (
+                <Fragment key={r.id}>
+                  <tr className="ledger-row">
+                    <td className="mono">{r[numberField]}</td>
+                    <td>{partyName(r[partyJoinKey])}</td>
+                    <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
+                    <td className="num mono">{inr(r.amount)}</td>
+                    <td className="num mono">{inr(r.paid_amount)}</td>
+                    <td><StatusPill status={status} /></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {!fullyPaid && (
+                        <button className="link-btn" onClick={() => openPayForm(r)}>Record payment</button>
+                      )}
+                      <button className="link-btn" onClick={() => openEditForm(r)}>Edit</button>
+                    </td>
+                  </tr>
+                  {payingId === r.id && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
+                        <div className="add-comm-row" style={{ alignItems: 'center' }}>
+                          <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
+                            Amount received now (₹) — {inr(r.amount - r.paid_amount)} still due
+                          </span>
+                          <input
+                            type="number" min="0" step="0.01" className="text-input" style={{ maxWidth: 160 }}
+                            value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="0.00" autoFocus
+                          />
+                          <button className="btn-primary" disabled={payingBusy} onClick={() => handleRecordPayment(r)}>
+                            {payingBusy ? 'Saving…' : 'Save payment'}
+                          </button>
+                          <button className="link-btn" onClick={() => setPayingId(null)}>Cancel</button>
+                        </div>
+                        {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 6 }}>{payError}</p>}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+            {filtered.length === 0 && <EmptyRow colSpan={7}>No records match these filters.</EmptyRow>}
           </tbody>
         </table>
       </div>
