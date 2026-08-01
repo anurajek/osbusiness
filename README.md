@@ -27,9 +27,38 @@ create their firm right there without re-registering.
 
 ## Inviting a teammate
 
-Users & Permissions → "Invite a teammate." Tell them to sign up/log in with that
-exact email — they're linked automatically (no invite email sent yet, that's
-a future addition needing a proper email service).
+Users & Permissions → "Invite a teammate." They're linked automatically the
+moment they sign up/log in with that exact email. As of the "Invite emails"
+section below, they're also emailed directly (once that section's one-time
+setup is done) - until then, tell them about the invite separately.
+
+## Invite emails
+
+Inviting a teammate sends them a real email now, via a new Supabase Edge
+Function (`supabase/functions/send-invite-email/index.ts`) that calls
+[Resend](https://resend.com) (free for up to 3,000 emails/month, no card
+needed to start). This needs a one-time setup before it'll actually send:
+
+1. **Create a Resend account** at resend.com and grab an API key
+   (Dashboard → API Keys → Create API Key).
+2. **Deploy the function** — no CLI needed:
+   - Supabase Dashboard → **Edge Functions** → **Create a new function**
+   - Name it exactly `send-invite-email`
+   - Paste in the contents of `supabase/functions/send-invite-email/index.ts`
+   - Deploy
+3. **Add the secret** — Supabase Dashboard → Edge Functions →
+   **Manage secrets**, add:
+   - `RESEND_API_KEY` = the key from step 1
+   - Optional: `INVITE_FROM_EMAIL` = `"Ledger OS <you@yourdomain.com>"` once
+     you've verified a domain in Resend — until then it falls back to
+     Resend's shared `onboarding@resend.dev` sender, which works
+     immediately but looks less official.
+
+Until this is set up, invites still work exactly as before — the
+`firm_members` row is what actually grants access, the email is just a
+courtesy notification. If the email fails to send (including "not set up
+yet"), the invite form tells you so and asks you to notify them manually,
+instead of pretending the email went out.
 
 ## Status
 
@@ -94,7 +123,18 @@ a future addition needing a proper email service).
       Users & Permissions - asks for confirmation first. An Owner-role row
       and your own row can't be removed from the UI, so a firm can't be left
       without its Owner or have someone accidentally remove themselves
-- [ ] No invite email sent - invited person must be told separately
+- [x] Firm details is now read-only by default with an "Edit" link to open
+      it, rather than two permanently-open input fields - and Save is
+      disabled unless something actually changed, so there's no accidental
+      no-op save
+- [x] Invite emails: inviting a teammate now actually sends them an email
+      (not just a row in the database) via a new Supabase Edge Function,
+      `send-invite-email`, using Resend. **Needs one-time setup before it
+      works live** - see "Invite emails" above. Until that setup is done,
+      invites still work exactly as before (the person can still be told
+      manually); the invite form just shows that the email couldn't be sent
+      instead of silently pretending it worked.
 - [ ] RLS lets any active member send an invite or remove a member, not just
       Owners (UI hides these actions for non-Owners, but the API itself
       doesn't enforce it yet)
+

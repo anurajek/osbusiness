@@ -35,6 +35,7 @@ export default function PermissionsScreen() {
   const [savingFirm, setSavingFirm] = useState(false)
   const [firmError, setFirmError] = useState(null)
   const [firmSuccess, setFirmSuccess] = useState(null)
+  const [editingFirm, setEditingFirm] = useState(false)
 
   // Keep the form in sync if the selected firm changes (multi-firm users)
   // or after a save refreshes `firm` with the latest saved values.
@@ -42,6 +43,21 @@ export default function PermissionsScreen() {
     setFirmName(firm?.name ?? '')
     setFirmGstin(firm?.gstin ?? '')
   }, [firm?.name, firm?.gstin])
+
+  const firmDirty = firmName.trim() !== (firm?.name ?? '') || (firmGstin.trim() || null) !== (firm?.gstin ?? null)
+
+  const startEditingFirm = () => {
+    setFirmError(null)
+    setFirmSuccess(null)
+    setEditingFirm(true)
+  }
+
+  const cancelEditingFirm = () => {
+    setFirmName(firm?.name ?? '')
+    setFirmGstin(firm?.gstin ?? '')
+    setFirmError(null)
+    setEditingFirm(false)
+  }
 
   const isOwner = myRole === 'Owner'
 
@@ -92,12 +108,25 @@ export default function PermissionsScreen() {
       permissions,
       status: 'invited',
     })
-    setInviting(false)
     if (err) {
+      setInviting(false)
       setInviteError(err.message)
       return
     }
-    setInviteSuccess(`Invited. Tell them to sign in at this app with ${inviteEmail.trim()} to get access.`)
+
+    // The invite row above is what actually grants access the moment they
+    // sign in - this email is just a courtesy notification, so a failure
+    // here shouldn't look like the invite itself failed.
+    const { error: emailErr } = await supabase.functions.invoke('send-invite-email', {
+      body: { email: inviteEmail.trim(), fullName: inviteName.trim(), firmName: firm?.name || 'your firm' },
+    })
+    setInviting(false)
+
+    setInviteSuccess(
+      emailErr
+        ? `Invited, but the email notification couldn't be sent (${emailErr.message}). Tell them to sign in at this app with ${inviteEmail.trim()} to get access.`
+        : `Invited and emailed at ${inviteEmail.trim()} — they just need to sign in at this app with that address to get access.`
+    )
     setInviteName('')
     setInviteEmail('')
     setInviteRole('Accountant')
@@ -112,6 +141,10 @@ export default function PermissionsScreen() {
       setFirmError('Firm name cannot be empty.')
       return
     }
+    if (!firmDirty) {
+      setEditingFirm(false)
+      return
+    }
     setSavingFirm(true)
     const { error: err } = await supabase
       .from('firms')
@@ -123,6 +156,7 @@ export default function PermissionsScreen() {
       return
     }
     setFirmSuccess('Saved.')
+    setEditingFirm(false)
     await refreshMemberships?.()
   }
 
@@ -147,16 +181,32 @@ export default function PermissionsScreen() {
 
       {isOwner && (
         <div className="card">
-          <div className="section-header" style={{ marginBottom: 8 }}><h2>Firm details</h2></div>
-          <form onSubmit={handleSaveFirm} className="add-comm-form">
-            <div className="add-comm-row">
-              <input className="text-input" placeholder="Firm name" value={firmName} onChange={(e) => setFirmName(e.target.value)} />
-              <input className="text-input" placeholder="GSTIN (optional)" value={firmGstin} onChange={(e) => setFirmGstin(e.target.value)} />
+          <div className="section-header" style={{ marginBottom: 8 }}>
+            <h2>Firm details</h2>
+            {!editingFirm && (
+              <button type="button" className="link-btn" onClick={startEditingFirm}>Edit</button>
+            )}
+          </div>
+
+          {editingFirm ? (
+            <form onSubmit={handleSaveFirm} className="add-comm-form">
+              <div className="add-comm-row">
+                <input className="text-input" placeholder="Firm name" value={firmName} onChange={(e) => setFirmName(e.target.value)} />
+                <input className="text-input" placeholder="GSTIN (optional)" value={firmGstin} onChange={(e) => setFirmGstin(e.target.value)} />
+              </div>
+              {firmError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{firmError}</p>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-primary" disabled={savingFirm || !firmDirty}>{savingFirm ? 'Saving…' : 'Save firm details'}</button>
+                <button type="button" className="link-btn" onClick={cancelEditingFirm}>Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <div>
+              <div style={{ color: 'var(--paper)' }}>{firm?.name}</div>
+              {firm?.gstin && <div className="login-footnote" style={{ margin: 0 }}>{firm.gstin}</div>}
+              {firmSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{firmSuccess}</p>}
             </div>
-            {firmError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{firmError}</p>}
-            {firmSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{firmSuccess}</p>}
-            <button className="btn-primary" disabled={savingFirm}>{savingFirm ? 'Saving…' : 'Save firm details'}</button>
-          </form>
+          )}
         </div>
       )}
 
