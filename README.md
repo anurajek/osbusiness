@@ -60,6 +60,52 @@ courtesy notification. If the email fails to send (including "not set up
 yet"), the invite form tells you so and asks you to notify them manually,
 instead of pretending the email went out.
 
+## General Ledger (Chart of Accounts, Journal Entries, Reports)
+
+A real double-entry ledger, separate from Sales/Purchases/Cash & Bank. Run
+`migration_general_ledger.sql` once in Supabase's SQL Editor (after
+`migration_create_firm_rpc.sql`, which it extends) - it's additive, safe to
+run on the existing database.
+
+**Chart of Accounts** - every firm gets 10 standard starter accounts
+automatically (Cash, Bank, Accounts Receivable, Accounts Payable, GST
+Payable, Owner's Equity, Retained Earnings, Sales Revenue, COGS, Operating
+Expenses) - new firms get these on creation, existing firms got them
+backfilled by the migration. Add more anytime from Ledger → Chart of
+Accounts.
+
+**Journal Entries** - every entry needs at least two lines and must balance
+(total debits = total credits) - this is enforced twice: once in the UI
+before you can submit, and again inside the database function that actually
+creates the row, so a bad entry can't get in even by a client bug. New
+entries start as **draft**; only an Owner can **Post** one, and once posted
+it's permanent - no edit or delete, only a new correcting entry, same as
+real bookkeeping. A draft can be freely deleted if it was wrong.
+
+**Reports** - Trial Balance, Profit & Loss, and Balance Sheet, computed
+directly from posted journal entries only (drafts never affect them). P&L
+uses a fiscal-year picker (India's Apr-Mar year); Trial Balance and Balance
+Sheet use an "as of" date. The Balance Sheet rolls unposted net
+income/expense into a computed "Current Earnings" line in Equity - the same
+way QuickBooks/Tally show an interim balance sheet before formal year-end
+closing entries exist (this module doesn't have a closing-entries step yet).
+
+**Deliberately not done yet, and worth knowing:**
+- Sales/Purchases/Cash & Bank don't auto-post to the ledger. Recording an
+  invoice or a payment doesn't create a journal entry - the ledger is a
+  standalone, manually-operated module for now. Wiring auto-posting in
+  (invoice created → Dr Accounts Receivable / Cr Sales Revenue, payment
+  received → Dr Bank / Cr Accounts Receivable, etc.) is the natural next
+  step, deliberately left out of this pass rather than retrofitting it onto
+  the existing invoice/payment code in the same change.
+- A draft entry's lines can't be edited once created - delete and recreate.
+- No GST/tax-code awareness in journal entries yet (that's its own phase).
+- Access to the whole module is gated by a new "Ledger" permission toggle
+  in Users & Permissions, off by default for new Accountant/Viewer invites
+  (it's more sensitive than day-to-day Sales/Purchases) - an Owner can turn
+  it on per person.
+
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -134,7 +180,15 @@ instead of pretending the email went out.
       invites still work exactly as before (the person can still be told
       manually); the invite form just shows that the email couldn't be sent
       instead of silently pretending it worked.
-- [ ] RLS lets any active member send an invite or remove a member, not just
-      Owners (UI hides these actions for non-Owners, but the API itself
+- [x] **General Ledger, phase 1 of the Prototype Review recommendations
+      (Aug 2026):** Chart of Accounts, Journal Entries with a draft→posted
+      approval step, and Trial Balance / P&L / Balance Sheet reports - a
+      real double-entry ledger, gated behind its own permission. See
+      "General Ledger" above for full scope and honest limitations
+      (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
+      editing, no GST awareness yet - each is its own future phase).
+- [ ] RLS lets any active member send an invite, remove a member, or write
+      to the Chart of Accounts, not just Owners/people with the Ledger
+      permission (UI hides these actions appropriately, but the API itself
       doesn't enforce it yet)
 

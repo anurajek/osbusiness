@@ -5,7 +5,7 @@ import {
 import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, computeStatus, toISODate } from '../lib/format'
+import { inr, computeStatus, toISODate, getFiscalYearRange } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
@@ -28,15 +28,6 @@ function buildAgeing(openRows) {
     totals[bucketFor(daysOverdue)] += (r.amount - r.paid_amount)
   }
   return AGE_BUCKETS.map((bucket) => ({ bucket, amount: totals[bucket] }))
-}
-
-// India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.
-function getFiscalYearRange(offset, today) {
-  const fyStartCalendarYear = (today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1) + offset
-  return {
-    start: new Date(fyStartCalendarYear, 3, 1),
-    end: new Date(fyStartCalendarYear + 1, 2, 31, 23, 59, 59, 999),
-  }
 }
 
 function buildMonthBuckets(start, end) {

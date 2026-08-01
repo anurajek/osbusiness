@@ -49,6 +49,15 @@ export function toISODate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+// India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.
+export function getFiscalYearRange(offset, today) {
+  const fyStartCalendarYear = (today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1) + offset;
+  return {
+    start: new Date(fyStartCalendarYear, 3, 1),
+    end: new Date(fyStartCalendarYear + 1, 2, 31, 23, 59, 59, 999),
+  };
+}
+
 // Determines the *real* status of an invoice/bill from its actual numbers,
 // rather than trusting a manually-set field that can go stale (e.g. nobody
 // remembers to flip it to "Overdue" once a due date quietly passes).

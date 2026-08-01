@@ -8,6 +8,7 @@ import DashboardScreen from './screens/DashboardScreen'
 import InvoiceListScreen from './screens/InvoiceListScreen'
 import ARAPScreen from './screens/ARAPScreen'
 import CashBankScreen from './screens/CashBankScreen'
+import LedgerScreen from './screens/LedgerScreen'
 import PermissionsScreen from './screens/PermissionsScreen'
 
 function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
@@ -103,7 +104,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 
   if (!firmId) return <NoFirmMessage userEmail={userEmail} onCreateFirm={onCreateFirm} onSignOut={onSignOut} initialError={initialError} />
 
-  const allowed = role === 'Owner' ? { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, permissions: true } : (permissions || {})
+  const allowed = role === 'Owner' ? { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, permissions: true } : (permissions || {})
 
   const renderModule = () => {
     if (!allowed[activeModule]) {
@@ -115,6 +116,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
       case 'purchases': return <InvoiceListScreen type="purchases" />
       case 'arap': return <ARAPScreen tab={arapTab} onTabChange={setArapTab} />
       case 'cashbank': return <CashBankScreen />
+      case 'ledger': return <LedgerScreen />
       case 'permissions': return <PermissionsScreen />
       default: return null
     }
