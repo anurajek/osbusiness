@@ -105,6 +105,32 @@ closing entries exist (this module doesn't have a closing-entries step yet).
   (it's more sensitive than day-to-day Sales/Purchases) - an Owner can turn
   it on per person.
 
+## Branding, invoice numbering, and PDFs
+
+Run `migration_branding_numbering.sql` in Supabase's SQL Editor - additive,
+safe on the existing database. Adds:
+
+- **Firm branding** — address, phone, business email, a logo URL (paste a
+  link to a hosted image; there's no upload yet, that needs Supabase
+  Storage set up first - see Status below), and free-text payment
+  instructions (bank details / UPI / whatever), all editable from Users &
+  Permissions → Firm details.
+- **Real invoice numbering** — each firm gets its own prefix (default
+  `INV-`) and an atomically-incrementing counter. Leave the invoice number
+  blank when creating a **sales** invoice and it auto-fills as e.g.
+  `INV-0007` — type your own and that's used instead. Purchase bills stay
+  manual, deliberately: that number comes from the vendor, not from us.
+- **Download PDF** — every invoice/bill row has a PDF download button now.
+  Single-page, shows firm branding, Bill To details, dates, amount/paid/
+  balance, status, and payment instructions if set. Generated entirely in
+  the browser (via `jspdf`, lazy-loaded only when you click Download so it
+  doesn't bloat the app's normal page load).
+
+**Known limitation:** invoices/bills are still single-amount records, not
+itemized line items (no qty/rate/description breakdown) - the PDF reflects
+that honestly with one summary line rather than faking a breakdown that
+doesn't exist in the data. Proper line-item invoicing is a bigger schema
+change, and pairs naturally with Quotations when that phase happens.
 
 ## Status
 
@@ -187,6 +213,13 @@ closing entries exist (this module doesn't have a closing-entries step yet).
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Branding, invoice numbering, and PDF export (Aug 2026):** firm
+      address/phone/email/logo/payment-instructions, atomic per-firm
+      invoice numbering for sales invoices, and a one-click branded PDF
+      download for every invoice/bill. See "Branding, invoice numbering,
+      and PDFs" above for exact scope and the itemization limitation.
+- [ ] Logo is a pasted URL, not an upload — needs a Supabase Storage
+      bucket + RLS policies to support real file uploads, not done yet.
 - [ ] RLS lets any active member send an invite, remove a member, or write
       to the Chart of Accounts, not just Owners/people with the Ledger
       permission (UI hides these actions appropriately, but the API itself

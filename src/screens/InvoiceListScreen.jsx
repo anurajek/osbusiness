@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
+import { downloadDocumentPdf } from '../lib/pdf'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow } from '../components/ui'
 
@@ -10,7 +11,7 @@ import { StatusPill, SectionHeader, EmptyRow } from '../components/ui'
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
 
 export default function InvoiceListScreen({ type }) {
-  const { firmId } = useFirm()
+  const { firmId, firm } = useFirm()
   const isSales = type === 'sales'
   const baseStatus = isSales ? 'Sent' : 'Approved'
   const statusOptions = [baseStatus, ...ALL_STATUSES]
@@ -35,6 +36,7 @@ export default function InvoiceListScreen({ type }) {
   const [newPartyName, setNewPartyName] = useState('')
   const [newPartyGstin, setNewPartyGstin] = useState('')
   const [newPartyContact, setNewPartyContact] = useState('')
+  const [newPartyAddress, setNewPartyAddress] = useState('')
   const [addingParty, setAddingParty] = useState(false)
   const [addPartyError, setAddPartyError] = useState(null)
 
@@ -66,7 +68,7 @@ export default function InvoiceListScreen({ type }) {
     setError(null)
 
     const { data: partyRows, error: partyErr } = await supabase
-      .from(partyTable).select('id, name').eq('firm_id', firmId).order('name')
+      .from(partyTable).select('id, name, gstin, address, email').eq('firm_id', firmId).order('name')
 
     const { data: acctRows, error: acctErr } = await supabase
       .from('bank_accounts').select('id, name, account_mask, balance').eq('firm_id', firmId).order('name')
@@ -92,8 +94,25 @@ export default function InvoiceListScreen({ type }) {
   useEffect(() => { load() }, [load])
 
   const partyName = (id) => parties.find((p) => p.id === id)?.name || '—'
+  const partyById = (id) => parties.find((p) => p.id === id) || null
   const range = getPeriodRange(period, customFrom, customTo)
   const liveStatus = (r) => computeStatus(r, baseStatus)
+
+  const handleDownloadPdf = (row) => {
+    downloadDocumentPdf({
+      firm: firm || {},
+      party: partyById(row[partyJoinKey]),
+      doc: {
+        number: row[numberField],
+        issued_date: row.issued_date,
+        due_date: row.due_date,
+        amount: row.amount,
+        paid_amount: row.paid_amount,
+        status: liveStatus(row),
+        isSales,
+      },
+    })
+  }
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -125,10 +144,11 @@ export default function InvoiceListScreen({ type }) {
       name: newPartyName.trim(),
       gstin: newPartyGstin.trim() || null,
       contact: newPartyContact.trim() || null,
+      address: newPartyAddress.trim() || null,
     })
     setAddingParty(false)
     if (err) { setAddPartyError(err.message); return }
-    setNewPartyName(''); setNewPartyGstin(''); setNewPartyContact('')
+    setNewPartyName(''); setNewPartyGstin(''); setNewPartyContact(''); setNewPartyAddress('')
     setShowAddParty(false)
     load()
   }
@@ -171,15 +191,27 @@ export default function InvoiceListScreen({ type }) {
     setAddDocError(null)
 
     if (!newDocPartyId) { setAddDocError(`Select a ${partyLabel}.`); return }
-    if (!newDocNumber.trim()) { setAddDocError(`Enter a ${docLabel} number.`); return }
+    let docNumber = newDocNumber.trim()
+    if (!docNumber && !isSales) { setAddDocError(`Enter a ${docLabel} number.`); return }
     const amountNum = parseFloat(newDocAmount)
     if (!amountNum || amountNum <= 0) { setAddDocError('Enter a valid amount.'); return }
     const paidNum = parseFloat(newDocPaid) || 0
 
+    setAddingDoc(true)
+
+    // Sales invoices can be auto-numbered from the firm's own prefix/counter
+    // (see migration_branding_numbering.sql) - only kicks in if left blank,
+    // so typing your own number always takes precedence.
+    if (!docNumber && isSales) {
+      const { data: autoNumber, error: numErr } = await supabase.rpc('next_sales_invoice_number', { p_firm_id: firmId })
+      if (numErr) { setAddingDoc(false); setAddDocError(numErr.message); return }
+      docNumber = autoNumber
+    }
+
     const computed = computeStatus({ amount: amountNum, paid_amount: paidNum, due_date: newDocDueDate }, baseStatus)
     const payload = {
       [partyJoinKey]: newDocPartyId,
-      [numberField]: newDocNumber.trim(),
+      [numberField]: docNumber,
       issued_date: newDocIssuedDate,
       due_date: newDocDueDate || null,
       amount: amountNum,
@@ -187,7 +219,6 @@ export default function InvoiceListScreen({ type }) {
       status: statusForStorage(computed, isSales),
     }
 
-    setAddingDoc(true)
     const { error: err } = editingDocId
       ? await supabase.from(table).update(payload).eq('id', editingDocId)
       : await supabase.from(table).insert({ firm_id: firmId, ...payload })
@@ -195,7 +226,7 @@ export default function InvoiceListScreen({ type }) {
     if (!err) {
       await supabase.from('activity_log').insert({
         firm_id: firmId,
-        description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${newDocNumber.trim()} ${editingDocId ? 'updated' : 'added'} for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
+        description: `${isSales ? 'Sales invoice' : 'Purchase bill'} ${docNumber} ${editingDocId ? 'updated' : 'added'} for ${partyName(newDocPartyId)} — ${inr(amountNum)}`,
       })
     }
 
@@ -306,6 +337,9 @@ export default function InvoiceListScreen({ type }) {
               <input className="text-input" placeholder="GSTIN (optional)" value={newPartyGstin} onChange={(e) => setNewPartyGstin(e.target.value)} />
               <input className="text-input" placeholder="Contact (optional)" value={newPartyContact} onChange={(e) => setNewPartyContact(e.target.value)} />
             </div>
+            <div className="add-comm-row">
+              <input className="text-input" placeholder="Address (optional - shown on invoice/bill PDFs)" value={newPartyAddress} onChange={(e) => setNewPartyAddress(e.target.value)} />
+            </div>
             {addPartyError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addPartyError}</p>}
             <button className="btn-primary" disabled={addingParty}>{addingParty ? 'Adding…' : `Add ${partyLabel}`}</button>
           </form>
@@ -360,7 +394,7 @@ export default function InvoiceListScreen({ type }) {
               </select>
               <input
                 className="text-input"
-                placeholder={isSales ? 'Invoice # (e.g. INV-1045)' : 'Bill # (e.g. PB-2240)'}
+                placeholder={isSales ? 'Invoice # (blank = auto-number)' : 'Bill # (e.g. PB-2240)'}
                 value={newDocNumber}
                 onChange={(e) => setNewDocNumber(e.target.value)}
               />
@@ -431,6 +465,9 @@ export default function InvoiceListScreen({ type }) {
                         <button className="link-btn" onClick={() => openPayForm(r)}>Record payment</button>
                       )}
                       <button className="link-btn" onClick={() => openEditForm(r)}>Edit</button>
+                      <button className="link-btn" onClick={() => handleDownloadPdf(r)} title="Download PDF" aria-label="Download PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <Download size={12} /> PDF
+                      </button>
                     </td>
                   </tr>
                   {payingId === r.id && (

@@ -31,21 +31,31 @@ export default function PermissionsScreen() {
   const [inviteError, setInviteError] = useState(null)
   const [inviteSuccess, setInviteSuccess] = useState(null)
 
-  const [firmName, setFirmName] = useState(firm?.name ?? '')
-  const [firmGstin, setFirmGstin] = useState(firm?.gstin ?? '')
+  const blankFirmForm = () => ({
+    name: firm?.name ?? '',
+    gstin: firm?.gstin ?? '',
+    address: firm?.address ?? '',
+    phone: firm?.phone ?? '',
+    email: firm?.email ?? '',
+    logo_url: firm?.logo_url ?? '',
+    bank_details: firm?.bank_details ?? '',
+    invoice_prefix: firm?.invoice_prefix ?? 'INV-',
+  })
+  const [firmForm, setFirmForm] = useState(blankFirmForm)
   const [savingFirm, setSavingFirm] = useState(false)
   const [firmError, setFirmError] = useState(null)
   const [firmSuccess, setFirmSuccess] = useState(null)
   const [editingFirm, setEditingFirm] = useState(false)
+  const setFirmField = (key) => (e) => setFirmForm((f) => ({ ...f, [key]: e.target.value }))
 
   // Keep the form in sync if the selected firm changes (multi-firm users)
   // or after a save refreshes `firm` with the latest saved values.
   useEffect(() => {
-    setFirmName(firm?.name ?? '')
-    setFirmGstin(firm?.gstin ?? '')
-  }, [firm?.name, firm?.gstin])
+    setFirmForm(blankFirmForm())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firm])
 
-  const firmDirty = firmName.trim() !== (firm?.name ?? '') || (firmGstin.trim() || null) !== (firm?.gstin ?? null)
+  const firmDirty = Object.keys(blankFirmForm()).some((k) => firmForm[k] !== blankFirmForm()[k])
 
   const startEditingFirm = () => {
     setFirmError(null)
@@ -54,8 +64,7 @@ export default function PermissionsScreen() {
   }
 
   const cancelEditingFirm = () => {
-    setFirmName(firm?.name ?? '')
-    setFirmGstin(firm?.gstin ?? '')
+    setFirmForm(blankFirmForm())
     setFirmError(null)
     setEditingFirm(false)
   }
@@ -138,7 +147,7 @@ export default function PermissionsScreen() {
     e.preventDefault()
     setFirmError(null)
     setFirmSuccess(null)
-    if (!firmName.trim()) {
+    if (!firmForm.name.trim()) {
       setFirmError('Firm name cannot be empty.')
       return
     }
@@ -149,7 +158,16 @@ export default function PermissionsScreen() {
     setSavingFirm(true)
     const { error: err } = await supabase
       .from('firms')
-      .update({ name: firmName.trim(), gstin: firmGstin.trim() || null })
+      .update({
+        name: firmForm.name.trim(),
+        gstin: firmForm.gstin.trim() || null,
+        address: firmForm.address.trim() || null,
+        phone: firmForm.phone.trim() || null,
+        email: firmForm.email.trim() || null,
+        logo_url: firmForm.logo_url.trim() || null,
+        bank_details: firmForm.bank_details.trim() || null,
+        invoice_prefix: firmForm.invoice_prefix.trim() || 'INV-',
+      })
       .eq('id', firmId)
     setSavingFirm(false)
     if (err) {
@@ -192,8 +210,23 @@ export default function PermissionsScreen() {
           {editingFirm ? (
             <form onSubmit={handleSaveFirm} className="add-comm-form">
               <div className="add-comm-row">
-                <input className="text-input" placeholder="Firm name" value={firmName} onChange={(e) => setFirmName(e.target.value)} />
-                <input className="text-input" placeholder="GSTIN (optional)" value={firmGstin} onChange={(e) => setFirmGstin(e.target.value)} />
+                <input className="text-input" placeholder="Firm name" value={firmForm.name} onChange={setFirmField('name')} />
+                <input className="text-input" placeholder="GSTIN (optional)" value={firmForm.gstin} onChange={setFirmField('gstin')} />
+              </div>
+              <div className="add-comm-row">
+                <input className="text-input" placeholder="Address" value={firmForm.address} onChange={setFirmField('address')} />
+              </div>
+              <div className="add-comm-row">
+                <input className="text-input" placeholder="Phone" value={firmForm.phone} onChange={setFirmField('phone')} />
+                <input className="text-input" type="email" placeholder="Business email" value={firmForm.email} onChange={setFirmField('email')} />
+              </div>
+              <div className="add-comm-row">
+                <input className="text-input" placeholder="Logo URL (optional - a hosted image link)" value={firmForm.logo_url} onChange={setFirmField('logo_url')} />
+                <input className="text-input" style={{ maxWidth: 160 }} placeholder="Invoice prefix" value={firmForm.invoice_prefix} onChange={setFirmField('invoice_prefix')} />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>Payment instructions (shown on invoice PDFs)</label>
+                <textarea className="textarea" rows={3} placeholder="Bank name, account number, IFSC, UPI ID, etc." value={firmForm.bank_details} onChange={setFirmField('bank_details')} />
               </div>
               {firmError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{firmError}</p>}
               <div style={{ display: 'flex', gap: 10 }}>
@@ -204,7 +237,16 @@ export default function PermissionsScreen() {
           ) : (
             <div>
               <div style={{ color: 'var(--paper)' }}>{firm?.name}</div>
-              {firm?.gstin && <div className="login-footnote" style={{ margin: 0 }}>{firm.gstin}</div>}
+              {firm?.gstin && <div className="login-footnote" style={{ margin: 0 }}>GSTIN: {firm.gstin}</div>}
+              {firm?.address && <div className="login-footnote" style={{ margin: 0 }}>{firm.address}</div>}
+              {(firm?.phone || firm?.email) && (
+                <div className="login-footnote" style={{ margin: 0 }}>{[firm?.phone, firm?.email].filter(Boolean).join(' · ')}</div>
+              )}
+              {!firm?.address && !firm?.phone && !firm?.email && !firm?.bank_details && (
+                <p className="login-footnote" style={{ marginTop: 6 }}>
+                  Add an address, contact info, and payment instructions here so invoice PDFs look complete.
+                </p>
+              )}
               {firmSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{firmSuccess}</p>}
             </div>
           )}

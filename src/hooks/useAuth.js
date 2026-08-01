@@ -53,7 +53,7 @@ export function useAuth() {
     const requestId = ++requestIdRef.current
     const { data, error: membershipError } = await supabase
       .from('firm_members')
-      .select('id, firm_id, role, permissions, status, firms ( id, name, gstin )')
+      .select('id, firm_id, role, permissions, status, firms ( id, name, gstin, address, phone, email, logo_url, bank_details, invoice_prefix, next_invoice_number )')
       .eq('user_id', userId)
       .eq('status', 'active')
 
