@@ -132,6 +132,34 @@ that honestly with one summary line rather than faking a breakdown that
 doesn't exist in the data. Proper line-item invoicing is a bigger schema
 change, and pairs naturally with Quotations when that phase happens.
 
+## Quotations
+
+Run `migration_quotations.sql` in Supabase's SQL Editor — additive, safe on
+the existing database (also re-applies `create_firm_with_owner()` with a
+`quotes` permission key added, same pattern as when Ledger was added).
+
+The first itemized document in the app — Description/Qty/Rate/Amount per
+line, with the amount computed by the database itself (a `generated always
+as` column), not just trusted from the client. Quotes get their own
+prefix/counter (`QUO-0001`, ...) via the same atomic-numbering pattern as
+sales invoices.
+
+**Workflow:** Draft → Sent → Accepted/Declined. A quote past its
+`valid_until` date shows as "Expired" automatically (computed for display,
+same pattern as invoice/bill status) without changing what's actually
+stored. **Accept a quote → Convert to Invoice** creates a real sales
+invoice for the quote's line-item total, auto-numbered, and marks the quote
+`converted` — the line-item detail stays on the quote (and its PDF); the
+resulting invoice is still single-amount for now, since invoices themselves
+aren't itemized yet.
+
+**Why quotes got line items before invoices did:** it's a brand-new table
+with no existing data to risk — safer to prove the itemization pattern out
+here first, then extend it to `sales_invoices`/`purchase_bills` as a
+follow-up once it's stood up correctly. That follow-up would also finally
+let invoice PDFs show a real breakdown instead of the single summary line
+they show today.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -206,6 +234,18 @@ change, and pairs naturally with Quotations when that phase happens.
       invites still work exactly as before (the person can still be told
       manually); the invite form just shows that the email couldn't be sent
       instead of silently pretending it worked.
+- [x] **Reports polish (Aug 2026):** Balance Sheet (Assets | Liabilities+
+      Equity) and Profit & Loss (Income | Expenses) now lay out side by
+      side on desktop instead of stacked top-to-bottom (collapses back to
+      one column under 860px, same responsive breakpoint used everywhere
+      else). All three reports got real period controls matching the rest
+      of the app's look: Profit & Loss gets This/Previous Fiscal Year,
+      Last 12 Months, All Time, and Custom (date range); Trial Balance and
+      Balance Sheet get Today, End of Last Month, End of Previous FY, and
+      Custom (single as-of date) - the correct shape for a snapshot report
+      vs. a period report. Every control is fully reactive: picking a
+      preset or typing a custom date updates the report immediately from
+      data already in memory, no fetch/apply button anywhere.
 - [x] **General Ledger, phase 1 of the Prototype Review recommendations
       (Aug 2026):** Chart of Accounts, Journal Entries with a draft→posted
       approval step, and Trial Balance / P&L / Balance Sheet reports - a
@@ -213,6 +253,14 @@ change, and pairs naturally with Quotations when that phase happens.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Quotations, phase 2 of the Prototype Review recommendations (Aug
+      2026):** itemized Draft→Sent→Accepted/Declined quotes with real line
+      items, auto-numbering, PDF export, and one-click Convert to Invoice.
+      See "Quotations" above for exact scope and the itemization handoff.
+- [ ] Editing a quote replaces all its line items rather than diffing them
+      (delete-all-then-reinsert on save) - fine for typical quote sizes,
+      but means line item `id`s change on every edit, so nothing external
+      should reference a specific line item's id long-term.
 - [x] **Branding, invoice numbering, and PDF export (Aug 2026):** firm
       address/phone/email/logo/payment-instructions, atomic per-firm
       invoice numbering for sales invoices, and a one-click branded PDF

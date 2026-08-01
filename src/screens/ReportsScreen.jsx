@@ -12,11 +12,25 @@ function netBalance(type, debit, credit) {
   return type === 'asset' || type === 'expense' ? debit - credit : credit - debit
 }
 
+function lastDayOfPrevMonth(today) {
+  return new Date(today.getFullYear(), today.getMonth(), 0)
+}
+
 export default function ReportsScreen() {
   const { firmId } = useFirm()
   const [report, setReport] = useState('Trial Balance')
-  const [asOfDate, setAsOfDate] = useState(toISODate(new Date()))
-  const [fyOffset, setFyOffset] = useState(0) // 0 = current FY, -1 = previous FY, for P&L
+
+  // Range-based period (Profit & Loss) - reactive, no fetch/apply button:
+  // picking a preset or typing a custom date immediately re-derives the
+  // report from data that's already loaded, via the useMemo filters below.
+  const [rangePreset, setRangePreset] = useState('This Fiscal Year')
+  const [customFrom, setCustomFrom] = useState(toISODate(new Date()))
+  const [customTo, setCustomTo] = useState(toISODate(new Date()))
+
+  // As-of-date period (Trial Balance / Balance Sheet) - a snapshot date,
+  // not a range, which is the correct accounting shape for both reports.
+  const [asOfPreset, setAsOfPreset] = useState('Today')
+  const [customAsOf, setCustomAsOf] = useState(toISODate(new Date()))
 
   const [accounts, setAccounts] = useState([])
   const [lines, setLines] = useState([])
@@ -47,21 +61,38 @@ export default function ReportsScreen() {
     return () => { cancelled = true }
   }, [firmId])
 
-  const fyRange = useMemo(() => getFiscalYearRange(fyOffset, new Date()), [fyOffset])
+  const today = new Date()
+
+  const asOfDate = useMemo(() => {
+    if (asOfPreset === 'Custom') return customAsOf
+    if (asOfPreset === 'End of Last Month') return toISODate(lastDayOfPrevMonth(today))
+    if (asOfPreset === 'End of Previous FY') return toISODate(getFiscalYearRange(-1, today).end)
+    return toISODate(today)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asOfPreset, customAsOf])
+
+  const range = useMemo(() => {
+    if (rangePreset === 'All Time') return null
+    if (rangePreset === 'Custom') return { start: new Date(customFrom), end: new Date(customTo) }
+    if (rangePreset === 'Previous Fiscal Year') return getFiscalYearRange(-1, today)
+    if (rangePreset === 'Last 12 Months') return { start: new Date(today.getFullYear(), today.getMonth() - 11, 1), end: today }
+    return getFiscalYearRange(0, today) // 'This Fiscal Year'
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangePreset, customFrom, customTo])
 
   // Trial Balance / Balance Sheet: every posted line up to and including asOfDate.
   const linesAsOf = useMemo(
     () => lines.filter((l) => l.journal_entries.entry_date <= asOfDate),
     [lines, asOfDate]
   )
-  // P&L: only lines within the selected fiscal year.
-  const linesInFY = useMemo(
-    () => lines.filter((l) => {
+  // P&L: lines within the selected range, or everything if "All Time".
+  const linesInRange = useMemo(() => {
+    if (!range) return lines
+    return lines.filter((l) => {
       const d = new Date(l.journal_entries.entry_date)
-      return d >= fyRange.start && d <= fyRange.end
-    }),
-    [lines, fyRange]
-  )
+      return d >= range.start && d <= range.end
+    })
+  }, [lines, range])
 
   const totalsByAccount = (rows) => {
     const totals = {}
@@ -86,21 +117,50 @@ export default function ReportsScreen() {
       </div>
 
       {report === 'Profit & Loss' ? (
-        <div className="period-bar" style={{ marginBottom: 12 }}>
-          <button className={`period-pill ${fyOffset === 0 ? 'period-pill--active' : ''}`} onClick={() => setFyOffset(0)}>This Fiscal Year</button>
-          <button className={`period-pill ${fyOffset === -1 ? 'period-pill--active' : ''}`} onClick={() => setFyOffset(-1)}>Previous Fiscal Year</button>
-        </div>
+        <RangePeriodBar preset={rangePreset} setPreset={setRangePreset} from={customFrom} to={customTo} setFrom={setCustomFrom} setTo={setCustomTo} />
       ) : (
-        <div className="add-comm-row" style={{ marginBottom: 12, maxWidth: 260 }}>
-          <label className="block text-[11px] uppercase tracking-wide" style={{ color: 'var(--paper-dim)', marginBottom: 4 }}>As of date</label>
-          <input type="date" className="date-input" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
-        </div>
+        <AsOfPeriodBar preset={asOfPreset} setPreset={setAsOfPreset} date={customAsOf} setDate={setCustomAsOf} />
       )}
 
       {report === 'Trial Balance' && <TrialBalance accounts={accounts} totals={totalsByAccount(linesAsOf)} />}
-      {report === 'Profit & Loss' && <ProfitAndLoss accounts={accounts} totals={totalsByAccount(linesInFY)} />}
+      {report === 'Profit & Loss' && <ProfitAndLoss accounts={accounts} totals={totalsByAccount(linesInRange)} />}
       {report === 'Balance Sheet' && <BalanceSheet accounts={accounts} totals={totalsByAccount(linesAsOf)} />}
     </>
+  )
+}
+
+const RANGE_PRESETS = ['This Fiscal Year', 'Previous Fiscal Year', 'Last 12 Months', 'All Time', 'Custom']
+const AS_OF_PRESETS = ['Today', 'End of Last Month', 'End of Previous FY', 'Custom']
+
+function RangePeriodBar({ preset, setPreset, from, to, setFrom, setTo }) {
+  return (
+    <div className="period-bar" style={{ marginBottom: 12 }}>
+      {RANGE_PRESETS.map((p) => (
+        <button key={p} className={`period-pill ${preset === p ? 'period-pill--active' : ''}`} onClick={() => setPreset(p)}>{p}</button>
+      ))}
+      {preset === 'Custom' && (
+        <span className="period-custom">
+          <input type="date" className="date-input" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <span className="period-custom__to">to</span>
+          <input type="date" className="date-input" value={to} onChange={(e) => setTo(e.target.value)} />
+        </span>
+      )}
+    </div>
+  )
+}
+
+function AsOfPeriodBar({ preset, setPreset, date, setDate }) {
+  return (
+    <div className="period-bar" style={{ marginBottom: 12 }}>
+      {AS_OF_PRESETS.map((p) => (
+        <button key={p} className={`period-pill ${preset === p ? 'period-pill--active' : ''}`} onClick={() => setPreset(p)}>{p}</button>
+      ))}
+      {preset === 'Custom' && (
+        <span className="period-custom">
+          <input type="date" className="date-input" value={date} onChange={(e) => setDate(e.target.value)} />
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -163,8 +223,10 @@ function ProfitAndLoss({ accounts, totals }) {
 
   return (
     <div className="card">
-      <Section title="Income" rows={income} total={totalIncome} />
-      <Section title="Expenses" rows={expense} total={totalExpense} />
+      <div className="grid-2">
+        <Section title="Income" rows={income} total={totalIncome} />
+        <Section title="Expenses" rows={expense} total={totalExpense} />
+      </div>
       <div className="section-header" style={{ marginTop: 12, borderTop: '1px solid var(--rule)', paddingTop: 12 }}>
         <h2>Net {net >= 0 ? 'Profit' : 'Loss'}</h2>
         <span style={{ fontWeight: 600, color: net >= 0 ? 'var(--teal)' : 'var(--brick)' }}>{inr(net)}</span>
@@ -205,9 +267,13 @@ function BalanceSheet({ accounts, totals }) {
 
   return (
     <div className="card">
-      <Section title="Assets" rows={assets} total={totalAssets} />
-      <Section title="Liabilities" rows={liabilities} total={totalLiabilities} />
-      <Section title="Equity" rows={equity} total={totalEquity} />
+      <div className="grid-2">
+        <Section title="Assets" rows={assets} total={totalAssets} />
+        <div>
+          <Section title="Liabilities" rows={liabilities} total={totalLiabilities} />
+          <Section title="Equity" rows={equity} total={totalEquity} />
+        </div>
+      </div>
       <div className="section-header" style={{ marginTop: 12, borderTop: '1px solid var(--rule)', paddingTop: 12 }}>
         <h2>Assets vs. Liabilities + Equity</h2>
         <span style={{ fontWeight: 600, color: balances ? 'var(--teal)' : 'var(--brick)' }}>

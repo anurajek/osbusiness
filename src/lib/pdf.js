@@ -5,36 +5,7 @@ import { inr, toISODate } from './format'
 // never actually uses) don't inflate the app's main bundle - they load as
 // a separate chunk only when someone actually clicks "Download PDF".
 
-// Renders a single-page, branded invoice/bill PDF and triggers a download.
-// Deliberately single-amount, not itemized: sales_invoices/purchase_bills
-// don't have a line-items table yet (each record is one total amount), so
-// this shows one summary line rather than pretending to itemize something
-// that isn't itemized in the data. Multi-line invoicing is a bigger, separate
-// schema change - see README's General Ledger/Sales section for the plan.
-//
-// firm: { name, gstin, address, phone, email, logo_url, bank_details }
-// party: { name, gstin, address, email }
-// doc: { number, issued_date, due_date, amount, paid_amount, status, isSales }
-export async function downloadDocumentPdf({ firm, party, doc }) {
-  const { jsPDF } = await import('jspdf')
-  const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const margin = 48
-  let y = margin
-
-  // --- Header: logo (if any) + firm identity ---
-  if (firm.logo_url) {
-    try {
-      const img = await loadImage(firm.logo_url)
-      const maxH = 48
-      const ratio = img.width / img.height
-      pdf.addImage(img, 'PNG', margin, y, maxH * ratio, maxH)
-    } catch {
-      // Bad/unreachable logo URL - just skip it rather than failing the
-      // whole PDF over a decorative image.
-    }
-  }
-
+function renderHeader(pdf, { firm, pageWidth, margin, y }) {
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(16)
   pdf.text(firm.name || 'Your Firm', pageWidth - margin, y + 14, { align: 'right' })
@@ -47,10 +18,77 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
   if (firm.phone) { pdf.text(firm.phone, pageWidth - margin, hy, { align: 'right' }); hy += 12 }
   if (firm.email) { pdf.text(firm.email, pageWidth - margin, hy, { align: 'right' }); hy += 12 }
 
-  y += 70
+  let ny = y + 70
   pdf.setDrawColor(200)
-  pdf.line(margin, y, pageWidth - margin, y)
-  y += 30
+  pdf.line(margin, ny, pageWidth - margin, ny)
+  return ny + 30
+}
+
+async function renderLogo(pdf, { firm, margin, y }) {
+  if (!firm.logo_url) return
+  try {
+    const img = await loadImage(firm.logo_url)
+    const maxH = 48
+    const ratio = img.width / img.height
+    pdf.addImage(img, 'PNG', margin, y, maxH * ratio, maxH)
+  } catch {
+    // Bad/unreachable logo URL - just skip it rather than failing the
+    // whole PDF over a decorative image.
+  }
+}
+
+function renderPartyBlock(pdf, { party, label, margin, y }) {
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(10)
+  pdf.setTextColor(20)
+  pdf.text(label, margin, y)
+  y += 14
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(10)
+  pdf.setTextColor(30)
+  pdf.text(party?.name || '—', margin, y)
+  y += 13
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  if (party?.address) { pdf.text(party.address, margin, y, { maxWidth: 260 }); y += 12 }
+  if (party?.gstin) { pdf.text(`GSTIN: ${party.gstin}`, margin, y); y += 12 }
+  if (party?.email) { pdf.text(party.email, margin, y); y += 12 }
+  return y
+}
+
+function renderFooter(pdf, { firm, pageWidth, margin }) {
+  if (!firm.bank_details) return
+  const footerY = pdf.internal.pageSize.getHeight() - 90
+  pdf.setDrawColor(220)
+  pdf.line(margin, footerY, pageWidth - margin, footerY)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text('Payment Instructions', margin, footerY + 16)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(110)
+  pdf.text(firm.bank_details, margin, footerY + 30, { maxWidth: pageWidth - margin * 2 })
+}
+
+// Renders a single-page, branded invoice/bill PDF and triggers a download.
+// Deliberately single-amount, not itemized: sales_invoices/purchase_bills
+// don't have a line-items table yet (each record is one total amount), so
+// this shows one summary line rather than pretending to itemize something
+// that isn't itemized in the data. Quotations (downloadQuotePdf, below) got
+// itemized line items first - see migration_quotations.sql for why.
+//
+// firm: { name, gstin, address, phone, email, logo_url, bank_details }
+// party: { name, gstin, address, email }
+// doc: { number, issued_date, due_date, amount, paid_amount, status, isSales }
+export async function downloadDocumentPdf({ firm, party, doc }) {
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 48
+
+  await renderLogo(pdf, { firm, margin, y: margin })
+  let y = renderHeader(pdf, { firm, pageWidth, margin, y: margin })
 
   // --- Title + number/dates ---
   pdf.setTextColor(20)
@@ -68,22 +106,8 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
   y += 12
   if (doc.due_date) { pdf.text(`Due: ${toISODate(new Date(doc.due_date))}`, pageWidth - margin, y, { align: 'right' }); y += 12 }
 
-  // --- Bill To / Vendor ---
   y += 14
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(10)
-  pdf.setTextColor(20)
-  pdf.text(doc.isSales ? 'Bill To' : 'Vendor', margin, y)
-  y += 14
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(10)
-  pdf.text(party?.name || '—', margin, y)
-  y += 13
-  pdf.setFontSize(9)
-  pdf.setTextColor(90)
-  if (party?.address) { pdf.text(party.address, margin, y, { maxWidth: 260 }); y += 12 }
-  if (party?.gstin) { pdf.text(`GSTIN: ${party.gstin}`, margin, y); y += 12 }
-  if (party?.email) { pdf.text(party.email, margin, y); y += 12 }
+  y = renderPartyBlock(pdf, { party, label: doc.isSales ? 'Bill To' : 'Vendor', margin, y })
 
   // --- Amount summary table ---
   y += 24
@@ -100,10 +124,9 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(10)
   pdf.setTextColor(30)
-  const rowH = 28
   pdf.text(doc.isSales ? 'Goods / services rendered' : 'Goods / services received', margin + 10, y + 18)
   pdf.text(inr(doc.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
-  y += rowH
+  y += 28
   pdf.setDrawColor(230)
   pdf.line(margin, y, pageWidth - margin, y)
 
@@ -123,29 +146,105 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
     y += 16
   }
 
-  // --- Status stamp ---
   y += 10
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(doc.status === 'Paid' ? 30 : 150, doc.status === 'Paid' ? 130 : 40, doc.status === 'Paid' ? 90 : 40)
   pdf.text(`Status: ${doc.status}`, margin, y)
 
-  // --- Payment instructions footer ---
-  if (firm.bank_details) {
-    const footerY = pdf.internal.pageSize.getHeight() - 90
-    pdf.setDrawColor(220)
-    pdf.line(margin, footerY, pageWidth - margin, footerY)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor(90)
-    pdf.text('Payment Instructions', margin, footerY + 16)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor(110)
-    pdf.text(firm.bank_details, margin, footerY + 30, { maxWidth: pageWidth - margin * 2 })
+  renderFooter(pdf, { firm, pageWidth, margin })
+  pdf.save(`${doc.number || (doc.isSales ? 'invoice' : 'bill')}.pdf`)
+}
+
+// Renders a branded, itemized quotation PDF - Description/Qty/Rate/Amount
+// per line, same header/party-block/footer treatment as invoices so the
+// two document types look like part of the same product.
+//
+// quote: { number, issued_date, valid_until, status }
+// lineItems: [{ description, quantity, unit_price, amount }, ...]
+export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 48
+
+  await renderLogo(pdf, { firm, margin, y: margin })
+  let y = renderHeader(pdf, { firm, pageWidth, margin, y: margin })
+
+  pdf.setTextColor(20)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(20)
+  pdf.text('QUOTATION', margin, y)
+  pdf.setFontSize(11)
+  pdf.text(quote.number || '—', pageWidth - margin, y, { align: 'right' })
+  y += 22
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text(`Issued: ${quote.issued_date ? toISODate(new Date(quote.issued_date)) : '—'}`, pageWidth - margin, y, { align: 'right' })
+  y += 12
+  if (quote.valid_until) { pdf.text(`Valid until: ${toISODate(new Date(quote.valid_until))}`, pageWidth - margin, y, { align: 'right' }); y += 12 }
+
+  y += 14
+  y = renderPartyBlock(pdf, { party, label: 'Prepared For', margin, y })
+
+  // --- Itemized table ---
+  y += 24
+  const colDesc = margin + 10
+  const colQty = pageWidth - margin - 220
+  const colRate = pageWidth - margin - 140
+  const colAmt = pageWidth - margin - 10
+
+  pdf.setDrawColor(220)
+  pdf.setFillColor(245, 245, 245)
+  pdf.rect(margin, y, pageWidth - margin * 2, 22, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text('Description', colDesc, y + 15)
+  pdf.text('Qty', colQty, y + 15, { align: 'right' })
+  pdf.text('Rate', colRate, y + 15, { align: 'right' })
+  pdf.text('Amount', colAmt, y + 15, { align: 'right' })
+  y += 22
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9.5)
+  pdf.setTextColor(30)
+  let total = 0
+  for (const item of lineItems || []) {
+    const amount = Number(item.amount ?? (Number(item.quantity) || 0) * (Number(item.unit_price) || 0))
+    total += amount
+    const rowH = 20
+    pdf.text(item.description || '—', colDesc, y + 14, { maxWidth: colQty - colDesc - 20 })
+    pdf.text(String(item.quantity ?? ''), colQty, y + 14, { align: 'right' })
+    pdf.text(inr(item.unit_price), colRate, y + 14, { align: 'right' })
+    pdf.text(inr(amount), colAmt, y + 14, { align: 'right' })
+    y += rowH
+    pdf.setDrawColor(235)
+    pdf.line(margin, y, pageWidth - margin, y)
+  }
+  if (!lineItems || lineItems.length === 0) {
+    pdf.setTextColor(140)
+    pdf.text('No line items.', colDesc, y + 14)
+    y += 20
   }
 
-  pdf.save(`${doc.number || (doc.isSales ? 'invoice' : 'bill')}.pdf`)
+  y += 18
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(11)
+  pdf.setTextColor(20)
+  pdf.text('Total', colRate, y, { align: 'right' })
+  pdf.text(inr(total), colAmt, y, { align: 'right' })
+
+  y += 20
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text(`Status: ${quote.status}`, margin, y)
+
+  renderFooter(pdf, { firm, pageWidth, margin })
+  pdf.save(`${quote.number || 'quotation'}.pdf`)
 }
 
 function loadImage(url) {

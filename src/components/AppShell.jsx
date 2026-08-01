@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
-  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, BookOpen,
+  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, BookOpen, FileText,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
@@ -9,6 +9,7 @@ const MODULES = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'sales', label: 'Sales', icon: ShoppingCart },
   { key: 'purchases', label: 'Purchases', icon: Package },
+  { key: 'quotes', label: 'Quotations', icon: FileText },
   { key: 'arap', label: 'AR / AP', icon: TrendingUp },
   { key: 'cashbank', label: 'Cash & Bank', icon: Landmark },
   { key: 'ledger', label: 'Ledger', icon: BookOpen },
