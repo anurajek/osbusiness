@@ -8,14 +8,15 @@ const MODULES = [
   { key: 'sales', label: 'Sales' },
   { key: 'purchases', label: 'Purchases' },
   { key: 'quotes', label: 'Quotations' },
+  { key: 'notes', label: 'Credit/Debit Notes' },
   { key: 'arap', label: 'AR / AP' },
   { key: 'cashbank', label: 'Cash & Bank' },
   { key: 'ledger', label: 'Ledger' },
 ]
 
 const ROLES = ['Accountant', 'Viewer']
-const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, arap: true, cashbank: true, ledger: true, permissions: true }
-const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, arap: true, cashbank: true, ledger: false, permissions: false }
+const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, permissions: true }
+const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, permissions: false }
 
 export default function PermissionsScreen() {
   const { firmId, role: myRole, firm, membershipId, refreshMemberships } = useFirm()

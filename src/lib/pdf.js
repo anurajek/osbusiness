@@ -247,6 +247,68 @@ export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
   pdf.save(`${quote.number || 'quotation'}.pdf`)
 }
 
+// Renders a branded credit/debit note PDF, reusing the same header/party/
+// footer treatment as invoices and quotes.
+//
+// note: { number, issued_date, reason, amount, status, isCreditNote, originalDocNumber }
+export async function downloadNotePdf({ firm, party, note }) {
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 48
+
+  await renderLogo(pdf, { firm, margin, y: margin })
+  let y = renderHeader(pdf, { firm, pageWidth, margin, y: margin })
+
+  pdf.setTextColor(20)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(20)
+  pdf.text(note.isCreditNote ? 'CREDIT NOTE' : 'DEBIT NOTE', margin, y)
+  pdf.setFontSize(11)
+  pdf.text(note.number || '—', pageWidth - margin, y, { align: 'right' })
+  y += 22
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text(`Issued: ${note.issued_date ? toISODate(new Date(note.issued_date)) : '—'}`, pageWidth - margin, y, { align: 'right' })
+  y += 12
+  if (note.originalDocNumber) {
+    pdf.text(`Ref: ${note.originalDocNumber}`, pageWidth - margin, y, { align: 'right' })
+    y += 12
+  }
+
+  y += 14
+  y = renderPartyBlock(pdf, { party, label: note.isCreditNote ? 'Issued To' : 'Issued By', margin, y })
+
+  y += 24
+  pdf.setDrawColor(220)
+  pdf.setFillColor(245, 245, 245)
+  pdf.rect(margin, y, pageWidth - margin * 2, 26, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(90)
+  pdf.text('Reason', margin + 10, y + 17)
+  pdf.text('Amount', pageWidth - margin - 10, y + 17, { align: 'right' })
+  y += 26
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(10)
+  pdf.setTextColor(30)
+  pdf.text(note.reason || '—', margin + 10, y + 18, { maxWidth: pageWidth - margin * 2 - 140 })
+  pdf.text(inr(note.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
+  y += 30
+
+  y += 12
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(note.status === 'refunded' ? 30 : 150, note.status === 'refunded' ? 130 : 40, note.status === 'refunded' ? 90 : 40)
+  pdf.text(`Status: ${note.status === 'refunded' ? 'Refunded' : 'Open'}`, margin, y)
+
+  renderFooter(pdf, { firm, pageWidth, margin })
+  pdf.save(`${note.number || (note.isCreditNote ? 'credit-note' : 'debit-note')}.pdf`)
+}
+
 function loadImage(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()

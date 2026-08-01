@@ -160,6 +160,34 @@ follow-up once it's stood up correctly. That follow-up would also finally
 let invoice PDFs show a real breakdown instead of the single summary line
 they show today.
 
+## Credit / Debit Notes
+
+Run `migration_credit_debit_notes.sql` in Supabase's SQL Editor — additive,
+safe on the existing database (also re-applies `create_firm_with_owner()`
+with a `notes` permission key, same pattern as Ledger/Quotations).
+
+A credit note (issued to a customer) or debit note (issued to a supplier)
+is its **own independent record** — creating or refunding one never edits
+the amount/paid_amount on the invoice/bill it's optionally linked to. That
+link (`original_invoice_id`/`original_bill_id`) is context for the audit
+trail only. This is deliberate and matches how it actually works: if a
+fully-paid invoice later needs a partial refund, the invoice is still
+correctly "Paid" (the customer did pay it) — the refund is its own
+transaction sitting alongside it, not a rewrite of history.
+
+**"Record Refund"** does real money movement through Cash & Bank, same
+mechanics as "Record Payment" on invoices/bills — a `bank_transactions` row
+plus an account balance update. The direction is the one easy-to-get-wrong
+part: a **credit note** pays money *back to* a customer, so refunding one
+is cash **out** (same direction as a purchase payment); a **debit note**
+gets money *back from* a supplier, so refunding one is cash **in** (same
+direction as a sales payment) — i.e. the opposite of what "credit vs debit"
+suggests at a glance. Both the migration file and `CreditDebitNoteScreen.jsx`
+have the full reasoning in comments right where the sign is set.
+
+Each note type gets its own auto-numbering (`CN-0001`, `DN-0001`, ...),
+same atomic pattern as invoices and quotes, and its own branded PDF.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -253,6 +281,11 @@ they show today.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Credit / Debit Notes, phase 2 continued (Aug 2026):** independent
+      correction/refund records for Sales and Purchases, each with their
+      own auto-numbering, PDF export, and real Cash & Bank money movement
+      on refund. See "Credit / Debit Notes" above for the full scope and
+      the money-direction reasoning.
 - [x] **Quotations, phase 2 of the Prototype Review recommendations (Aug
       2026):** itemized Draft→Sent→Accepted/Declined quotes with real line
       items, auto-numbering, PDF export, and one-click Convert to Invoice.

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, arap: true, cashbank: true, ledger: true, permissions: true }
-const DEFAULT_ACCOUNTANT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, arap: true, cashbank: true, ledger: false, permissions: false }
+const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, permissions: true }
+const DEFAULT_ACCOUNTANT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, permissions: false }
 
 // Manages: the raw Supabase auth session, plus the firm_members row(s)
 // that tell us which firm(s) this user belongs to and what role/permissions
