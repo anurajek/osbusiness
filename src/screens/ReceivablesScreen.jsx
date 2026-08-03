@@ -28,7 +28,7 @@ export default function ReceivablesScreen() {
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
-  const [paymentDateByInvoice, setPaymentDateByInvoice] = useState({})
+  const [paymentTxns, setPaymentTxns] = useState([])
 
   const loadAll = useCallback(async () => {
     if (!firmId) return
@@ -39,7 +39,7 @@ export default function ReceivablesScreen() {
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
-      supabase.from('bank_transactions').select('related_sales_invoice_id, txn_date').eq('firm_id', firmId).not('related_sales_invoice_id', 'is', null),
+      supabase.from('bank_transactions').select('id, related_sales_invoice_id, txn_date, amount').eq('firm_id', firmId).not('related_sales_invoice_id', 'is', null),
     ])
 
     if (custErr || invErr || commErr || txnErr) {
@@ -50,16 +50,7 @@ export default function ReceivablesScreen() {
     setCustomers(custRows ?? [])
     setInvoices(invRows ?? [])
     setComms(commRows ?? [])
-    // Last (most recent) payment transaction per invoice - used as "date
-    // paid" on the Payments Completed list below. An invoice marked Paid
-    // without ever going through Record Payment (e.g. imported, or set at
-    // creation) just won't have one - shown as "—" rather than guessed.
-    const dateMap = {}
-    for (const t of txnRows ?? []) {
-      const existing = dateMap[t.related_sales_invoice_id]
-      if (!existing || t.txn_date > existing) dateMap[t.related_sales_invoice_id] = t.txn_date
-    }
-    setPaymentDateByInvoice(dateMap)
+    setPaymentTxns(txnRows ?? [])
     setLoading(false)
   }, [firmId])
 
@@ -107,19 +98,26 @@ export default function ReceivablesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, tableInvoices, comms, customerFilter, sortBy, search])
 
-  // A flat list, not aggregated by customer - "the list of payments
-  // completed" is naturally one row per payment/invoice, not a rollup.
-  const completedRows = useMemo(() => {
-    let list = invoicesInPeriod.filter((i) => computeStatus(i, 'Sent') === 'Paid')
-    if (customerFilter !== 'all') list = list.filter((i) => i.customer_id === customerFilter)
+  // Every actual payment received - one row per Record Payment event, not
+  // filtered down to invoices that happen to be fully settled. A customer
+  // who's paid ₹500 of a ₹2,000 invoice absolutely counts as "who paid,
+  // when, how much" even though that invoice is still Partial.
+  const paymentsReceived = useMemo(() => {
+    let list = paymentTxns
+    if (range) list = list.filter((t) => { const d = new Date(t.txn_date); return d >= range.from && d <= range.to })
+    list = list
+      .map((t) => {
+        const inv = invoices.find((i) => i.id === t.related_sales_invoice_id)
+        return { ...t, invoice_no: inv?.invoice_no || '—', customer_id: inv?.customer_id || null }
+      })
+      .filter((t) => t.customer_id)
+    if (customerFilter !== 'all') list = list.filter((t) => t.customer_id === customerFilter)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      list = list.filter((i) => (customers.find((c) => c.id === i.customer_id)?.name || '').toLowerCase().includes(q))
+      list = list.filter((t) => (customers.find((c) => c.id === t.customer_id)?.name || '').toLowerCase().includes(q))
     }
-    return list
-      .map((i) => ({ ...i, paymentDate: paymentDateByInvoice[i.id] || null }))
-      .sort((a, b) => new Date(b.paymentDate || b.issued_date) - new Date(a.paymentDate || a.issued_date))
-  }, [invoicesInPeriod, customerFilter, search, customers, paymentDateByInvoice])
+    return list.sort((a, b) => new Date(b.txn_date) - new Date(a.txn_date))
+  }, [paymentTxns, range, invoices, customerFilter, search, customers])
 
   const totals = useMemo(() => {
     const invoiced = invoicesInPeriod.reduce((s, i) => s + i.amount, 0)
@@ -179,23 +177,23 @@ export default function ReceivablesScreen() {
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || '—'
 
-  const handleExportCompletedCsv = () => {
+  const handleExportReceivedCsv = () => {
     downloadCsv(
-      'receivables-payments-completed',
-      ['Invoice #', 'Customer', 'Amount', 'Payment Date', 'Invoice Issued Date'],
-      completedRows.map((i) => [i.invoice_no, customerName(i.customer_id), i.amount.toFixed(2), i.paymentDate || '', i.issued_date])
+      'receivables-payments-received',
+      ['Payment Date', 'Customer', 'Invoice #', 'Amount Received'],
+      paymentsReceived.map((t) => [t.txn_date, customerName(t.customer_id), t.invoice_no, Number(t.amount).toFixed(2)])
     )
   }
 
-  const handleExportCompletedPdf = () => {
+  const handleExportReceivedPdf = () => {
     downloadListPdf({
-      title: 'Receivables — Payments Completed',
+      title: 'Receivables — Payments Received',
       firm,
-      filename: 'receivables-payments-completed',
+      filename: 'receivables-payments-received',
       columns: [
-        { label: 'Invoice #' }, { label: 'Customer' }, { label: 'Amount', align: 'right' }, { label: 'Payment Date' },
+        { label: 'Payment Date' }, { label: 'Customer' }, { label: 'Invoice #' }, { label: 'Amount Received', align: 'right' },
       ],
-      rows: completedRows.map((i) => [i.invoice_no, customerName(i.customer_id), inr(i.amount), i.paymentDate || '—']),
+      rows: paymentsReceived.map((t) => [t.txn_date, customerName(t.customer_id), t.invoice_no, inr(t.amount)]),
     })
   }
 
@@ -279,28 +277,28 @@ export default function ReceivablesScreen() {
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
-          <h2>Payments Completed</h2>
+          <h2>Payments Received</h2>
           <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{completedRows.length} invoice{completedRows.length !== 1 ? 's' : ''} paid in full</span>
-            <button className="link-btn" onClick={handleExportCompletedCsv} disabled={completedRows.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportCompletedPdf} disabled={completedRows.length === 0}>Export PDF</button>
+            <span className="section-header__note">{paymentsReceived.length} payment{paymentsReceived.length !== 1 ? 's' : ''} in this period</span>
+            <button className="link-btn" onClick={handleExportReceivedCsv} disabled={paymentsReceived.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportReceivedPdf} disabled={paymentsReceived.length === 0}>Export PDF</button>
           </span>
         </div>
         <div className="table-scroll">
           <table className="ledger-table">
             <thead>
-              <tr><th>Invoice</th><th>Customer</th><th className="num">Amount</th><th>Payment Date</th></tr>
+              <tr><th>Payment Date</th><th>Customer</th><th>Invoice</th><th className="num">Amount Received</th></tr>
             </thead>
             <tbody>
-              {completedRows.map((i) => (
-                <tr key={i.id} className="ledger-row">
-                  <td className="mono">{i.invoice_no}</td>
-                  <td>{customerName(i.customer_id)}</td>
-                  <td className="num mono">{inr(i.amount)}</td>
-                  <td className="mono">{i.paymentDate || <span className="login-footnote" style={{ margin: 0 }}>—</span>}</td>
+              {paymentsReceived.map((t) => (
+                <tr key={t.id} className="ledger-row">
+                  <td className="mono">{t.txn_date}</td>
+                  <td>{customerName(t.customer_id)}</td>
+                  <td className="mono">{t.invoice_no}</td>
+                  <td className="num mono">{inr(t.amount)}</td>
                 </tr>
               ))}
-              {completedRows.length === 0 && <EmptyRow colSpan={4}>No completed payments in this period.</EmptyRow>}
+              {paymentsReceived.length === 0 && <EmptyRow colSpan={4}>No payments recorded in this period.</EmptyRow>}
             </tbody>
           </table>
         </div>

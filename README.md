@@ -312,16 +312,18 @@ import: this app avoids the standard Excel-writing library too (same known
 vulnerability, no fix available), so exports are CSV rather than a native
 `.xlsx` file — Excel opens a CSV exactly the same as opening a native file.
 
-**"Payments Completed"** — a second table added below the pending list on
-both Receivables and Payables, showing invoices/bills that are now fully
-Paid within the current period/filters, each with its own Export CSV/PDF.
-Unlike the pending list (aggregated per customer/supplier), this is a flat
-one-row-per-invoice list, since "the list of payments completed" is
-naturally that shape. The Payment Date column comes from the most recent
-linked Cash & Bank transaction for that invoice/bill (see "Cash & Bank
-corrections" above) — an invoice marked Paid without ever going through
-Record Payment (e.g. imported, or set at creation) shows "—" there rather
-than a guessed date.
+**"Payments Received" (Receivables) / "Payments Made" (Payables)** — a
+second table below the pending list, one row per **actual payment
+transaction** — not per invoice/bill. The first version of this mistakenly
+only showed invoices/bills that ended up fully Paid, which meant a
+customer who'd made three partial payments on a still-open invoice
+wouldn't show up at all - genuinely the wrong report for "who paid, when,
+how much." It now reads directly from Cash & Bank's transaction log (the
+same `related_sales_invoice_id`/`related_purchase_bill_id` links added for
+the delete/reversal fix), filtered by the actual payment date falling in
+the selected period, not the invoice's issued date - so a payment made
+last week against an invoice issued three months ago correctly shows up
+when you look at "Last month." Each with its own Export CSV/PDF.
 
 ## Status
 
@@ -420,11 +422,12 @@ than a guessed date.
       Refund now ask for the actual date the money moved, instead of
       silently always using today. Added Export CSV/PDF to Cash & Bank
       transactions and Receivables/Payables pending lists, respecting
-      whatever's currently filtered - plus a new "Payments Completed" flat
-      list (with its own export) on both Receivables and Payables showing
-      fully-paid invoices/bills with an accurate payment date. See
-      "Payment dates + CSV/PDF exports" above for the CSV-vs-.xlsx
-      reasoning.
+      whatever's currently filtered - plus "Payments Received"/"Payments
+      Made" (with their own export) on Receivables/Payables: one row per
+      actual payment transaction (not per invoice/bill - an earlier version
+      of this only showed fully-paid invoices and missed every partial
+      payment, since fixed). See "Payment dates + CSV/PDF exports" above
+      for the CSV-vs-.xlsx reasoning and the full fix.
 - [x] **Cash & Bank corrections (Aug 2026):** fixed a real correctness gap
       where editing an existing invoice/bill's paid amount silently
       desynced from Cash & Bank ("Record Payment" was the only path that

@@ -24,7 +24,7 @@ export default function PayablesScreen() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
-  const [paymentDateByBill, setPaymentDateByBill] = useState({})
+  const [paymentTxns, setPaymentTxns] = useState([])
 
   useEffect(() => {
     if (!firmId) return
@@ -36,7 +36,7 @@ export default function PayablesScreen() {
       const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: txnRows, error: txnErr }] = await Promise.all([
         supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
         supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
-        supabase.from('bank_transactions').select('related_purchase_bill_id, txn_date').eq('firm_id', firmId).not('related_purchase_bill_id', 'is', null),
+        supabase.from('bank_transactions').select('id, related_purchase_bill_id, txn_date, amount').eq('firm_id', firmId).not('related_purchase_bill_id', 'is', null),
       ])
       if (cancelled) return
       if (supErr || billErr || txnErr) {
@@ -46,12 +46,7 @@ export default function PayablesScreen() {
       }
       setSuppliers(supRows ?? [])
       setBills(billRows ?? [])
-      const dateMap = {}
-      for (const t of txnRows ?? []) {
-        const existing = dateMap[t.related_purchase_bill_id]
-        if (!existing || t.txn_date > existing) dateMap[t.related_purchase_bill_id] = t.txn_date
-      }
-      setPaymentDateByBill(dateMap)
+      setPaymentTxns(txnRows ?? [])
       setLoading(false)
     }
 
@@ -95,18 +90,24 @@ export default function PayablesScreen() {
     return result
   }, [suppliers, tableBills, supplierFilter, sortBy, search])
 
-  // A flat list, not aggregated by supplier - one row per settled bill.
-  const completedRows = useMemo(() => {
-    let list = billsInPeriod.filter((b) => computeStatus(b, 'Approved') === 'Paid')
-    if (supplierFilter !== 'all') list = list.filter((b) => b.supplier_id === supplierFilter)
+  // Every actual payment made - one row per Record Payment event, not
+  // filtered down to bills that happen to be fully settled.
+  const paymentsMade = useMemo(() => {
+    let list = paymentTxns
+    if (range) list = list.filter((t) => { const d = new Date(t.txn_date); return d >= range.from && d <= range.to })
+    list = list
+      .map((t) => {
+        const bill = bills.find((b) => b.id === t.related_purchase_bill_id)
+        return { ...t, bill_no: bill?.bill_no || '—', supplier_id: bill?.supplier_id || null }
+      })
+      .filter((t) => t.supplier_id)
+    if (supplierFilter !== 'all') list = list.filter((t) => t.supplier_id === supplierFilter)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      list = list.filter((b) => (suppliers.find((s) => s.id === b.supplier_id)?.name || '').toLowerCase().includes(q))
+      list = list.filter((t) => (suppliers.find((s) => s.id === t.supplier_id)?.name || '').toLowerCase().includes(q))
     }
-    return list
-      .map((b) => ({ ...b, paymentDate: paymentDateByBill[b.id] || null }))
-      .sort((a, b) => new Date(b.paymentDate || b.issued_date) - new Date(a.paymentDate || a.issued_date))
-  }, [billsInPeriod, supplierFilter, search, suppliers, paymentDateByBill])
+    return list.sort((a, b) => new Date(b.txn_date) - new Date(a.txn_date))
+  }, [paymentTxns, range, bills, supplierFilter, search, suppliers])
 
   const totals = useMemo(() => {
     const billed = billsInPeriod.reduce((s, b) => s + b.amount, 0)
@@ -116,23 +117,23 @@ export default function PayablesScreen() {
 
   const supplierName = (id) => suppliers.find((s) => s.id === id)?.name || '—'
 
-  const handleExportCompletedCsv = () => {
+  const handleExportMadeCsv = () => {
     downloadCsv(
-      'payables-payments-completed',
-      ['Bill #', 'Supplier', 'Amount', 'Payment Date', 'Bill Issued Date'],
-      completedRows.map((b) => [b.bill_no, supplierName(b.supplier_id), b.amount.toFixed(2), b.paymentDate || '', b.issued_date])
+      'payables-payments-made',
+      ['Payment Date', 'Supplier', 'Bill #', 'Amount Paid'],
+      paymentsMade.map((t) => [t.txn_date, supplierName(t.supplier_id), t.bill_no, Math.abs(Number(t.amount)).toFixed(2)])
     )
   }
 
-  const handleExportCompletedPdf = () => {
+  const handleExportMadePdf = () => {
     downloadListPdf({
-      title: 'Payables — Payments Completed',
+      title: 'Payables — Payments Made',
       firm,
-      filename: 'payables-payments-completed',
+      filename: 'payables-payments-made',
       columns: [
-        { label: 'Bill #' }, { label: 'Supplier' }, { label: 'Amount', align: 'right' }, { label: 'Payment Date' },
+        { label: 'Payment Date' }, { label: 'Supplier' }, { label: 'Bill #' }, { label: 'Amount Paid', align: 'right' },
       ],
-      rows: completedRows.map((b) => [b.bill_no, supplierName(b.supplier_id), inr(b.amount), b.paymentDate || '—']),
+      rows: paymentsMade.map((t) => [t.txn_date, supplierName(t.supplier_id), t.bill_no, inr(Math.abs(t.amount))]),
     })
   }
 
@@ -237,28 +238,28 @@ export default function PayablesScreen() {
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
-          <h2>Payments Completed</h2>
+          <h2>Payments Made</h2>
           <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{completedRows.length} bill{completedRows.length !== 1 ? 's' : ''} paid in full</span>
-            <button className="link-btn" onClick={handleExportCompletedCsv} disabled={completedRows.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportCompletedPdf} disabled={completedRows.length === 0}>Export PDF</button>
+            <span className="section-header__note">{paymentsMade.length} payment{paymentsMade.length !== 1 ? 's' : ''} in this period</span>
+            <button className="link-btn" onClick={handleExportMadeCsv} disabled={paymentsMade.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportMadePdf} disabled={paymentsMade.length === 0}>Export PDF</button>
           </span>
         </div>
         <div className="table-scroll">
           <table className="ledger-table">
             <thead>
-              <tr><th>Bill</th><th>Supplier</th><th className="num">Amount</th><th>Payment Date</th></tr>
+              <tr><th>Payment Date</th><th>Supplier</th><th>Bill</th><th className="num">Amount Paid</th></tr>
             </thead>
             <tbody>
-              {completedRows.map((b) => (
-                <tr key={b.id} className="ledger-row">
-                  <td className="mono">{b.bill_no}</td>
-                  <td>{supplierName(b.supplier_id)}</td>
-                  <td className="num mono">{inr(b.amount)}</td>
-                  <td className="mono">{b.paymentDate || <span className="login-footnote" style={{ margin: 0 }}>—</span>}</td>
+              {paymentsMade.map((t) => (
+                <tr key={t.id} className="ledger-row">
+                  <td className="mono">{t.txn_date}</td>
+                  <td>{supplierName(t.supplier_id)}</td>
+                  <td className="mono">{t.bill_no}</td>
+                  <td className="num mono">{inr(Math.abs(t.amount))}</td>
                 </tr>
               ))}
-              {completedRows.length === 0 && <EmptyRow colSpan={4}>No completed payments in this period.</EmptyRow>}
+              {paymentsMade.length === 0 && <EmptyRow colSpan={4}>No payments recorded in this period.</EmptyRow>}
             </tbody>
           </table>
         </div>
