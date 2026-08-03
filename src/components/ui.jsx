@@ -83,6 +83,36 @@ export function AgingBar({ rows, max }) {
   )
 }
 
+// A clickable table header that drives an existing sortBy/setSortBy pair of
+// state values (e.g. 'amount-asc'/'amount-desc') - clicking toggles between
+// them, with a small arrow showing which direction is active. This doesn't
+// replace a screen's sort *logic* (each screen still owns how each sort
+// value actually orders its rows) - it's just a second, more standard way
+// to trigger the same sortBy state a FilterBar dropdown already sets.
+export function SortableTh({ label, ascValue, descValue, sortBy, onSort, className = '', defaultDesc = true }) {
+  const isAsc = sortBy === ascValue
+  const isDesc = sortBy === descValue
+  const active = isAsc || isDesc
+  const handleClick = () => {
+    if (isDesc) onSort(ascValue)
+    else if (isAsc) onSort(descValue)
+    else onSort(defaultDesc ? descValue : ascValue)
+  }
+  return (
+    <th
+      className={className}
+      onClick={handleClick}
+      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+      title={`Sort by ${label}`}
+    >
+      {label}
+      <span style={{ display: 'inline-block', width: 12, opacity: active ? 1 : 0.35, color: active ? 'var(--brass)' : 'inherit' }}>
+        {isAsc ? ' ▲' : ' ▼'}
+      </span>
+    </th>
+  )
+}
+
 export function EmptyRow({ colSpan, children }) {
   return (
     <tr>

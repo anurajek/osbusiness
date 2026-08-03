@@ -242,6 +242,13 @@ manually-entered invoice/bill/customer/supplier (see Status below) — the
 new policies only allow deleting a row when `import_batch_id is not null`,
 so manually-entered records stay exactly as protected as before.
 
+**Duplicate detection:** before anything is imported, every row is checked
+two ways - against every matching invoice #/bill #/name already in your
+books, and against every other row in the same file (catches an export
+that lists the same invoice twice, or accidentally uploading the same file
+a second time). Either kind shows up in the preview as a skipped row with
+a clear "Duplicate" reason, rather than silently creating a second copy.
+
 **Known limitation:** the import isn't wrapped in a single database
 transaction (batch record → party creation → document rows are three
 separate calls) - if it fails partway through, Undo cleanly removes
@@ -343,6 +350,15 @@ would be the way to make it fully atomic later if needed.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Import duplicate detection + sortable headers (Aug 2026):**
+      importing no longer creates duplicate invoices/bills/parties - every
+      row is checked against your existing records and against the rest of
+      the file before import, with duplicates clearly flagged and skipped.
+      Also added click-to-sort column headers (with an arrow indicator) on
+      Sales, Purchases, Quotations, Credit/Debit Notes, and the "Amount
+      due" column on Receivables/Payables - same underlying sort state the
+      FilterBar dropdown already used, just a second, more standard way to
+      trigger it.
 - [x] **Scope refocus + CSV Import (Aug 2026):** app refocused to AR/AP
       collections - Quotations/Notes/Ledger hidden from nav (not deleted,
       fully reversible, see "Scope: AR/AP focus" above). Added CSV bulk

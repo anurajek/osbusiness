@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
-import { StatCard, StatusPill, EmptyRow } from '../components/ui'
+import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
 
 const PURCHASE_STATUSES_OPEN = ['Approved', 'Partial', 'Due today', 'Overdue']
 
@@ -137,7 +137,7 @@ export default function PayablesScreen() {
             <tr>
               <th>Supplier</th>
               <th className="num">Open bills</th>
-              <th className="num">Amount due</th>
+              <SortableTh label="Amount due" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
               <th>Most urgent</th>
             </tr>
           </thead>

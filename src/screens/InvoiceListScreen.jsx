@@ -5,7 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { downloadDocumentPdf } from '../lib/pdf'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { StatusPill, SectionHeader, EmptyRow } from '../components/ui'
+import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
 // Full list of statuses a record can ever show as (computed live, not stored).
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
@@ -438,8 +438,8 @@ export default function InvoiceListScreen({ type }) {
             <tr>
               <th>{isSales ? 'Invoice' : 'Bill'}</th>
               <th>{isSales ? 'Customer' : 'Supplier'}</th>
-              <th>Issued</th>
-              <th className="num">Amount</th>
+              <SortableTh label="Issued" ascValue="date-asc" descValue="date-desc" sortBy={sortBy} onSort={setSortBy} />
+              <SortableTh label="Amount" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
               <th className="num">Paid</th>
               <th className="num">Balance</th>
               <th>Status</th>

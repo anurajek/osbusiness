@@ -15,11 +15,12 @@ const PARTY_FIELDS = [
 ]
 
 const TARGETS = {
-  customers: { label: 'Customers', table: 'customers', kind: 'party', fields: PARTY_FIELDS },
-  suppliers: { label: 'Suppliers', table: 'suppliers', kind: 'party', fields: PARTY_FIELDS },
+  customers: { label: 'Customers', table: 'customers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
+  suppliers: { label: 'Suppliers', table: 'suppliers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
   sales_invoices: {
     label: 'Sales Invoices', table: 'sales_invoices', kind: 'doc', isSales: true,
     partyTable: 'customers', partyField: 'customer_id', partyLabel: 'Customer', docLabel: 'Invoice #', dbNumberField: 'invoice_no',
+    dedupeField: 'doc_no', dedupeColumn: 'invoice_no', dedupeLabel: 'Invoice #',
     fields: [
       { key: 'party_name', label: 'Customer Name', required: true },
       { key: 'doc_no', label: 'Invoice #', required: true },
@@ -32,6 +33,7 @@ const TARGETS = {
   purchase_bills: {
     label: 'Purchase Bills', table: 'purchase_bills', kind: 'doc', isSales: false,
     partyTable: 'suppliers', partyField: 'supplier_id', partyLabel: 'Supplier', docLabel: 'Bill #', dbNumberField: 'bill_no',
+    dedupeField: 'doc_no', dedupeColumn: 'bill_no', dedupeLabel: 'Bill #',
     fields: [
       { key: 'party_name', label: 'Supplier Name', required: true },
       { key: 'doc_no', label: 'Bill #', required: true },
@@ -126,18 +128,52 @@ export default function ImportScreen() {
     }
   }
 
-  const handleContinueToPreview = () => {
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false)
+
+  const handleContinueToPreview = async () => {
     const missing = def.fields.filter((f) => f.required && !mapping[f.key])
     if (missing.length > 0) {
       setParseError(`Map a column for: ${missing.map((f) => f.label).join(', ')}`)
       return
     }
     setParseError(null)
+    setCheckingDuplicates(true)
+
+    // Two different kinds of duplicate to catch: a row whose invoice/bill
+    // number (or party name) already exists in your books, and a row
+    // that's just repeated more than once within the file itself (e.g. an
+    // export with the same invoice listed twice, or re-uploading the same
+    // file by mistake). Both would otherwise silently create a second copy
+    // of something that already exists.
+    const { data: existingRows, error: existingErr } = await supabase
+      .from(def.table)
+      .select(def.dedupeColumn)
+      .eq('firm_id', firmId)
+    if (existingErr) {
+      setCheckingDuplicates(false)
+      setParseError(`Couldn't check for duplicates: ${existingErr.message}`)
+      return
+    }
+    const existingKeys = new Set((existingRows ?? []).map((r) => String(r[def.dedupeColumn] ?? '').trim().toLowerCase()))
+    const seenInFile = new Set()
+
     const rows = rawRows.map((raw, i) => {
       const { parsed, errors } = validateRow(raw, mapping, def.fields)
+      if (errors.length === 0) {
+        const dedupeValue = parsed[def.dedupeField]
+        const normalized = dedupeValue ? String(dedupeValue).trim().toLowerCase() : ''
+        if (normalized && existingKeys.has(normalized)) {
+          errors.push(`Duplicate — ${def.dedupeLabel} "${dedupeValue}" already exists in your books`)
+        } else if (normalized && seenInFile.has(normalized)) {
+          errors.push(`Duplicate — "${dedupeValue}" appears more than once in this file`)
+        } else if (normalized) {
+          seenInFile.add(normalized)
+        }
+      }
       return { rowNumber: i + 2, raw, parsed, errors } // +2: header row + 1-index
     })
     setValidated(rows)
+    setCheckingDuplicates(false)
     setStep('preview')
   }
 
@@ -291,7 +327,9 @@ export default function ImportScreen() {
             </div>
             {parseError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 10 }}>{parseError}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="btn-primary" onClick={handleContinueToPreview}>Continue</button>
+              <button className="btn-primary" disabled={checkingDuplicates} onClick={handleContinueToPreview}>
+                {checkingDuplicates ? 'Checking for duplicates…' : 'Continue'}
+              </button>
               <button className="link-btn" onClick={resetWizard}>Start over</button>
             </div>
           </div>

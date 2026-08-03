@@ -5,7 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadNotePdf } from '../lib/pdf'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { EmptyRow } from '../components/ui'
+import { EmptyRow, SortableTh } from '../components/ui'
 
 // type: 'credit' (sales side - issued to a customer) or 'debit' (purchase
 // side - issued to a supplier).
@@ -311,9 +311,9 @@ export default function CreditDebitNoteScreen({ type }) {
               <tr>
                 <th>Note</th>
                 <th>{isCredit ? 'Customer' : 'Supplier'}</th>
-                <th>Issued</th>
+                <SortableTh label="Issued" ascValue="date-asc" descValue="date-desc" sortBy={sortBy} onSort={setSortBy} />
                 <th>Reason</th>
-                <th className="num">Amount</th>
+                <SortableTh label="Amount" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
                 <th>Status</th>
                 <th></th>
               </tr>

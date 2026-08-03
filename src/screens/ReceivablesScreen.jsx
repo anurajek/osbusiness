@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
-import { StatCard, EmptyRow } from '../components/ui'
+import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 
 const SALES_STATUSES_OPEN = ['Sent', 'Partial', 'Due today', 'Overdue']
@@ -163,7 +163,7 @@ export default function ReceivablesScreen() {
             <tr>
               <th>Customer</th>
               <th className="num">Open bills</th>
-              <th className="num">Amount due</th>
+              <SortableTh label="Amount due" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
               <th>Last update</th>
               <th>Last contact</th>
               <th></th>

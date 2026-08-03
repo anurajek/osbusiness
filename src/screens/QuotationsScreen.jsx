@@ -5,7 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadQuotePdf } from '../lib/pdf'
 import { PeriodSelector, FilterBar, sortRows } from '../components/FilterControls'
-import { SectionHeader, EmptyRow } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined', 'expired', 'converted']
 const STATUS_PILL = {
@@ -328,7 +328,7 @@ export default function QuotationsScreen() {
         <div className="table-scroll">
           <table className="ledger-table">
             <thead>
-              <tr><th>Quote</th><th>Customer</th><th>Issued</th><th className="num">Total</th><th>Status</th><th></th></tr>
+              <tr><th>Quote</th><th>Customer</th><SortableTh label="Issued" ascValue="date-asc" descValue="date-desc" sortBy={sortBy} onSort={setSortBy} /><SortableTh label="Total" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" /><th>Status</th><th></th></tr>
             </thead>
             <tbody>
               {filtered.map((r) => {
