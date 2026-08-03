@@ -293,6 +293,25 @@ columns existed) can still be deleted, but won't auto-reverse a linked
 invoice/bill/note since there's no link to follow. Their account balance
 still reverses correctly either way.
 
+## Payment dates + CSV/PDF exports
+
+No migration needed for this one - just deploy.
+
+**"Record Payment" and "Record Refund" now ask which date the money actually
+moved**, defaulting to today but fully editable — previously both always
+silently used "right now," so recording a payment a few days after it
+actually happened would show the wrong date in Cash & Bank.
+
+**Export CSV / Export PDF** buttons added to Cash & Bank's transaction
+list, and to Receivables/Payables' pending-clients/pending-suppliers lists
+— each exports exactly what's currently filtered on screen (respecting the
+period, search, and filter selections already applied), not the whole
+unfiltered table. CSV opens natively in Excel; PDF is a clean landscape
+report with your firm's name in the header. Same reasoning as the CSV-only
+import: this app avoids the standard Excel-writing library too (same known
+vulnerability, no fix available), so exports are CSV rather than a native
+`.xlsx` file — Excel opens a CSV exactly the same as opening a native file.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -386,6 +405,12 @@ still reverses correctly either way.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Payment dates + CSV/PDF exports (Aug 2026):** Record Payment/Record
+      Refund now ask for the actual date the money moved, instead of
+      silently always using today. Added Export CSV/PDF to Cash & Bank
+      transactions and Receivables/Payables pending lists, respecting
+      whatever's currently filtered. See "Payment dates + CSV/PDF exports"
+      above for the CSV-vs-.xlsx reasoning.
 - [x] **Cash & Bank corrections (Aug 2026):** fixed a real correctness gap
       where editing an existing invoice/bill's paid amount silently
       desynced from Cash & Bank ("Record Payment" was the only path that

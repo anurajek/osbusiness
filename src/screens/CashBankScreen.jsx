@@ -5,9 +5,11 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { SectionHeader, Stamp, EmptyRow, SortableTh } from '../components/ui'
+import { downloadCsv } from '../lib/exportCsv'
+import { downloadListPdf } from '../lib/pdf'
 
 export default function CashBankScreen() {
-  const { firmId } = useFirm()
+  const { firmId, firm } = useFirm()
 
   const [accounts, setAccounts] = useState([])
   const [txns, setTxns] = useState([])
@@ -165,6 +167,41 @@ export default function CashBankScreen() {
     load()
   }
 
+  const handleExportCsv = () => {
+    downloadCsv(
+      'cash-bank-transactions',
+      ['Date', 'Account', 'Description', 'Amount', 'Type', 'Status'],
+      filtered.map((t) => [
+        toISODate(new Date(t.txn_date)),
+        accountName(t.bank_account_id),
+        t.description,
+        Math.abs(t.amount).toFixed(2),
+        t.amount > 0 ? 'Received' : 'Paid',
+        t.reconciled ? 'Reconciled' : 'Pending',
+      ])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: 'Cash & Bank Transactions',
+      firm,
+      filename: 'cash-bank-transactions',
+      columns: [
+        { label: 'Date' }, { label: 'Account' }, { label: 'Description' },
+        { label: 'Amount', align: 'right' }, { label: 'Type' }, { label: 'Status' },
+      ],
+      rows: filtered.map((t) => [
+        toISODate(new Date(t.txn_date)),
+        accountName(t.bank_account_id),
+        t.description,
+        inr(Math.abs(t.amount)),
+        t.amount > 0 ? 'Received' : 'Paid',
+        t.reconciled ? 'Reconciled' : 'Pending',
+      ]),
+    })
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -251,7 +288,11 @@ export default function CashBankScreen() {
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>Transactions</h2>
-          <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
+          </span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">

@@ -54,6 +54,7 @@ export default function InvoiceListScreen({ type }) {
   const [payingId, setPayingId] = useState(null)
   const [payAmount, setPayAmount] = useState('')
   const [payAccountId, setPayAccountId] = useState('')
+  const [payDate, setPayDate] = useState(() => toISODate(new Date()))
   const [payingBusy, setPayingBusy] = useState(false)
   const [payError, setPayError] = useState(null)
 
@@ -244,6 +245,7 @@ export default function InvoiceListScreen({ type }) {
     setPayingId(row.id)
     setPayAmount('')
     setPayAccountId(bankAccounts[0]?.id || '')
+    setPayDate(toISODate(new Date()))
     setPayError(null)
   }
 
@@ -252,6 +254,7 @@ export default function InvoiceListScreen({ type }) {
     const extra = parseFloat(payAmount)
     if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
     if (!payAccountId) { setPayError('Select which cash or bank account this moved through.'); return }
+    if (!payDate) { setPayError('Pick the date this payment was actually received/made.'); return }
 
     const account = bankAccounts.find((a) => a.id === payAccountId)
     if (!account) { setPayError('That account could not be found - try reopening this form.'); return }
@@ -274,7 +277,7 @@ export default function InvoiceListScreen({ type }) {
       const txnResult = await supabase.from('bank_transactions').insert({
         firm_id: firmId,
         bank_account_id: payAccountId,
-        txn_date: toISODate(new Date()),
+        txn_date: payDate,
         description: `Payment ${isSales ? 'received' : 'made'} — ${row[numberField]} (${partyName(row[partyJoinKey])})`,
         amount: txnAmount,
         reconciled: true,
@@ -492,6 +495,11 @@ export default function InvoiceListScreen({ type }) {
                           <input
                             type="number" min="0" step="0.01" className="text-input pay-amount-input"
                             value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount received" autoFocus
+                          />
+                          <input
+                            type="date" className="date-input"
+                            value={payDate} onChange={(e) => setPayDate(e.target.value)}
+                            title="Date this payment actually happened"
                           />
                           <select className="select select--sm pay-account-select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
                             <option value="">{isSales ? 'Received into...' : 'Paid from...'}</option>

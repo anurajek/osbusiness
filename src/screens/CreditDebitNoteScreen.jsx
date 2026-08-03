@@ -50,6 +50,7 @@ export default function CreditDebitNoteScreen({ type }) {
 
   const [refundingId, setRefundingId] = useState(null)
   const [refundAccountId, setRefundAccountId] = useState('')
+  const [refundDate, setRefundDate] = useState(() => toISODate(new Date()))
   const [refundBusy, setRefundBusy] = useState(false)
   const [refundError, setRefundError] = useState(null)
 
@@ -152,6 +153,7 @@ export default function CreditDebitNoteScreen({ type }) {
   const openRefundForm = (row) => {
     setRefundingId(row.id)
     setRefundAccountId(bankAccounts[0]?.id || '')
+    setRefundDate(toISODate(new Date()))
     setRefundError(null)
   }
 
@@ -163,6 +165,7 @@ export default function CreditDebitNoteScreen({ type }) {
   const handleRecordRefund = async (row) => {
     setRefundError(null)
     if (!refundAccountId) { setRefundError('Select which account the money moved through.'); return }
+    if (!refundDate) { setRefundError('Pick the date this refund actually happened.'); return }
     const account = bankAccounts.find((a) => a.id === refundAccountId)
     if (!account) { setRefundError('That account could not be found - try reopening this form.'); return }
 
@@ -171,7 +174,7 @@ export default function CreditDebitNoteScreen({ type }) {
 
     const { error: noteErr } = await supabase
       .from(table)
-      .update({ status: 'refunded', refunded_via_account_id: refundAccountId, refunded_date: toISODate(new Date()) })
+      .update({ status: 'refunded', refunded_via_account_id: refundAccountId, refunded_date: refundDate })
       .eq('id', row.id)
 
     let txnErr = null
@@ -180,7 +183,7 @@ export default function CreditDebitNoteScreen({ type }) {
       const txnResult = await supabase.from('bank_transactions').insert({
         firm_id: firmId,
         bank_account_id: refundAccountId,
-        txn_date: toISODate(new Date()),
+        txn_date: refundDate,
         description: `${docLabel} refund — ${row.note_no} (${partyName(row[partyJoinKey])})`,
         amount: txnAmount,
         reconciled: true,
@@ -349,6 +352,11 @@ export default function CreditDebitNoteScreen({ type }) {
                           <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
                             Refunding {inr(r.amount)} {isCredit ? 'to' : 'from'} {partyName(r[partyJoinKey])}
                           </span>
+                          <input
+                            type="date" className="date-input"
+                            value={refundDate} onChange={(e) => setRefundDate(e.target.value)}
+                            title="Date this refund actually happened"
+                          />
                           <select className="select select--sm pay-account-select" value={refundAccountId} onChange={(e) => setRefundAccountId(e.target.value)}>
                             <option value="">{isCredit ? 'Paid out from...' : 'Received into...'}</option>
                             {bankAccounts.map((a) => (

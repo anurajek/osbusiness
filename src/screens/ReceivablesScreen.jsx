@@ -5,11 +5,13 @@ import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
+import { downloadCsv } from '../lib/exportCsv'
+import { downloadListPdf } from '../lib/pdf'
 
 const SALES_STATUSES_OPEN = ['Sent', 'Partial', 'Due today', 'Overdue']
 
 export default function ReceivablesScreen() {
-  const { firmId } = useFirm()
+  const { firmId, firm } = useFirm()
 
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
@@ -116,6 +118,39 @@ export default function ReceivablesScreen() {
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
 
+  const handleExportCsv = () => {
+    downloadCsv(
+      'receivables-pending-clients',
+      ['Customer', 'Open Bills', 'Amount Due', 'Last Follow-up', 'Last Contact Date'],
+      rows.map((r) => [
+        r.customer.name,
+        r.openCount,
+        r.amountDue.toFixed(2),
+        r.lastComm?.tag || 'No follow-up yet',
+        r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '',
+      ])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: 'Receivables — Pending Clients',
+      firm,
+      filename: 'receivables-pending-clients',
+      columns: [
+        { label: 'Customer' }, { label: 'Open Bills', align: 'right' }, { label: 'Amount Due', align: 'right' },
+        { label: 'Last Follow-up' }, { label: 'Last Contact' },
+      ],
+      rows: rows.map((r) => [
+        r.customer.name,
+        r.openCount,
+        inr(r.amountDue),
+        r.lastComm?.tag || 'No follow-up yet',
+        r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—',
+      ]),
+    })
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -155,7 +190,11 @@ export default function ReceivablesScreen() {
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>Pending clients</h2>
-          <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''} with open bills</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''} with open bills</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={rows.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={rows.length === 0}>Export PDF</button>
+          </span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">

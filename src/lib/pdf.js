@@ -309,6 +309,92 @@ export async function downloadNotePdf({ firm, party, note }) {
   pdf.save(`${note.number || (note.isCreditNote ? 'credit-note' : 'debit-note')}.pdf`)
 }
 
+// Renders a generic, paginated tabular report (a list of rows, not a
+// single document) - used for "export this list" actions (Cash & Bank
+// transactions, Receivables/Payables pending lists, etc.), as opposed to
+// the per-document PDFs above. Landscape by default since these lists
+// tend to be wider than a single invoice.
+//
+// columns: [{ label, align: 'left'|'right' }, ...]
+// rows: [[cell, cell, ...], ...] - already formatted strings, in column order
+export async function downloadListPdf({ title, firm, columns, rows, filename, orientation = 'landscape' }) {
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation })
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 40
+  const rowH = 20
+  const headerH = 24
+  const colWidth = (pageWidth - margin * 2) / columns.length
+  let y = margin
+
+  const drawPageHeader = () => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(20)
+    pdf.text(firm?.name || 'Report', margin, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(10)
+    pdf.setTextColor(90)
+    pdf.text(title, pageWidth - margin, y, { align: 'right' })
+    y += 20
+    pdf.setDrawColor(200)
+    pdf.line(margin, y, pageWidth - margin, y)
+    y += 18
+  }
+
+  const drawColumnHeaders = () => {
+    pdf.setFillColor(245, 245, 245)
+    pdf.rect(margin, y, pageWidth - margin * 2, headerH, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(90)
+    columns.forEach((col, i) => {
+      const colX = margin + i * colWidth
+      const x = col.align === 'right' ? colX + colWidth - 8 : colX + 8
+      pdf.text(col.label, x, y + 16, { align: col.align === 'right' ? 'right' : 'left', maxWidth: colWidth - 16 })
+    })
+    y += headerH
+  }
+
+  const ensureSpace = () => {
+    if (y + rowH > pageHeight - margin) {
+      pdf.addPage()
+      y = margin
+      drawPageHeader()
+      drawColumnHeaders()
+    }
+  }
+
+  drawPageHeader()
+  drawColumnHeaders()
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(30)
+  rows.forEach((row, rowIndex) => {
+    ensureSpace()
+    if (rowIndex % 2 === 1) {
+      pdf.setFillColor(250, 250, 250)
+      pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'F')
+    }
+    columns.forEach((col, i) => {
+      const colX = margin + i * colWidth
+      const x = col.align === 'right' ? colX + colWidth - 8 : colX + 8
+      const text = row[i] != null ? String(row[i]) : ''
+      pdf.text(text, x, y + 14, { align: col.align === 'right' ? 'right' : 'left', maxWidth: colWidth - 16 })
+    })
+    y += rowH
+  })
+
+  if (rows.length === 0) {
+    pdf.setTextColor(140)
+    pdf.text('No rows to show.', margin + 8, y + 14)
+  }
+
+  pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+}
+
 function loadImage(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()

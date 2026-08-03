@@ -4,11 +4,13 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
+import { downloadCsv } from '../lib/exportCsv'
+import { downloadListPdf } from '../lib/pdf'
 
 const PURCHASE_STATUSES_OPEN = ['Approved', 'Partial', 'Due today', 'Overdue']
 
 export default function PayablesScreen() {
-  const { firmId } = useFirm()
+  const { firmId, firm } = useFirm()
 
   const [suppliers, setSuppliers] = useState([])
   const [bills, setBills] = useState([])
@@ -91,6 +93,36 @@ export default function PayablesScreen() {
     return { billed, paid, pending: billed - paid }
   }, [billsInPeriod])
 
+  const handleExportCsv = () => {
+    downloadCsv(
+      'payables-pending-suppliers',
+      ['Supplier', 'Open Bills', 'Amount Due', 'Most Urgent Status'],
+      rows.map((r) => [
+        r.supplier.name,
+        r.openCount,
+        r.amountDue.toFixed(2),
+        r.mostUrgent ? computeStatus(r.mostUrgent, 'Approved') : '',
+      ])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: 'Payables — Pending Suppliers',
+      firm,
+      filename: 'payables-pending-suppliers',
+      columns: [
+        { label: 'Supplier' }, { label: 'Open Bills', align: 'right' }, { label: 'Amount Due', align: 'right' }, { label: 'Most Urgent' },
+      ],
+      rows: rows.map((r) => [
+        r.supplier.name,
+        r.openCount,
+        inr(r.amountDue),
+        r.mostUrgent ? computeStatus(r.mostUrgent, 'Approved') : '—',
+      ]),
+    })
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -129,7 +161,11 @@ export default function PayablesScreen() {
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>Pending suppliers</h2>
-          <span className="section-header__note">{rows.length} supplier{rows.length !== 1 ? 's' : ''} with open bills</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{rows.length} supplier{rows.length !== 1 ? 's' : ''} with open bills</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={rows.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={rows.length === 0}>Export PDF</button>
+          </span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">
