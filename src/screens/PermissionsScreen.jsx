@@ -176,9 +176,19 @@ export default function PermissionsScreen() {
     })
     setInviting(false)
 
+    // supabase-js hardcodes this exact message when it can't reach the
+    // function at all (as opposed to the function running but failing
+    // internally, e.g. a missing Resend API key) - almost always means
+    // send-invite-email hasn't actually been deployed on this Supabase
+    // project yet, so it's worth saying that plainly rather than just
+    // surfacing the raw, fairly cryptic error text.
+    const notDeployed = emailErr && /Failed to send a request/i.test(emailErr.message || '')
+
     setInviteSuccess(
       emailErr
-        ? `Invited, but the email notification couldn't be sent (${emailErr.message}). Tell them to sign in at this app with ${inviteEmail.trim()} to get access.`
+        ? notDeployed
+          ? `Invited — but the invite-email feature hasn't been deployed yet, so no email went out. Tell them to sign in at this app with ${inviteEmail.trim()} to get access. (See the README's "Invite emails" section for the one-time setup.)`
+          : `Invited, but the email notification couldn't be sent (${emailErr.message}). Tell them to sign in at this app with ${inviteEmail.trim()} to get access.`
         : `Invited and emailed at ${inviteEmail.trim()} — they just need to sign in at this app with that address to get access.`
     )
     setInviteName('')

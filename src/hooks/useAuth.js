@@ -32,21 +32,19 @@ export function useAuth() {
 
   // If this user's email matches a pending invite (a firm_members row with
   // no user_id yet), link it to their real account now that they exist.
+  // This has to go through link_pending_invites() (a SECURITY DEFINER RPC)
+  // rather than a plain client query: firm_members' SELECT policy only
+  // allows is_firm_member(firm_id), which is false for a row this user
+  // isn't linked to *yet* - a catch-22 that would otherwise hide the very
+  // row this check exists to find. Returns how many invites were claimed,
+  // so callers (see signUpWithFirm below) can tell "this person just
+  // joined an existing firm via invite" apart from "this person has no
+  // invite, they're genuinely starting a new firm."
   const linkPendingInvites = useCallback(async (user) => {
-    if (!user?.email) return
-    const { data: pending } = await supabase
-      .from('firm_members')
-      .select('id')
-      .is('user_id', null)
-      .eq('invited_email', user.email)
-      .eq('status', 'invited')
-
-    if (pending && pending.length > 0) {
-      await supabase
-        .from('firm_members')
-        .update({ user_id: user.id, status: 'active' })
-        .in('id', pending.map((p) => p.id))
-    }
+    if (!user?.email) return 0
+    const { data, error: rpcError } = await supabase.rpc('link_pending_invites')
+    if (rpcError) return 0
+    return data ?? 0
   }, [])
 
   const loadMemberships = useCallback(async (userId) => {
@@ -107,14 +105,21 @@ export function useAuth() {
     return true
   }, [])
 
-  // Creates a brand new account AND a brand new firm in one step, and makes
-  // the new user its Owner. This is the self-service "sign up" path.
+  // Creates a brand new account, then one of two things: if this email
+  // already has a pending invite waiting (someone invited them to an
+  // existing firm), joins that firm instead - the firm name/GSTIN typed
+  // into the form are ignored in that case, since there's already a firm
+  // to join. Otherwise creates a brand new firm and makes them its Owner.
+  // This auto-detection is what makes it safe for an invited teammate to
+  // use this exact same "Create your firm" form without accidentally
+  // spinning up a second, unwanted company - the previous version had no
+  // such check and would always create a new firm regardless.
   const signUpWithFirm = useCallback(async ({ fullName, email, password, firmName, gstin }) => {
     setError(null)
     setProvisioning(true)
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) { setError(signUpError.message); setProvisioning(false); return false }
+    if (signUpError) { setError(signUpError.message); setProvisioning(false); return { ok: false } }
 
     const user = signUpData.user
     const hasSession = !!signUpData.session
@@ -124,44 +129,53 @@ export function useAuth() {
       // signed in for the first time (RLS needs a real auth.uid()).
       setError('Account created. If email confirmation is required on this project, check your email to confirm it, then sign in to finish setting up your firm.')
       setProvisioning(false)
-      return false
+      return { ok: false }
     }
 
-    const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
-      p_firm_name: firmName,
-      p_full_name: fullName,
-      p_gstin: gstin || null,
-    })
-    if (rpcError) { setError(rpcError.message); setProvisioning(false); return false }
+    const joinedExistingFirm = (await linkPendingInvites(user)) > 0
+
+    if (!joinedExistingFirm) {
+      const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
+        p_firm_name: firmName,
+        p_full_name: fullName,
+        p_gstin: gstin || null,
+      })
+      if (rpcError) { setError(rpcError.message); setProvisioning(false); return { ok: false } }
+    }
 
     // This call is issued after the firm/membership rows exist, so the
     // request-id guard in loadMemberships ensures this result wins even if
     // the auth-listener's earlier (premature) check resolves later.
     await loadMemberships(user.id)
     setProvisioning(false)
-    return true
-  }, [loadMemberships])
+    return { ok: true, joinedExistingFirm }
+  }, [loadMemberships, linkPendingInvites])
 
   // Self-heal path for an account that's authenticated but has zero firm
   // memberships — e.g. a user created directly in the Supabase dashboard,
   // or one where the signup flow's auth step succeeded but the firm/member
   // inserts that follow it never ran. Unlike signUpWithFirm, there's no
-  // auth.signUp call here: the session already exists, so this just creates
-  // the firm and attaches the current user to it as Owner.
+  // auth.signUp call here: the session already exists, so this just
+  // checks for a pending invite first (same reasoning as signUpWithFirm -
+  // don't create a redundant new firm for someone who was actually invited
+  // to an existing one), and only creates a new firm if none was found.
   const createFirmForSession = useCallback(async ({ fullName, firmName, gstin }) => {
     if (!session?.user) return { ok: false, error: 'No active session.' }
     const user = session.user
 
-    const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
-      p_firm_name: firmName,
-      p_full_name: fullName,
-      p_gstin: gstin || null,
-    })
-    if (rpcError) return { ok: false, error: rpcError.message }
+    const joinedExistingFirm = (await linkPendingInvites(user)) > 0
+    if (!joinedExistingFirm) {
+      const { error: rpcError } = await supabase.rpc('create_firm_with_owner', {
+        p_firm_name: firmName,
+        p_full_name: fullName,
+        p_gstin: gstin || null,
+      })
+      if (rpcError) return { ok: false, error: rpcError.message }
+    }
 
     await loadMemberships(user.id)
     return { ok: true }
-  }, [session, loadMemberships])
+  }, [session, loadMemberships, linkPendingInvites])
 
   // Owner (or anyone with the permissions.permissions right) invites a
   // teammate by email. Creates a pending row with no user_id yet - it gets

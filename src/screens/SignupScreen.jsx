@@ -25,9 +25,15 @@ export default function SignupScreen({ onSignUp, authError, onSwitchToLogin }) {
     }
 
     setSubmitting(true)
-    const ok = await onSignUp({ fullName: fullName.trim(), email: email.trim(), password, firmName: firmName.trim(), gstin: gstin.trim() })
+    const result = await onSignUp({ fullName: fullName.trim(), email: email.trim(), password, firmName: firmName.trim(), gstin: gstin.trim() })
     setSubmitting(false)
-    if (ok) setInfo("Firm created — you're signed in as Owner.")
+    if (result.ok) {
+      setInfo(
+        result.joinedExistingFirm
+          ? "You'd already been invited to a firm with this email — you're signed in and part of it now."
+          : "Firm created — you're signed in as Owner."
+      )
+    }
   }
 
   const errorToShow = localError || authError
@@ -49,6 +55,11 @@ export default function SignupScreen({ onSignUp, authError, onSwitchToLogin }) {
         </h1>
         <p className="text-[13px] leading-relaxed mb-6" style={{ color: 'var(--paper-dim)' }}>
           You'll be set up as Owner, with full access, right away.
+        </p>
+        <p className="login-footnote" style={{ marginTop: -8, marginBottom: 20 }}>
+          Already invited to join someone else's firm? Just use the email
+          address the invite was sent to — you'll be added to that firm
+          automatically, and the firm name/GSTIN below won't be used.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

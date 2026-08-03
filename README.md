@@ -390,6 +390,36 @@ the topbar regardless. A cache-busting query string is appended on each
 upload so replacing a logo shows immediately instead of a stale cached copy
 at the same path.
 
+## Fixed: invited teammates ending up as Owner of a new firm
+
+Run `migration_fix_invite_linking.sql` in Supabase's SQL Editor — additive,
+safe on the existing database.
+
+**The actual bug:** the only signup screen is "Create your firm," which
+always creates a brand-new company and makes the signer-upper its Owner.
+An invited teammate had no separate "accept invite" path, so using this
+same form (the only one that exists) made them Owner of an accidental new
+firm instead of joining yours as the role you'd assigned.
+
+**A second, deeper bug underneath that:** the mechanism meant to link an
+invited person to the firm that invited them (matching their email against
+a pending `firm_members` row) queried that table directly from the client
+— but that table's RLS only lets you see rows in firms you're *already* an
+active member of. A pending invite has no `user_id` yet, so that check
+could never actually see the very row it existed to find. This was likely
+broken before this fix too, independent of which screen anyone used.
+
+**The fix:** invite-linking now goes through a `security definer` database
+function (`link_pending_invites()`) that looks up the caller's own verified
+email server-side and claims only invite rows matching it exactly —
+sidesteps the RLS catch-22 entirely, the same pattern already used for
+`create_firm_with_owner()`/`create_journal_entry()` elsewhere in this app.
+Signup now calls this *first*: if it finds and claims a pending invite,
+it joins that firm and skips creating a new one - whatever was typed into
+"Firm Name"/"GSTIN" is simply unused in that case. No new screen needed;
+the existing signup form now does the right thing automatically based on
+which email is used.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -483,6 +513,13 @@ at the same path.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Fixed invited teammates ending up as Owner of a new firm (Aug
+      2026):** signup now auto-detects a pending invite for the email used
+      and joins that existing firm instead of always creating a new one -
+      also fixed a real RLS catch-22 in the invite-linking check itself
+      (couldn't see the very row it needed to find), via a new
+      `security definer` function. See "Fixed: invited teammates ending
+      up as Owner of a new firm" above for the full detail.
 - [x] **Polish: placeholders, Import UI, real logo upload (Aug 2026):**
       fixed hardcoded "Anuraj"/"NyooKart Apparel" placeholders on both
       signup screens (a real bug for anyone else using this), converted
