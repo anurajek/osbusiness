@@ -188,6 +188,68 @@ have the full reasoning in comments right where the sign is set.
 Each note type gets its own auto-numbering (`CN-0001`, `DN-0001`, ...),
 same atomic pattern as invoices and quotes, and its own branded PDF.
 
+## Scope: AR/AP focus (Aug 2026)
+
+This app is now scoped as an **accounts receivable/payable collections
+tool** first, not a full accounting suite - closer to its original purpose
+(replacing a spreadsheet-based collections workflow) than the broader
+Zoho/QuickBooks-style direction explored earlier.
+
+**Quotations, Credit/Debit Notes, and the General Ledger are hidden from
+navigation, not deleted.** Every table, migration, RLS policy, and screen
+for all three still exists exactly as built - nothing was dropped, and
+there's zero data loss if any of them already had real records in them.
+Re-enabling any of them is a small, safe change: add the module back to
+the `MODULES` list in `src/components/AppShell.jsx` (nav) and
+`src/screens/PermissionsScreen.jsx` (the per-member toggle grid) - two
+array entries, no migration needed.
+
+## Import Data
+
+Run `migration_import.sql` in Supabase's SQL Editor — additive, safe on the
+existing database.
+
+Bulk-import **Customers, Suppliers, Sales Invoices, or Purchase Bills**
+from a CSV export — built specifically so data already sitting in Tally,
+Zoho Books, or a plain spreadsheet doesn't have to be re-typed by hand.
+
+**Why CSV-only, no Excel (.xlsx) upload:** the standard npm package for
+parsing Excel files (`xlsx`/SheetJS) has a known high-severity
+vulnerability (prototype pollution + ReDoS) with **no fix currently
+available**. Rather than ship a vulnerable file parser into a tool that
+handles real financial data, this only supports CSV - which every
+candidate source (Tally, Zoho Books, Excel itself via "Save As") can
+export/convert to in one step anyway, so very little real capability is
+lost for a meaningfully safer dependency footprint.
+
+**How it works:**
+1. Choose what you're importing, upload a CSV
+2. Match each required field to a column from your file (auto-guessed from
+   the column names, fully editable)
+3. Preview every row with per-row validation (missing fields, unparseable
+   dates/amounts) before anything touches the database — invalid rows are
+   shown clearly and simply skipped, not silently dropped
+4. Importing Sales Invoices/Purchase Bills auto-creates any customer/
+   supplier name that doesn't already exist (matched case-insensitively)
+
+**Every import can be undone.** Each import is grouped under an
+`import_batches` record, and every row it creates (including any
+auto-created customers/suppliers) is tagged with that batch's id. "Recent
+Imports" lists past imports with an Undo button that deletes everything
+that batch created. This needed its own narrowly-scoped delete policy,
+since the app has otherwise deliberately never allowed deleting a
+manually-entered invoice/bill/customer/supplier (see Status below) — the
+new policies only allow deleting a row when `import_batch_id is not null`,
+so manually-entered records stay exactly as protected as before.
+
+**Known limitation:** the import isn't wrapped in a single database
+transaction (batch record → party creation → document rows are three
+separate calls) - if it fails partway through, Undo cleanly removes
+whatever did get created, but this is a "recover via Undo" model, not true
+atomicity. Reasonable for a first version; a `security definer` RPC doing
+the whole import server-side (same pattern as `create_journal_entry`)
+would be the way to make it fully atomic later if needed.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -281,6 +343,22 @@ same atomic pattern as invoices and quotes, and its own branded PDF.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Scope refocus + CSV Import (Aug 2026):** app refocused to AR/AP
+      collections - Quotations/Notes/Ledger hidden from nav (not deleted,
+      fully reversible, see "Scope: AR/AP focus" above). Added CSV bulk
+      import for Customers/Suppliers/Sales Invoices/Purchase Bills, with
+      column mapping, per-row validation, auto-created parties, and a real
+      Undo per import batch. Deliberately CSV-only, not Excel - see
+      "Import Data" above for the vulnerable-dependency reasoning.
+- [ ] Live sync with Zoho Books (OAuth2, no manual export needed) is a
+      natural next step now that file-based import exists — bigger build,
+      needs a Zoho Developer Console app registered on your end first,
+      same category of one-time setup as the Resend email integration.
+- [ ] Tally has no live-sync path at all from a cloud-hosted app — it only
+      talks to its own local network (ODBC / XML-HTTP gateway on
+      localhost). A real "live" Tally integration would need a small
+      agent/script installed on the same machine/network as Tally, which
+      is a different kind of project from anything else in this app.
 - [x] **Credit / Debit Notes, phase 2 continued (Aug 2026):** independent
       correction/refund records for Sales and Purchases, each with their
       own auto-numbering, PDF export, and real Cash & Bank money movement

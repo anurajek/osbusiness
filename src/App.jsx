@@ -8,6 +8,7 @@ import DashboardScreen from './screens/DashboardScreen'
 import InvoiceListScreen from './screens/InvoiceListScreen'
 import QuotationsScreen from './screens/QuotationsScreen'
 import CreditDebitNotesScreen from './screens/CreditDebitNotesScreen'
+import ImportScreen from './screens/ImportScreen'
 import ARAPScreen from './screens/ARAPScreen'
 import CashBankScreen from './screens/CashBankScreen'
 import LedgerScreen from './screens/LedgerScreen'
@@ -106,7 +107,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 
   if (!firmId) return <NoFirmMessage userEmail={userEmail} onCreateFirm={onCreateFirm} onSignOut={onSignOut} initialError={initialError} />
 
-  const allowed = role === 'Owner' ? { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, quotes: true, notes: true, permissions: true } : (permissions || {})
+  const allowed = role === 'Owner' ? { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, quotes: true, notes: true, import: true, permissions: true } : (permissions || {})
 
   const renderModule = () => {
     if (!allowed[activeModule]) {
@@ -118,6 +119,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
       case 'purchases': return <InvoiceListScreen type="purchases" />
       case 'quotes': return <QuotationsScreen />
       case 'notes': return <CreditDebitNotesScreen />
+      case 'import': return <ImportScreen />
       case 'arap': return <ARAPScreen tab={arapTab} onTabChange={setArapTab} />
       case 'cashbank': return <CashBankScreen />
       case 'ledger': return <LedgerScreen />

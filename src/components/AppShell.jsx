@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
-  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, BookOpen, FileText, ReceiptText,
+  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
+// Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
+// Notes, and the General Ledger are deliberately hidden from nav, not
+// deleted. All three still exist in full (screens, migrations, RLS) and
+// have zero data loss - re-enabling any of them later is just adding their
+// entry back to this list (and to PermissionsScreen.jsx's MODULES array,
+// which mirrors this one for the per-member toggle grid). See README's
+// "Scope: AR/AP focus" section for the full reasoning.
 const MODULES = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'sales', label: 'Sales', icon: ShoppingCart },
   { key: 'purchases', label: 'Purchases', icon: Package },
-  { key: 'quotes', label: 'Quotations', icon: FileText },
-  { key: 'notes', label: 'Credit/Debit Notes', icon: ReceiptText },
   { key: 'arap', label: 'AR / AP', icon: TrendingUp },
   { key: 'cashbank', label: 'Cash & Bank', icon: Landmark },
-  { key: 'ledger', label: 'Ledger', icon: BookOpen },
+  { key: 'import', label: 'Import Data', icon: UploadCloud },
   { key: 'permissions', label: 'Users & Permissions', icon: ShieldCheck },
 ]
 

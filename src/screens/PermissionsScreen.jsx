@@ -3,20 +3,23 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { SectionHeader } from '../components/ui'
 
+// Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
+// Notes, and Ledger are hidden from this toggle grid (and from the nav in
+// AppShell.jsx) but not deleted anywhere. The permission keys below still
+// include them so nothing breaks if they're re-enabled later - only the
+// visible module list is trimmed.
 const MODULES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'sales', label: 'Sales' },
   { key: 'purchases', label: 'Purchases' },
-  { key: 'quotes', label: 'Quotations' },
-  { key: 'notes', label: 'Credit/Debit Notes' },
   { key: 'arap', label: 'AR / AP' },
   { key: 'cashbank', label: 'Cash & Bank' },
-  { key: 'ledger', label: 'Ledger' },
+  { key: 'import', label: 'Import Data' },
 ]
 
 const ROLES = ['Accountant', 'Viewer']
-const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, permissions: true }
-const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, permissions: false }
+const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, import: true, permissions: true }
+const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, import: false, permissions: false }
 
 export default function PermissionsScreen() {
   const { firmId, role: myRole, firm, membershipId, refreshMemberships } = useFirm()
