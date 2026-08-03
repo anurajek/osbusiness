@@ -3,7 +3,8 @@ import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
-import { downloadDocumentPdf } from '../lib/pdf'
+import { downloadDocumentPdf, downloadListPdf } from '../lib/pdf'
+import { downloadCsv } from '../lib/exportCsv'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
@@ -134,6 +135,44 @@ export default function InvoiceListScreen({ type }) {
     return sortRows(list, sortBy, 'issued_date')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, range, partyFilter, statusFilter, search, sortBy, parties])
+
+  const handleExportCsv = () => {
+    downloadCsv(
+      `${isSales ? 'sales-invoices' : 'purchase-bills'}`,
+      [isSales ? 'Invoice #' : 'Bill #', isSales ? 'Customer' : 'Supplier', 'Issued', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status'],
+      filtered.map((r) => [
+        r[numberField],
+        partyName(r[partyJoinKey]),
+        r.issued_date,
+        r.due_date || '',
+        r.amount.toFixed(2),
+        r.paid_amount.toFixed(2),
+        (r.amount - r.paid_amount).toFixed(2),
+        liveStatus(r),
+      ])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: isSales ? 'Sales Invoices' : 'Purchase Bills',
+      firm,
+      filename: isSales ? 'sales-invoices' : 'purchase-bills',
+      columns: [
+        { label: isSales ? 'Invoice #' : 'Bill #' }, { label: isSales ? 'Customer' : 'Supplier' }, { label: 'Issued' },
+        { label: 'Amount', align: 'right' }, { label: 'Paid', align: 'right' }, { label: 'Balance', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [
+        r[numberField],
+        partyName(r[partyJoinKey]),
+        r.issued_date,
+        inr(r.amount),
+        inr(r.paid_amount),
+        inr(r.amount - r.paid_amount),
+        liveStatus(r),
+      ]),
+    })
+  }
 
   const handleAddParty = async (e) => {
     e.preventDefault()
@@ -368,7 +407,11 @@ export default function InvoiceListScreen({ type }) {
       />
       <div className="card">
         <div className="section-header" style={{ marginBottom: showAddDoc ? 12 : 8 }}>
-          <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
+          </span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}

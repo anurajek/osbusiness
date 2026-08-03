@@ -3,7 +3,8 @@ import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
-import { downloadQuotePdf } from '../lib/pdf'
+import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
+import { downloadCsv } from '../lib/exportCsv'
 import { PeriodSelector, FilterBar, sortRows } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
@@ -98,6 +99,26 @@ export default function QuotationsScreen() {
     return sortRows(list, sortBy, 'issued_date', 'total')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, range, customerFilter, statusFilter, search, sortBy, customers])
+
+  const handleExportCsv = () => {
+    downloadCsv(
+      'quotations',
+      ['Quote #', 'Customer', 'Issued', 'Valid Until', 'Total', 'Status'],
+      filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, r.valid_until || '', r.total.toFixed(2), displayStatus(r)])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: 'Quotations',
+      firm,
+      filename: 'quotations',
+      columns: [
+        { label: 'Quote #' }, { label: 'Customer' }, { label: 'Issued' }, { label: 'Total', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, inr(r.total), displayStatus(r)]),
+    })
+  }
 
   const resetForm = () => {
     setEditingId(null)
@@ -237,7 +258,11 @@ export default function QuotationsScreen() {
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: showForm ? 12 : 8 }}>
-          <span className="section-header__note">{filtered.length} quote{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{filtered.length} quote{filtered.length !== 1 ? 's' : ''}</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
+          </span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}

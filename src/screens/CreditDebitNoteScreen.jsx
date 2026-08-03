@@ -3,7 +3,8 @@ import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
-import { downloadNotePdf } from '../lib/pdf'
+import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
+import { downloadCsv } from '../lib/exportCsv'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { EmptyRow, SortableTh } from '../components/ui'
 
@@ -94,6 +95,27 @@ export default function CreditDebitNoteScreen({ type }) {
     return sortRows(list, sortBy, 'issued_date')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, range, statusFilter, search, sortBy, parties])
+
+  const handleExportCsv = () => {
+    downloadCsv(
+      isCredit ? 'credit-notes' : 'debit-notes',
+      ['Note #', isCredit ? 'Customer' : 'Supplier', 'Issued', 'Reason', 'Amount', 'Status'],
+      filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, r.reason || '', r.amount.toFixed(2), r.status])
+    )
+  }
+
+  const handleExportPdf = () => {
+    downloadListPdf({
+      title: isCredit ? 'Credit Notes' : 'Debit Notes',
+      firm,
+      filename: isCredit ? 'credit-notes' : 'debit-notes',
+      columns: [
+        { label: 'Note #' }, { label: isCredit ? 'Customer' : 'Supplier' }, { label: 'Issued' },
+        { label: 'Amount', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, inr(r.amount), r.status]),
+    })
+  }
 
   const resetForm = () => {
     setFormPartyId(''); setFormOriginalId(''); setFormNumber('')
@@ -247,7 +269,11 @@ export default function CreditDebitNoteScreen({ type }) {
     <>
       <div className="card">
         <div className="section-header" style={{ marginBottom: showForm ? 12 : 8 }}>
-          <span className="section-header__note">{filtered.length} {docLabel.toLowerCase()}{filtered.length !== 1 ? 's' : ''}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{filtered.length} {docLabel.toLowerCase()}{filtered.length !== 1 ? 's' : ''}</span>
+            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
+          </span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}

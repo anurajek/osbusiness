@@ -325,6 +325,12 @@ the selected period, not the invoice's issued date - so a payment made
 last week against an invoice issued three months ago correctly shows up
 when you look at "Last month." Each with its own Export CSV/PDF.
 
+**Export CSV/PDF also added directly to Sales, Purchases, Quotations, and
+Credit/Debit Notes** — each exports whatever's currently filtered on that
+screen. This closes the actual gap: filtering Sales to Status = Paid
+previously only gave you individual per-invoice PDF downloads, one at a
+time, with no way to export that filtered list as a single report.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -426,8 +432,11 @@ when you look at "Last month." Each with its own Export CSV/PDF.
       Made" (with their own export) on Receivables/Payables: one row per
       actual payment transaction (not per invoice/bill - an earlier version
       of this only showed fully-paid invoices and missed every partial
-      payment, since fixed). See "Payment dates + CSV/PDF exports" above
-      for the CSV-vs-.xlsx reasoning and the full fix.
+      payment, since fixed). Also added Export CSV/PDF directly to Sales,
+      Purchases, Quotations, and Credit/Debit Notes, respecting whatever
+      filter (e.g. Status = Paid) is currently active there. See "Payment
+      dates + CSV/PDF exports" above for the CSV-vs-.xlsx reasoning and the
+      full fix.
 - [x] **Cash & Bank corrections (Aug 2026):** fixed a real correctness gap
       where editing an existing invoice/bill's paid amount silently
       desynced from Cash & Bank ("Record Payment" was the only path that
