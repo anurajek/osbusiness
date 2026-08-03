@@ -5,6 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
+import { downloadListDocx } from '../lib/exportDocx'
 import { PeriodSelector, FilterBar, sortRows } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
@@ -110,6 +111,18 @@ export default function QuotationsScreen() {
 
   const handleExportPdf = () => {
     downloadListPdf({
+      title: 'Quotations',
+      firm,
+      filename: 'quotations',
+      columns: [
+        { label: 'Quote #' }, { label: 'Customer' }, { label: 'Issued' }, { label: 'Total', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, inr(r.total), displayStatus(r)]),
+    })
+  }
+
+  const handleExportWord = () => {
+    downloadListDocx({
       title: 'Quotations',
       firm,
       filename: 'quotations',
@@ -258,11 +271,7 @@ export default function QuotationsScreen() {
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: showForm ? 12 : 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{filtered.length} quote{filtered.length !== 1 ? 's' : ''}</span>
-            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
-          </span>
+          <span className="section-header__note">{filtered.length} quote{filtered.length !== 1 ? 's' : ''}</span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
@@ -347,6 +356,7 @@ export default function QuotationsScreen() {
           { value: 'date-desc', label: 'Newest first' }, { value: 'date-asc', label: 'Oldest first' },
           { value: 'amount-desc', label: 'Amount: high to low' }, { value: 'amount-asc', label: 'Amount: low to high' },
         ] }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />
 
       <div className="card">

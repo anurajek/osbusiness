@@ -7,6 +7,7 @@ import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
+import { downloadListDocx } from '../lib/exportDocx'
 
 // "Paid" sits alongside the open statuses in the same dropdown now, rather
 // than living in a separate report - selecting it just changes what this
@@ -164,6 +165,26 @@ export default function ReceivablesScreen() {
     })
   }
 
+  const handleExportWord = () => {
+    downloadListDocx({
+      title: isPaidView ? 'Receivables — Paid Clients' : 'Receivables — Pending Clients',
+      firm,
+      filename: 'receivables-clients',
+      columns: [
+        { label: 'Customer' }, { label: isPaidView ? 'Paid Invoices' : 'Open Bills', align: 'right' },
+        { label: isPaidView ? 'Amount Received' : 'Amount Due', align: 'right' },
+        { label: 'Last Follow-up' }, { label: 'Last Contact' },
+      ],
+      rows: rows.map((r) => [
+        r.customer.name,
+        r.count,
+        inr(r.amount),
+        r.lastComm?.tag || 'No follow-up yet',
+        r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—',
+      ]),
+    })
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -198,16 +219,13 @@ export default function ReceivablesScreen() {
             { value: 'name-asc', label: 'Customer name: A–Z' },
           ],
         }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: rows.length === 0 }}
       />
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>{isPaidView ? 'Paid clients' : 'Pending clients'}</h2>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''}</span>
-            <button className="link-btn" onClick={handleExportCsv} disabled={rows.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportPdf} disabled={rows.length === 0}>Export PDF</button>
-          </span>
+          <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">

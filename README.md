@@ -327,6 +327,37 @@ screen. This closes the actual gap: filtering Sales to Status = Paid
 previously only gave you individual per-invoice PDF downloads, one at a
 time, with no way to export that filtered list as a single report.
 
+## Export as: Excel / PDF / Word, and a real PDF bug fix
+
+**The actual cause of "Export PDF does nothing":** every PDF export loaded
+the `jspdf` library via a dynamic `import()`, which puts a gap - waiting
+for the chunk to load - between the click and the actual file save. Some
+browsers treat a save that happens after that gap as no longer tied
+closely enough to the original click and silently drop it. `jspdf` (and
+`docx`, added below) are now static imports instead, so generating and
+saving the file happens in one synchronous pass with no gap - the browser
+never has a reason to second-guess whether it was really user-initiated.
+
+**Tradeoff, stated plainly:** this makes the main JS bundle meaningfully
+bigger (roughly 900KB → 1.7MB) - static imports mean these libraries load
+on every page visit instead of only when Export is actually used. Given
+the alternative was a genuinely broken feature, that's the right trade,
+but it's real and worth knowing about rather than glossing over.
+
+**Word export added**, using the `docx` library (checked for known
+vulnerabilities before adding it - none found, same diligence as every
+other dependency in this app). Every list export (Cash & Bank, Receivables/
+Payables, Sales, Purchases, Quotations, Credit/Debit Notes) now produces a
+real `.docx` file with a formatted table, not just CSV/PDF.
+
+**One "Export as" dropdown replaces the separate Export CSV/PDF buttons**,
+moved into the shared filter row right next to "Sort by" (same row, right
+edge) instead of sitting in each table's own header. Picking Excel, PDF, or
+Word from it immediately triggers that export - it's an action menu, not a
+persistent selection, so it always resets rather than staying "picked."
+This lives in the shared `FilterBar` component (`exportOptions` prop), so
+every screen gets the same placement and behavior automatically.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -420,6 +451,15 @@ time, with no way to export that filtered list as a single report.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Export as Excel/PDF/Word + real PDF fix (Aug 2026):** found and
+      fixed the actual cause of "Export PDF does nothing" (a dynamic
+      import creating a gap between click and file save that some browsers
+      silently drop) by making jsPDF a static import - real bundle-size
+      cost, but the feature now reliably works. Added Word export (`docx`
+      library, checked clean). Replaced the separate Export CSV/PDF buttons
+      with one "Export as" action-dropdown in the shared filter row, next
+      to Sort by, on every screen that has one. See "Export as: Excel /
+      PDF / Word" above for the full detail and the bundle-size tradeoff.
 - [x] **Payment dates + CSV/PDF exports (Aug 2026):** Record Payment/Record
       Refund now ask for the actual date the money moved, instead of
       silently always using today. Added Export CSV/PDF to Cash & Bank

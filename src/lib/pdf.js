@@ -1,9 +1,14 @@
+import { jsPDF } from 'jspdf'
 import { inr, toISODate } from './format'
 
-// jsPDF is dynamically imported below, not at module top-level, so it (and
-// its own optional html2canvas/dompurify dependencies, which this file
-// never actually uses) don't inflate the app's main bundle - they load as
-// a separate chunk only when someone actually clicks "Download PDF".
+// jsPDF is a static import, deliberately, even though it costs main-bundle
+// size - a dynamic import() here means "click Export PDF" and the actual
+// pdf.save() call are separated by an async gap (waiting for the chunk to
+// load), and some browsers treat a file save that happens after that gap
+// as no longer tied to the original user gesture and silently drop it.
+// That's exactly the "Export PDF does nothing" bug this was rewritten to
+// fix - the click handler now runs to completion, save included, in one
+// synchronous pass, every time.
 
 function renderHeader(pdf, { firm, pageWidth, margin, y }) {
   pdf.setFont('helvetica', 'bold')
@@ -82,7 +87,6 @@ function renderFooter(pdf, { firm, pageWidth, margin }) {
 // party: { name, gstin, address, email }
 // doc: { number, issued_date, due_date, amount, paid_amount, status, isSales }
 export async function downloadDocumentPdf({ firm, party, doc }) {
-  const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -163,7 +167,6 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
 // quote: { number, issued_date, valid_until, status }
 // lineItems: [{ description, quantity, unit_price, amount }, ...]
 export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
-  const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -252,7 +255,6 @@ export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
 //
 // note: { number, issued_date, reason, amount, status, isCreditNote, originalDocNumber }
 export async function downloadNotePdf({ firm, party, note }) {
-  const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -317,8 +319,7 @@ export async function downloadNotePdf({ firm, party, note }) {
 //
 // columns: [{ label, align: 'left'|'right' }, ...]
 // rows: [[cell, cell, ...], ...] - already formatted strings, in column order
-export async function downloadListPdf({ title, firm, columns, rows, filename, orientation = 'landscape' }) {
-  const { jsPDF } = await import('jspdf')
+export function downloadListPdf({ title, firm, columns, rows, filename, orientation = 'landscape' }) {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()

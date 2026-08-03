@@ -7,6 +7,7 @@ import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '.
 import { SectionHeader, Stamp, EmptyRow, SortableTh } from '../components/ui'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
+import { downloadListDocx } from '../lib/exportDocx'
 
 export default function CashBankScreen() {
   const { firmId, firm } = useFirm()
@@ -202,6 +203,26 @@ export default function CashBankScreen() {
     })
   }
 
+  const handleExportWord = () => {
+    downloadListDocx({
+      title: 'Cash & Bank Transactions',
+      firm,
+      filename: 'cash-bank-transactions',
+      columns: [
+        { label: 'Date' }, { label: 'Account' }, { label: 'Description' },
+        { label: 'Amount', align: 'right' }, { label: 'Type' }, { label: 'Status' },
+      ],
+      rows: filtered.map((t) => [
+        toISODate(new Date(t.txn_date)),
+        accountName(t.bank_account_id),
+        t.description,
+        inr(Math.abs(t.amount)),
+        t.amount > 0 ? 'Received' : 'Paid',
+        t.reconciled ? 'Reconciled' : 'Pending',
+      ]),
+    })
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -283,16 +304,13 @@ export default function CashBankScreen() {
           },
         ]}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>Transactions</h2>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
-            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
-          </span>
+          <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">

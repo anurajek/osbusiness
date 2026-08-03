@@ -45,7 +45,7 @@ export function SearchInput({ value, onChange, placeholder }) {
   )
 }
 
-export function FilterBar({ search, filters, sort }) {
+export function FilterBar({ search, filters, sort, exportOptions }) {
   return (
     <div className="filter-bar">
       {search && (
@@ -67,6 +67,27 @@ export function FilterBar({ search, filters, sort }) {
           <label>Sort by</label>
           <select className="select select--sm" value={sort.value} onChange={(e) => sort.onChange(e.target.value)}>
             {sort.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      )}
+      {exportOptions && (
+        <div className="filter-field">
+          <label>Export as</label>
+          <select
+            className="select select--sm"
+            value=""
+            disabled={exportOptions.disabled}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === 'excel') exportOptions.onExcel?.()
+              else if (v === 'pdf') exportOptions.onPdf?.()
+              else if (v === 'word') exportOptions.onWord?.()
+            }}
+          >
+            <option value="" disabled>Export as…</option>
+            <option value="excel">Excel</option>
+            <option value="pdf">PDF</option>
+            <option value="word">Word</option>
           </select>
         </div>
       )}

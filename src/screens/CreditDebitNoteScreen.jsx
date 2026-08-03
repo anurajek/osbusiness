@@ -5,6 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
+import { downloadListDocx } from '../lib/exportDocx'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { EmptyRow, SortableTh } from '../components/ui'
 
@@ -106,6 +107,19 @@ export default function CreditDebitNoteScreen({ type }) {
 
   const handleExportPdf = () => {
     downloadListPdf({
+      title: isCredit ? 'Credit Notes' : 'Debit Notes',
+      firm,
+      filename: isCredit ? 'credit-notes' : 'debit-notes',
+      columns: [
+        { label: 'Note #' }, { label: isCredit ? 'Customer' : 'Supplier' }, { label: 'Issued' },
+        { label: 'Amount', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, inr(r.amount), r.status]),
+    })
+  }
+
+  const handleExportWord = () => {
+    downloadListDocx({
       title: isCredit ? 'Credit Notes' : 'Debit Notes',
       firm,
       filename: isCredit ? 'credit-notes' : 'debit-notes',
@@ -269,11 +283,7 @@ export default function CreditDebitNoteScreen({ type }) {
     <>
       <div className="card">
         <div className="section-header" style={{ marginBottom: showForm ? 12 : 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{filtered.length} {docLabel.toLowerCase()}{filtered.length !== 1 ? 's' : ''}</span>
-            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
-          </span>
+          <span className="section-header__note">{filtered.length} {docLabel.toLowerCase()}{filtered.length !== 1 ? 's' : ''}</span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
@@ -333,6 +343,7 @@ export default function CreditDebitNoteScreen({ type }) {
           { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: 'all', label: 'All' }, { value: 'open', label: 'Open' }, { value: 'refunded', label: 'Refunded' }] },
         ]}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />
 
       <div className="card">

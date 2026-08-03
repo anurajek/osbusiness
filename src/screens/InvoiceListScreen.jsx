@@ -5,6 +5,7 @@ import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { downloadDocumentPdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
+import { downloadListDocx } from '../lib/exportDocx'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
@@ -155,6 +156,27 @@ export default function InvoiceListScreen({ type }) {
 
   const handleExportPdf = () => {
     downloadListPdf({
+      title: isSales ? 'Sales Invoices' : 'Purchase Bills',
+      firm,
+      filename: isSales ? 'sales-invoices' : 'purchase-bills',
+      columns: [
+        { label: isSales ? 'Invoice #' : 'Bill #' }, { label: isSales ? 'Customer' : 'Supplier' }, { label: 'Issued' },
+        { label: 'Amount', align: 'right' }, { label: 'Paid', align: 'right' }, { label: 'Balance', align: 'right' }, { label: 'Status' },
+      ],
+      rows: filtered.map((r) => [
+        r[numberField],
+        partyName(r[partyJoinKey]),
+        r.issued_date,
+        inr(r.amount),
+        inr(r.paid_amount),
+        inr(r.amount - r.paid_amount),
+        liveStatus(r),
+      ]),
+    })
+  }
+
+  const handleExportWord = () => {
+    downloadListDocx({
       title: isSales ? 'Sales Invoices' : 'Purchase Bills',
       firm,
       filename: isSales ? 'sales-invoices' : 'purchase-bills',
@@ -404,14 +426,11 @@ export default function InvoiceListScreen({ type }) {
           },
         ]}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />
       <div className="card">
         <div className="section-header" style={{ marginBottom: showAddDoc ? 12 : 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
-            <button className="link-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>Export CSV</button>
-            <button className="link-btn" onClick={handleExportPdf} disabled={filtered.length === 0}>Export PDF</button>
-          </span>
+          <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
           <button
             className="link-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
