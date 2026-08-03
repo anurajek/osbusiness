@@ -358,6 +358,38 @@ persistent selection, so it always resets rather than staying "picked."
 This lives in the shared `FilterBar` component (`exportOptions` prop), so
 every screen gets the same placement and behavior automatically.
 
+## Polish: placeholders, Import UI, real logo upload
+
+Run `migration_firm_logo_storage.sql` in Supabase's SQL Editor for the logo
+upload part — additive, safe on the existing database. The other two fixes
+need no migration, just deploy.
+
+**Signup placeholder bug fixed.** Both "Create your firm" (new signup) and
+the "Set up your firm" self-heal screen had "Anuraj" and "NyooKart Apparel"
+hardcoded as the Your Name/Firm Name field placeholders — leftover example
+text from early scaffolding that would've shown up for literally anyone
+else signing up. Now generic ("Your full name" / "Your firm's name").
+Worth having caught this now rather than after this became something
+other businesses actually use.
+
+**Import Data's "What are you importing?" selector** is now a dropdown
+matching the same filter-bar style used everywhere else in the app (label
++ select, right where "Sort by"/"Export as" live on other screens),
+instead of a standalone row of tab buttons that didn't match anything else.
+
+**Real logo upload**, replacing the old "paste a URL to an image hosted
+somewhere else" text field. Users & Permissions → Firm details → Logo now
+takes an actual PNG/JPEG/JPG file (2MB limit), stored in a new public
+Supabase Storage bucket (`firm-logos`) at `{firm_id}/logo.{ext}` — the RLS
+policies on that bucket check firm membership via that path, so a firm's
+members can only upload/replace/remove their own logo, never another
+firm's. The bucket is public (readable via a plain URL, no auth) since
+that's exactly the trust level the old URL-paste approach already had —
+logos need to be plain-URL-fetchable for the in-browser PDF generator and
+the topbar regardless. A cache-busting query string is appended on each
+upload so replacing a logo shows immediately instead of a stale cached copy
+at the same path.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -451,6 +483,13 @@ every screen gets the same placement and behavior automatically.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Polish: placeholders, Import UI, real logo upload (Aug 2026):**
+      fixed hardcoded "Anuraj"/"NyooKart Apparel" placeholders on both
+      signup screens (a real bug for anyone else using this), converted
+      Import Data's type selector to match the app's filter-bar dropdown
+      style, and replaced the logo URL text field with a real PNG/JPEG/JPG
+      upload to a new Supabase Storage bucket. See "Polish: placeholders,
+      Import UI, real logo upload" above for full detail.
 - [x] **Export as Excel/PDF/Word + real PDF fix (Aug 2026):** found and
       fixed the actual cause of "Export PDF does nothing" (a dynamic
       import creating a gap between click and file save that some browsers

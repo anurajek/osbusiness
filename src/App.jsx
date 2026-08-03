@@ -50,11 +50,11 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>Your name</label>
-            <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Anuraj" />
+            <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
           </div>
           <div>
             <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>Firm name</label>
-            <input className="text-input" value={firmName} onChange={(e) => setFirmName(e.target.value)} placeholder="NyooKart Apparel" />
+            <input className="text-input" value={firmName} onChange={(e) => setFirmName(e.target.value)} placeholder="Your firm's name" />
           </div>
           <div>
             <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>GSTIN (optional)</label>

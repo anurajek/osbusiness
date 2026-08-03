@@ -53,10 +53,10 @@ export default function SignupScreen({ onSignUp, authError, onSwitchToLogin }) {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field label="Your name">
-            <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Anuraj" />
+            <input className="text-input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
           </Field>
           <Field label="Firm name">
-            <input className="text-input" value={firmName} onChange={(e) => setFirmName(e.target.value)} placeholder="NyooKart Apparel" />
+            <input className="text-input" value={firmName} onChange={(e) => setFirmName(e.target.value)} placeholder="Your firm's name" />
           </Field>
           <Field label="GSTIN (optional)">
             <input className="text-input" value={gstin} onChange={(e) => setGstin(e.target.value)} placeholder="32AAAAA0000A1Z5" />

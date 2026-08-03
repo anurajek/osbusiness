@@ -271,17 +271,13 @@ export default function ImportScreen() {
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 12 }}><h2>What are you importing?</h2></div>
-        <div className="add-comm-row" style={{ marginBottom: 4 }}>
-          {Object.entries(TARGETS).map(([key, t]) => (
-            <button
-              key={key}
-              className={`tab ${target === key ? 'tab--active' : ''}`}
-              onClick={() => handleTargetChange(key)}
-              type="button"
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="filter-bar" style={{ marginBottom: 4 }}>
+          <div className="filter-field">
+            <label>Import type</label>
+            <select className="select select--sm" value={target} onChange={(e) => handleTargetChange(e.target.value)}>
+              {Object.entries(TARGETS).map(([key, t]) => <option key={key} value={key}>{t.label}</option>)}
+            </select>
+          </div>
         </div>
 
         {step === 'upload' && (

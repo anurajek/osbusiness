@@ -51,6 +51,8 @@ export default function PermissionsScreen() {
   const [firmError, setFirmError] = useState(null)
   const [firmSuccess, setFirmSuccess] = useState(null)
   const [editingFirm, setEditingFirm] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoError, setLogoError] = useState(null)
   const setFirmField = (key) => (e) => setFirmForm((f) => ({ ...f, [key]: e.target.value }))
 
   // Keep the form in sync if the selected firm changes (multi-firm users)
@@ -71,7 +73,44 @@ export default function PermissionsScreen() {
   const cancelEditingFirm = () => {
     setFirmForm(blankFirmForm())
     setFirmError(null)
+    setLogoError(null)
     setEditingFirm(false)
+  }
+
+  const ALLOWED_LOGO_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg' }
+
+  const handleLogoFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // let choosing the same file again re-trigger onChange
+    if (!file) return
+    setLogoError(null)
+
+    const ext = ALLOWED_LOGO_TYPES[file.type]
+    if (!ext) {
+      setLogoError('Please choose a PNG or JPEG/JPG image.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError('That image is over 2MB - please choose a smaller one.')
+      return
+    }
+
+    setUploadingLogo(true)
+    const path = `${firmId}/logo.${ext}`
+    const { error: uploadErr } = await supabase.storage
+      .from('firm-logos')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    setUploadingLogo(false)
+    if (uploadErr) {
+      setLogoError(uploadErr.message)
+      return
+    }
+
+    const { data } = supabase.storage.from('firm-logos').getPublicUrl(path)
+    // Cache-bust so a replaced logo shows the new image immediately,
+    // instead of the browser (or CDN) serving the old cached file at the
+    // same path.
+    setFirmForm((f) => ({ ...f, logo_url: `${data.publicUrl}?v=${Date.now()}` }))
   }
 
   const isOwner = myRole === 'Owner'
@@ -225,8 +264,24 @@ export default function PermissionsScreen() {
                 <input className="text-input" placeholder="Phone" value={firmForm.phone} onChange={setFirmField('phone')} />
                 <input className="text-input" type="email" placeholder="Business email" value={firmForm.email} onChange={setFirmField('email')} />
               </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>Logo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {firmForm.logo_url && (
+                    <>
+                      <img src={firmForm.logo_url} alt="Firm logo" style={{ height: 40, width: 40, objectFit: 'contain', borderRadius: 6, background: 'var(--panel-alt)' }} />
+                      <button type="button" className="link-btn" onClick={() => setFirmForm((f) => ({ ...f, logo_url: '' }))}>Remove</button>
+                    </>
+                  )}
+                  <label className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', cursor: uploadingLogo ? 'default' : 'pointer', opacity: uploadingLogo ? 0.6 : 1 }}>
+                    {uploadingLogo ? 'Uploading…' : firmForm.logo_url ? 'Replace logo' : 'Upload logo'}
+                    <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handleLogoFileChange} disabled={uploadingLogo} style={{ display: 'none' }} />
+                  </label>
+                </div>
+                <p className="login-footnote" style={{ marginTop: 4 }}>PNG or JPEG/JPG, up to 2MB.</p>
+                {logoError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{logoError}</p>}
+              </div>
               <div className="add-comm-row">
-                <input className="text-input" placeholder="Logo URL (optional - a hosted image link)" value={firmForm.logo_url} onChange={setFirmField('logo_url')} />
                 <input className="text-input" style={{ maxWidth: 160 }} placeholder="Invoice prefix" value={firmForm.invoice_prefix} onChange={setFirmField('invoice_prefix')} />
               </div>
               <div>
