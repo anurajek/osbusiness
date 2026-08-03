@@ -312,18 +312,14 @@ import: this app avoids the standard Excel-writing library too (same known
 vulnerability, no fix available), so exports are CSV rather than a native
 `.xlsx` file — Excel opens a CSV exactly the same as opening a native file.
 
-**"Payments Received" (Receivables) / "Payments Made" (Payables)** — a
-second table below the pending list, one row per **actual payment
-transaction** — not per invoice/bill. The first version of this mistakenly
-only showed invoices/bills that ended up fully Paid, which meant a
-customer who'd made three partial payments on a still-open invoice
-wouldn't show up at all - genuinely the wrong report for "who paid, when,
-how much." It now reads directly from Cash & Bank's transaction log (the
-same `related_sales_invoice_id`/`related_purchase_bill_id` links added for
-the delete/reversal fix), filtered by the actual payment date falling in
-the selected period, not the invoice's issued date - so a payment made
-last week against an invoice issued three months ago correctly shows up
-when you look at "Last month." Each with its own Export CSV/PDF.
+**Receivables/Payables' Status filter now includes "Paid"** alongside the
+open statuses (Sent/Partial/Due today/Overdue), instead of Paid living in a
+separate report. Selecting it turns the same "Pending clients"/"Pending
+suppliers" table into a paid view - "Open bills" becomes "Paid invoices,"
+"Amount due" becomes "Amount received," same Export CSV/PDF either way.
+(An earlier version of this added a second, separate "Payments Received"
+table instead — simpler now to have one table whose meaning follows
+whatever status is selected, rather than two different reports.)
 
 **Export CSV/PDF also added directly to Sales, Purchases, Quotations, and
 Credit/Debit Notes** — each exports whatever's currently filtered on that
@@ -427,16 +423,15 @@ time, with no way to export that filtered list as a single report.
 - [x] **Payment dates + CSV/PDF exports (Aug 2026):** Record Payment/Record
       Refund now ask for the actual date the money moved, instead of
       silently always using today. Added Export CSV/PDF to Cash & Bank
-      transactions and Receivables/Payables pending lists, respecting
-      whatever's currently filtered - plus "Payments Received"/"Payments
-      Made" (with their own export) on Receivables/Payables: one row per
-      actual payment transaction (not per invoice/bill - an earlier version
-      of this only showed fully-paid invoices and missed every partial
-      payment, since fixed). Also added Export CSV/PDF directly to Sales,
-      Purchases, Quotations, and Credit/Debit Notes, respecting whatever
-      filter (e.g. Status = Paid) is currently active there. See "Payment
-      dates + CSV/PDF exports" above for the CSV-vs-.xlsx reasoning and the
-      full fix.
+      transactions and to Receivables/Payables, Sales, Purchases,
+      Quotations, and Credit/Debit Notes, respecting whatever's currently
+      filtered. Receivables/Payables' Status filter now includes "Paid"
+      alongside the open statuses, turning the same table into a paid view
+      rather than needing a separate report (an earlier version added a
+      separate "Payments Received"/"Payments Made" table for this - folded
+      into one unified status filter instead, since that's simpler). See
+      "Payment dates + CSV/PDF exports" above for the full detail and the
+      CSV-vs-.xlsx reasoning.
 - [x] **Cash & Bank corrections (Aug 2026):** fixed a real correctness gap
       where editing an existing invoice/bill's paid amount silently
       desynced from Cash & Bank ("Record Payment" was the only path that
