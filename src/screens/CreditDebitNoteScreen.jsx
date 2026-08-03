@@ -184,6 +184,8 @@ export default function CreditDebitNoteScreen({ type }) {
         description: `${docLabel} refund — ${row.note_no} (${partyName(row[partyJoinKey])})`,
         amount: txnAmount,
         reconciled: true,
+        related_credit_note_id: isCredit ? row.id : null,
+        related_debit_note_id: isCredit ? null : row.id,
       })
       txnErr = txnResult.error
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate } from '../lib/format'
+import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { SectionHeader, Stamp, EmptyRow } from '../components/ui'
+import { SectionHeader, Stamp, EmptyRow, SortableTh } from '../components/ui'
 
 export default function CashBankScreen() {
   const { firmId } = useFirm()
@@ -30,6 +30,7 @@ export default function CashBankScreen() {
   const [newAccountBalance, setNewAccountBalance] = useState('0')
   const [addingAccount, setAddingAccount] = useState(false)
   const [addAccountError, setAddAccountError] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const load = useCallback(async () => {
     if (!firmId) return
@@ -37,7 +38,7 @@ export default function CashBankScreen() {
     setError(null)
     const [{ data: accRows, error: accErr }, { data: txnRows, error: txnErr }] = await Promise.all([
       supabase.from('bank_accounts').select('id, name, account_mask, balance').eq('firm_id', firmId).order('name'),
-      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, reconciled').eq('firm_id', firmId).order('txn_date', { ascending: false }),
+      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, reconciled, related_sales_invoice_id, related_purchase_bill_id, related_credit_note_id, related_debit_note_id').eq('firm_id', firmId).order('txn_date', { ascending: false }),
     ])
     if (accErr || txnErr) {
       setError((accErr || txnErr).message)
@@ -106,6 +107,61 @@ export default function CashBankScreen() {
     if (err) { setAddAccountError(err.message); return }
     resetAccountForm()
     setShowAddAccount(false)
+    load()
+  }
+
+  // Deleting a transaction has to reverse everything it did, not just
+  // remove the row - otherwise the account balance and the linked
+  // invoice/bill/note would be left showing something that never actually
+  // happened. subtracting txn.amount reverses it regardless of sign
+  // (a credit reverses by subtracting a positive, a debit by subtracting
+  // a negative, i.e. adding it back).
+  const handleDeleteTransaction = async (txn) => {
+    const linkedInvoice = txn.related_sales_invoice_id || txn.related_purchase_bill_id
+    const linkedNote = txn.related_credit_note_id || txn.related_debit_note_id
+    const warning = linkedInvoice
+      ? ` This will also reduce the "already paid" amount back down on the ${txn.related_sales_invoice_id ? 'invoice' : 'bill'} it was recorded against.`
+      : linkedNote
+        ? ` This will also mark the ${txn.related_credit_note_id ? 'credit' : 'debit'} note it was recorded against as "Open" again.`
+        : ''
+    if (!window.confirm(`Delete this transaction (${inr(Math.abs(txn.amount))} on ${accountName(txn.bank_account_id)})?${warning}`)) return
+
+    setDeletingId(txn.id)
+
+    const account = accounts.find((a) => a.id === txn.bank_account_id)
+    if (account) {
+      const { error: acctErr } = await supabase
+        .from('bank_accounts')
+        .update({ balance: Number(account.balance) - txn.amount })
+        .eq('id', txn.bank_account_id)
+      if (acctErr) { setDeletingId(null); alert(`Couldn't reverse the account balance: ${acctErr.message}`); return }
+    }
+
+    if (linkedInvoice) {
+      const table = txn.related_sales_invoice_id ? 'sales_invoices' : 'purchase_bills'
+      const isSales = !!txn.related_sales_invoice_id
+      const { data: doc } = await supabase.from(table).select('amount, paid_amount, due_date').eq('id', linkedInvoice).single()
+      if (doc) {
+        const newPaid = Math.max(0, Number(doc.paid_amount || 0) - Math.abs(txn.amount))
+        const computed = computeStatus({ amount: doc.amount, paid_amount: newPaid, due_date: doc.due_date }, isSales ? 'Sent' : 'Approved')
+        await supabase.from(table).update({ paid_amount: newPaid, status: statusForStorage(computed, isSales) }).eq('id', linkedInvoice)
+      }
+    }
+
+    if (linkedNote) {
+      const table = txn.related_credit_note_id ? 'credit_notes' : 'debit_notes'
+      await supabase.from(table).update({ status: 'open', refunded_via_account_id: null, refunded_date: null }).eq('id', linkedNote)
+    }
+
+    const { error: delErr } = await supabase.from('bank_transactions').delete().eq('id', txn.id)
+    setDeletingId(null)
+    if (delErr) { alert(`Couldn't delete the transaction: ${delErr.message}`); return }
+
+    await supabase.from('activity_log').insert({
+      firm_id: firmId,
+      description: `Deleted a ${inr(Math.abs(txn.amount))} transaction on ${accountName(txn.bank_account_id)}${linkedInvoice || linkedNote ? ' and reversed the linked record' : ''}`,
+    })
+
     load()
   }
 
@@ -199,7 +255,16 @@ export default function CashBankScreen() {
         </div>
         <div className="table-scroll">
         <table className="ledger-table">
-          <thead><tr><th>Date</th><th>Account</th><th>Description</th><th className="num">Amount</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <SortableTh label="Date" ascValue="date-asc" descValue="date-desc" sortBy={sortBy} onSort={setSortBy} />
+              <th>Account</th>
+              <th>Description</th>
+              <SortableTh label="Amount" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {filtered.map((t) => (
               <tr key={t.id} className="ledger-row">
@@ -210,9 +275,19 @@ export default function CashBankScreen() {
                   {t.amount > 0 ? '+' : '−'}{inr(t.amount)}
                 </td>
                 <td><Stamp ok={t.reconciled} /></td>
+                <td>
+                  <button
+                    className="link-btn"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--brick)' }}
+                    disabled={deletingId === t.id}
+                    onClick={() => handleDeleteTransaction(t)}
+                  >
+                    <Trash2 size={12} /> {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
               </tr>
             ))}
-            {filtered.length === 0 && <EmptyRow colSpan={5}>No transactions match these filters.</EmptyRow>}
+            {filtered.length === 0 && <EmptyRow colSpan={6}>No transactions match these filters.</EmptyRow>}
           </tbody>
         </table>
         </div>

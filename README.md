@@ -257,6 +257,42 @@ atomicity. Reasonable for a first version; a `security definer` RPC doing
 the whole import server-side (same pattern as `create_journal_entry`)
 would be the way to make it fully atomic later if needed.
 
+## Cash & Bank corrections
+
+Run `migration_bank_txn_links.sql` in Supabase's SQL Editor — additive,
+safe on the existing database.
+
+Two related gaps, fixed together:
+
+**Editing an existing invoice/bill's "Already paid" amount used to silently
+desync Cash & Bank.** "Record Payment" always correctly created a bank
+transaction and updated the account balance — but the general Edit form let
+you change "Already paid" directly too, and that path never touched Cash &
+Bank at all. "Already paid" is now **read-only when editing an existing
+invoice/bill** — it can only be set at creation (for a historical record
+predating this system) or changed via "Record Payment" afterward, so the
+cash ledger can no longer drift out of sync with what an invoice/bill
+claims was paid.
+
+**There was no way to delete a bank transaction at all.** Unlike invoices/
+bills/journal entries (deliberately protected — see Status below), the cash
+ledger is the one place a direct correction makes sense: if a payment was
+logged wrong, deleting it and recording it again correctly is the right
+fix, not living with a permanently wrong entry. Every transaction row on
+Cash & Bank now has a **Delete** button that properly reverses everything
+it did:
+- The account balance is reversed back
+- If it came from "Record Payment," the linked invoice/bill's "already
+  paid" amount is reduced back down and its status recalculated
+- If it came from "Record Refund" (Credit/Debit Notes), the linked note is
+  set back to "Open"
+
+This only works correctly going forward for transactions created *after*
+this migration — transactions that already exist (created before the link
+columns existed) can still be deleted, but won't auto-reverse a linked
+invoice/bill/note since there's no link to follow. Their account balance
+still reverses correctly either way.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -350,6 +386,16 @@ would be the way to make it fully atomic later if needed.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Cash & Bank corrections (Aug 2026):** fixed a real correctness gap
+      where editing an existing invoice/bill's paid amount silently
+      desynced from Cash & Bank ("Record Payment" was the only path that
+      ever updated the account balance). "Already paid" is now read-only
+      once a record exists - use Record Payment, or delete the matching
+      transaction below to fully reverse it. Added a Delete button on Cash
+      & Bank transactions that properly reverses the account balance and
+      the linked invoice/bill/note, not just the row. See "Cash & Bank
+      corrections" above for full detail and a known limitation for
+      transactions created before this migration.
 - [x] **Import duplicate detection + sortable headers (Aug 2026):**
       importing no longer creates duplicate invoices/bills/parties - every
       row is checked against your existing records and against the rest of

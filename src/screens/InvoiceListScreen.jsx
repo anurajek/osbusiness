@@ -278,6 +278,8 @@ export default function InvoiceListScreen({ type }) {
         description: `Payment ${isSales ? 'received' : 'made'} — ${row[numberField]} (${partyName(row[partyJoinKey])})`,
         amount: txnAmount,
         reconciled: true,
+        related_sales_invoice_id: isSales ? row.id : null,
+        related_purchase_bill_id: isSales ? null : row.id,
       })
       txnErr = txnResult.error
 
@@ -414,11 +416,21 @@ export default function InvoiceListScreen({ type }) {
               </div>
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Already paid (₹)</label>
-                <input type="number" min="0" step="0.01" className="text-input" value={newDocPaid} onChange={(e) => setNewDocPaid(e.target.value)} placeholder="0.00" />
+                <input
+                  type="number" min="0" step="0.01" className="text-input"
+                  value={newDocPaid}
+                  onChange={(e) => setNewDocPaid(e.target.value)}
+                  placeholder="0.00"
+                  disabled={!!editingDocId}
+                  title={editingDocId ? "Use \"Record payment\" to change this so Cash & Bank stays in sync" : undefined}
+                />
               </div>
             </div>
             <p className="login-footnote" style={{ margin: 0 }}>
               Status is calculated automatically from the amount paid and the due date — nothing to set manually.
+              {editingDocId
+                ? ' "Already paid" can only be changed via "Record payment" (or by deleting the matching entry in Cash & Bank), so the cash ledger never drifts out of sync with what an invoice/bill says was paid.'
+                : ' Only set "Already paid" here for a historical record that was paid before you started tracking it in Cash & Bank — it won\'t create a transaction. For anything going forward, leave it at 0 and use "Record payment" instead.'}
             </p>
             {addDocError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addDocError}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
