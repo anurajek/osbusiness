@@ -28,26 +28,38 @@ export default function ReceivablesScreen() {
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
+  const [paymentDateByInvoice, setPaymentDateByInvoice] = useState({})
 
   const loadAll = useCallback(async () => {
     if (!firmId) return
     setLoading(true)
     setError(null)
 
-    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: commRows, error: commErr }] = await Promise.all([
+    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: commRows, error: commErr }, { data: txnRows, error: txnErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('bank_transactions').select('related_sales_invoice_id, txn_date').eq('firm_id', firmId).not('related_sales_invoice_id', 'is', null),
     ])
 
-    if (custErr || invErr || commErr) {
-      setError((custErr || invErr || commErr).message)
+    if (custErr || invErr || commErr || txnErr) {
+      setError((custErr || invErr || commErr || txnErr).message)
       setLoading(false)
       return
     }
     setCustomers(custRows ?? [])
     setInvoices(invRows ?? [])
     setComms(commRows ?? [])
+    // Last (most recent) payment transaction per invoice - used as "date
+    // paid" on the Payments Completed list below. An invoice marked Paid
+    // without ever going through Record Payment (e.g. imported, or set at
+    // creation) just won't have one - shown as "—" rather than guessed.
+    const dateMap = {}
+    for (const t of txnRows ?? []) {
+      const existing = dateMap[t.related_sales_invoice_id]
+      if (!existing || t.txn_date > existing) dateMap[t.related_sales_invoice_id] = t.txn_date
+    }
+    setPaymentDateByInvoice(dateMap)
     setLoading(false)
   }, [firmId])
 
@@ -94,6 +106,20 @@ export default function ReceivablesScreen() {
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, tableInvoices, comms, customerFilter, sortBy, search])
+
+  // A flat list, not aggregated by customer - "the list of payments
+  // completed" is naturally one row per payment/invoice, not a rollup.
+  const completedRows = useMemo(() => {
+    let list = invoicesInPeriod.filter((i) => computeStatus(i, 'Sent') === 'Paid')
+    if (customerFilter !== 'all') list = list.filter((i) => i.customer_id === customerFilter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((i) => (customers.find((c) => c.id === i.customer_id)?.name || '').toLowerCase().includes(q))
+    }
+    return list
+      .map((i) => ({ ...i, paymentDate: paymentDateByInvoice[i.id] || null }))
+      .sort((a, b) => new Date(b.paymentDate || b.issued_date) - new Date(a.paymentDate || a.issued_date))
+  }, [invoicesInPeriod, customerFilter, search, customers, paymentDateByInvoice])
 
   const totals = useMemo(() => {
     const invoiced = invoicesInPeriod.reduce((s, i) => s + i.amount, 0)
@@ -148,6 +174,28 @@ export default function ReceivablesScreen() {
         r.lastComm?.tag || 'No follow-up yet',
         r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—',
       ]),
+    })
+  }
+
+  const customerName = (id) => customers.find((c) => c.id === id)?.name || '—'
+
+  const handleExportCompletedCsv = () => {
+    downloadCsv(
+      'receivables-payments-completed',
+      ['Invoice #', 'Customer', 'Amount', 'Payment Date', 'Invoice Issued Date'],
+      completedRows.map((i) => [i.invoice_no, customerName(i.customer_id), i.amount.toFixed(2), i.paymentDate || '', i.issued_date])
+    )
+  }
+
+  const handleExportCompletedPdf = () => {
+    downloadListPdf({
+      title: 'Receivables — Payments Completed',
+      firm,
+      filename: 'receivables-payments-completed',
+      columns: [
+        { label: 'Invoice #' }, { label: 'Customer' }, { label: 'Amount', align: 'right' }, { label: 'Payment Date' },
+      ],
+      rows: completedRows.map((i) => [i.invoice_no, customerName(i.customer_id), inr(i.amount), i.paymentDate || '—']),
     })
   }
 
@@ -226,6 +274,35 @@ export default function ReceivablesScreen() {
             {rows.length === 0 && <EmptyRow colSpan={6}>No open receivables match these filters.</EmptyRow>}
           </tbody>
         </table>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <h2>Payments Completed</h2>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="section-header__note">{completedRows.length} invoice{completedRows.length !== 1 ? 's' : ''} paid in full</span>
+            <button className="link-btn" onClick={handleExportCompletedCsv} disabled={completedRows.length === 0}>Export CSV</button>
+            <button className="link-btn" onClick={handleExportCompletedPdf} disabled={completedRows.length === 0}>Export PDF</button>
+          </span>
+        </div>
+        <div className="table-scroll">
+          <table className="ledger-table">
+            <thead>
+              <tr><th>Invoice</th><th>Customer</th><th className="num">Amount</th><th>Payment Date</th></tr>
+            </thead>
+            <tbody>
+              {completedRows.map((i) => (
+                <tr key={i.id} className="ledger-row">
+                  <td className="mono">{i.invoice_no}</td>
+                  <td>{customerName(i.customer_id)}</td>
+                  <td className="num mono">{inr(i.amount)}</td>
+                  <td className="mono">{i.paymentDate || <span className="login-footnote" style={{ margin: 0 }}>—</span>}</td>
+                </tr>
+              ))}
+              {completedRows.length === 0 && <EmptyRow colSpan={4}>No completed payments in this period.</EmptyRow>}
+            </tbody>
+          </table>
         </div>
       </div>
 
