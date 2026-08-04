@@ -39,10 +39,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { email, fullName, firmName } = await req.json()
+    const { email, fullName, firmName, token } = await req.json()
 
-    if (!email || !firmName) {
-      return new Response(JSON.stringify({ error: 'Missing email or firmName' }), {
+    if (!email || !firmName || !token) {
+      return new Response(JSON.stringify({ error: 'Missing email, firmName, or token' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -54,6 +54,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    const joinUrl = `${APP_URL}/?invite=${token}`
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -68,8 +70,9 @@ serve(async (req) => {
         html: `
           <p>Hi ${fullName || 'there'},</p>
           <p>You've been invited to join <strong>${firmName}</strong> on Ledger OS.</p>
-          <p>Sign in (or create an account) using this email address to get access:</p>
-          <p><a href="${APP_URL}">${APP_URL}</a></p>
+          <p>Click below to accept and create your account:</p>
+          <p><a href="${joinUrl}">${joinUrl}</a></p>
+          <p style="color:#888;font-size:13px">This link is unique to you - please don't forward it.</p>
         `,
       }),
     })

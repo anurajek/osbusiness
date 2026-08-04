@@ -420,6 +420,49 @@ it joins that firm and skips creating a new one - whatever was typed into
 the existing signup form now does the right thing automatically based on
 which email is used.
 
+## Real invite acceptance flow (token-based, Zoho-style)
+
+Run `migration_invite_token_flow.sql` in Supabase's SQL Editor - additive,
+safe on the existing database. Redeploy `send-invite-email` with the
+updated code in `supabase/functions/send-invite-email/index.ts` (it now
+needs a `token` in the request body to build the right link).
+
+The email-matching auto-join from the previous fix worked, but the link
+itself just pointed at the app's plain homepage - whoever clicked it saw
+the same generic login/signup screen as anyone else, with no indication
+they'd been invited or by whom. Every invite now gets its own unique link
+(`{APP_URL}/?invite={token}`) that leads to a dedicated page modeled
+directly on how Zoho and similar products do this: shows the firm name,
+who invited you, and which role you're joining as, then a signup form
+already locked to that one email - just a password, nothing else to fill
+in or get wrong.
+
+**What it handles:**
+- **Normal case** - not signed in, opens the link → sees firm/inviter/role
+  → sets a password → lands directly in that firm with that role. Never
+  creates or touches any other firm, by construction (this path doesn't
+  call `create_firm_with_owner` at all).
+- **Already signed in as that exact email** (e.g. re-opening their own
+  invite link) - skips the password form, one button to join directly.
+- **Already signed in as a *different* email** - clearly says so and asks
+  them to sign out first, rather than silently doing something surprising.
+- **Decline** - rejects the invite right from the landing page, before
+  ever creating an account, same as the reference flow this is modeled on.
+- **Invalid/reused link** - a plain, honest "this invite isn't valid
+  anymore" instead of a confusing error or a dead end.
+
+**Security note:** the token itself (a random UUID) is already hard to
+guess, but `claim_invite_by_token()` also independently verifies the
+signed-up account's *actual* email matches the invite's `invited_email`
+server-side - a stolen/forwarded link still can't be claimed by the wrong
+person, since whoever clicks it has to sign up with the exact invited
+email address for the claim to succeed at all.
+
+The email-based auto-detection from the previous fix (`link_pending_invites`)
+stays in place underneath this as a fallback - it still runs on every
+login/signup regardless of which link someone used, so an old-style
+invite (sent before this migration) still resolves correctly too.
+
 ## Status
 
 - [x] Self-service signup, team invites, customer/supplier creation
@@ -513,6 +556,14 @@ which email is used.
       "General Ledger" above for full scope and honest limitations
       (no auto-posting from Sales/Purchases/Cash & Bank yet, no draft-line
       editing, no GST awareness yet - each is its own future phase).
+- [x] **Real invite acceptance flow, token-based (Aug 2026):** every
+      invite now gets its own unique link leading to a dedicated "Join
+      {firm}" page (firm name, who invited you, your role, a password
+      field locked to that one email) - modeled directly on how Zoho and
+      similar products handle this, instead of the invite link just
+      pointing at the app's plain homepage. See "Real invite acceptance
+      flow" above for full detail, including how it handles being already
+      signed in, declining, and invalid/reused links.
 - [x] **Fixed invited teammates ending up as Owner of a new firm (Aug
       2026):** signup now auto-detects a pending invite for the email used
       and joins that existing firm instead of always creating a new one -

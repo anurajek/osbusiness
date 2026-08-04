@@ -201,9 +201,36 @@ export function useAuth() {
     return inviteError ? inviteError.message : null
   }, [])
 
+  // Dedicated signup path for AcceptInviteScreen - deliberately never calls
+  // create_firm_with_owner. This is what makes it safe: no matter what,
+  // accepting an invite can only ever join the one firm the token points
+  // to, never create or touch any other one.
+  const acceptInvite = useCallback(async ({ token, email, password }) => {
+    setError(null)
+    setProvisioning(true)
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
+    if (signUpError) { setError(signUpError.message); setProvisioning(false); return { ok: false } }
+
+    const user = signUpData.user
+    const hasSession = !!signUpData.session
+    if (!user || !hasSession) {
+      setError('Account created. If email confirmation is required on this project, check your email to confirm it, then reopen this invite link to finish joining.')
+      setProvisioning(false)
+      return { ok: false }
+    }
+
+    const { error: claimError } = await supabase.rpc('claim_invite_by_token', { p_token: token })
+    if (claimError) { setError(claimError.message); setProvisioning(false); return { ok: false } }
+
+    await loadMemberships(user.id)
+    setProvisioning(false)
+    return { ok: true }
+  }, [loadMemberships])
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, inviteTeammate, refreshMemberships, signOut }
+  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, inviteTeammate, refreshMemberships, signOut }
 }

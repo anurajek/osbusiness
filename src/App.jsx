@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth'
 import { FirmProvider, useFirm } from './context/FirmContext'
 import LoginScreen from './screens/LoginScreen'
 import SignupScreen from './screens/SignupScreen'
+import AcceptInviteScreen from './screens/AcceptInviteScreen'
 import AppShell from './components/AppShell'
 import DashboardScreen from './screens/DashboardScreen'
 import InvoiceListScreen from './screens/InvoiceListScreen'
@@ -136,7 +137,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 }
 
 export default function App() {
-  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, refreshMemberships, signOut } = useAuth()
+  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, refreshMemberships, signOut } = useAuth()
   const [authMode, setAuthMode] = useState('login')
 
   if (loading) {
@@ -144,6 +145,24 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--ink)', color: 'var(--paper-dim)' }}>
         Loading…
       </div>
+    )
+  }
+
+  // A tokenized invite link (?invite={token}) always takes priority over
+  // the normal login/signup screens, whether or not a session already
+  // exists - AcceptInviteScreen handles both cases (including "you're
+  // signed in as someone else") itself, rather than this router having to
+  // guess which of the two flows applies.
+  const inviteToken = new URLSearchParams(window.location.search).get('invite')
+  if (inviteToken) {
+    return (
+      <AcceptInviteScreen
+        token={inviteToken}
+        session={session}
+        onAccept={acceptInvite}
+        onSignOut={signOut}
+        provisioning={provisioning}
+      />
     )
   }
 

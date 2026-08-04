@@ -154,14 +154,16 @@ export default function PermissionsScreen() {
     }
     setInviting(true)
     const permissions = inviteRole === 'Owner' ? OWNER_PERMISSIONS : DEFAULT_PERMISSIONS
-    const { error: err } = await supabase.from('firm_members').insert({
+    const { data: { session: currentSession } } = await supabase.auth.getSession()
+    const { data: inviteRow, error: err } = await supabase.from('firm_members').insert({
       firm_id: firmId,
       invited_email: inviteEmail.trim(),
       full_name: inviteName.trim(),
       role: inviteRole,
       permissions,
       status: 'invited',
-    })
+      invited_by: currentSession?.user?.id ?? null,
+    }).select('invite_token').single()
     if (err) {
       setInviting(false)
       setInviteError(err.message)
@@ -169,10 +171,13 @@ export default function PermissionsScreen() {
     }
 
     // The invite row above is what actually grants access the moment they
-    // sign in - this email is just a courtesy notification, so a failure
-    // here shouldn't look like the invite itself failed.
+    // accept it - this email is just a courtesy notification, so a failure
+    // here shouldn't look like the invite itself failed. The token is what
+    // makes the link in this email lead straight to a dedicated "Join
+    // {firm}" page locked to this one invite, instead of the app's plain
+    // homepage - see AcceptInviteScreen.jsx.
     const { error: emailErr } = await supabase.functions.invoke('send-invite-email', {
-      body: { email: inviteEmail.trim(), fullName: inviteName.trim(), firmName: firm?.name || 'your firm' },
+      body: { email: inviteEmail.trim(), fullName: inviteName.trim(), firmName: firm?.name || 'your firm', token: inviteRow.invite_token },
     })
     setInviting(false)
 
@@ -189,7 +194,7 @@ export default function PermissionsScreen() {
         ? notDeployed
           ? `Invited — but the invite-email feature hasn't been deployed yet, so no email went out. Tell them to sign in at this app with ${inviteEmail.trim()} to get access. (See the README's "Invite emails" section for the one-time setup.)`
           : `Invited, but the email notification couldn't be sent (${emailErr.message}). Tell them to sign in at this app with ${inviteEmail.trim()} to get access.`
-        : `Invited and emailed at ${inviteEmail.trim()} — they just need to sign in at this app with that address to get access.`
+        : `Invited and emailed at ${inviteEmail.trim()} — they'll get a link that takes them straight to a "Join ${firm?.name || 'your firm'}" page.`
     )
     setInviteName('')
     setInviteEmail('')
