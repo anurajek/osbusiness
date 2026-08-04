@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { SectionHeader, Stamp, EmptyRow, SortableTh } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -22,7 +22,6 @@ export default function CashBankScreen() {
   const [customTo, setCustomTo] = useState('')
   const [accountFilter, setAccountFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [reconFilter, setReconFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date-desc')
   const [search, setSearch] = useState('')
 
@@ -41,7 +40,7 @@ export default function CashBankScreen() {
     setError(null)
     const [{ data: accRows, error: accErr }, { data: txnRows, error: txnErr }] = await Promise.all([
       supabase.from('bank_accounts').select('id, name, account_mask, balance').eq('firm_id', firmId).order('name'),
-      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, reconciled, related_sales_invoice_id, related_purchase_bill_id, related_credit_note_id, related_debit_note_id').eq('firm_id', firmId).order('txn_date', { ascending: false }),
+      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, related_sales_invoice_id, related_purchase_bill_id, related_credit_note_id, related_debit_note_id').eq('firm_id', firmId).order('txn_date', { ascending: false }),
     ])
     if (accErr || txnErr) {
       setError((accErr || txnErr).message)
@@ -63,14 +62,13 @@ export default function CashBankScreen() {
     if (range) list = list.filter((t) => { const d = new Date(t.txn_date); return d >= range.from && d <= range.to })
     if (accountFilter !== 'all') list = list.filter((t) => t.bank_account_id === accountFilter)
     if (typeFilter !== 'all') list = list.filter((t) => (typeFilter === 'credit' ? t.amount > 0 : t.amount < 0))
-    if (reconFilter !== 'all') list = list.filter((t) => (reconFilter === 'reconciled' ? t.reconciled : !t.reconciled))
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter((t) => t.description?.toLowerCase().includes(q) || accountName(t.bank_account_id).toLowerCase().includes(q))
     }
     return sortRows(list, sortBy, 'txn_date')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [txns, range, accountFilter, typeFilter, reconFilter, search, sortBy, accounts])
+  }, [txns, range, accountFilter, typeFilter, search, sortBy, accounts])
 
   const resetAccountForm = () => {
     setEditingAccountId(null)
@@ -171,14 +169,13 @@ export default function CashBankScreen() {
   const handleExportCsv = () => {
     downloadCsv(
       'cash-bank-transactions',
-      ['Date', 'Account', 'Description', 'Amount', 'Type', 'Status'],
+      ['Date', 'Account', 'Description', 'Amount', 'Type'],
       filtered.map((t) => [
         toISODate(new Date(t.txn_date)),
         accountName(t.bank_account_id),
         t.description,
         Math.abs(t.amount).toFixed(2),
         t.amount > 0 ? 'Received' : 'Paid',
-        t.reconciled ? 'Reconciled' : 'Pending',
       ])
     )
   }
@@ -190,7 +187,7 @@ export default function CashBankScreen() {
       filename: 'cash-bank-transactions',
       columns: [
         { label: 'Date' }, { label: 'Account' }, { label: 'Description' },
-        { label: 'Amount', align: 'right' }, { label: 'Type' }, { label: 'Status' },
+        { label: 'Amount', align: 'right' }, { label: 'Type' },
       ],
       rows: filtered.map((t) => [
         toISODate(new Date(t.txn_date)),
@@ -198,7 +195,6 @@ export default function CashBankScreen() {
         t.description,
         inr(Math.abs(t.amount)),
         t.amount > 0 ? 'Received' : 'Paid',
-        t.reconciled ? 'Reconciled' : 'Pending',
       ]),
     })
   }
@@ -210,7 +206,7 @@ export default function CashBankScreen() {
       filename: 'cash-bank-transactions',
       columns: [
         { label: 'Date' }, { label: 'Account' }, { label: 'Description' },
-        { label: 'Amount', align: 'right' }, { label: 'Type' }, { label: 'Status' },
+        { label: 'Amount', align: 'right' }, { label: 'Type' },
       ],
       rows: filtered.map((t) => [
         toISODate(new Date(t.txn_date)),
@@ -218,7 +214,6 @@ export default function CashBankScreen() {
         t.description,
         inr(Math.abs(t.amount)),
         t.amount > 0 ? 'Received' : 'Paid',
-        t.reconciled ? 'Reconciled' : 'Pending',
       ]),
     })
   }
@@ -298,10 +293,6 @@ export default function CashBankScreen() {
             label: 'Type', value: typeFilter, onChange: setTypeFilter,
             options: [{ value: 'all', label: 'All' }, { value: 'credit', label: 'Credit' }, { value: 'debit', label: 'Debit' }],
           },
-          {
-            label: 'Status', value: reconFilter, onChange: setReconFilter,
-            options: [{ value: 'all', label: 'All' }, { value: 'reconciled', label: 'Reconciled' }, { value: 'pending', label: 'Pending' }],
-          },
         ]}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
         exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
@@ -320,7 +311,6 @@ export default function CashBankScreen() {
               <th>Account</th>
               <th>Description</th>
               <SortableTh label="Amount" ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
-              <th>Status</th>
               <th></th>
             </tr>
           </thead>
@@ -333,7 +323,6 @@ export default function CashBankScreen() {
                 <td className={`num mono ${t.amount > 0 ? 'amt-pos' : 'amt-neg'}`}>
                   {t.amount > 0 ? '+' : '−'}{inr(t.amount)}
                 </td>
-                <td><Stamp ok={t.reconciled} /></td>
                 <td>
                   <button
                     className="link-btn"
@@ -346,7 +335,7 @@ export default function CashBankScreen() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && <EmptyRow colSpan={6}>No transactions match these filters.</EmptyRow>}
+            {filtered.length === 0 && <EmptyRow colSpan={5}>No transactions match these filters.</EmptyRow>}
           </tbody>
         </table>
         </div>
