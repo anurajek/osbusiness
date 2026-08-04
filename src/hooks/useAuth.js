@@ -210,18 +210,19 @@ export function useAuth() {
     setProvisioning(true)
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) { setError(signUpError.message); setProvisioning(false); return { ok: false } }
+    if (signUpError) { setError(signUpError.message); setProvisioning(false); return { ok: false, error: signUpError.message } }
 
     const user = signUpData.user
     const hasSession = !!signUpData.session
     if (!user || !hasSession) {
-      setError('Account created. If email confirmation is required on this project, check your email to confirm it, then reopen this invite link to finish joining.')
+      const msg = 'Account created. If email confirmation is required on this project, check your email to confirm it, then reopen this invite link to finish joining.'
+      setError(msg)
       setProvisioning(false)
-      return { ok: false }
+      return { ok: false, error: msg }
     }
 
     const { error: claimError } = await supabase.rpc('claim_invite_by_token', { p_token: token })
-    if (claimError) { setError(claimError.message); setProvisioning(false); return { ok: false } }
+    if (claimError) { setError(claimError.message); setProvisioning(false); return { ok: false, error: claimError.message } }
 
     await loadMemberships(user.id)
     setProvisioning(false)
