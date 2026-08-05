@@ -9,6 +9,13 @@ import { inr, toISODate } from './format'
 // That's exactly the "Export PDF does nothing" bug this was rewritten to
 // fix - the click handler now runs to completion, save included, in one
 // synchronous pass, every time.
+//
+// Every document type below is split into a build*Pdf() (constructs and
+// returns the jsPDF object, no side effects) plus two thin wrappers:
+// download*Pdf() calls .save() on it, preview*Pdf() returns a blob: URL
+// for showing it inline (see PdfPreviewModal.jsx) - both render from the
+// exact same drawing code, so a preview is never at risk of looking
+// different from what actually gets downloaded.
 
 function renderHeader(pdf, { firm, pageWidth, margin, y }) {
   pdf.setFont('helvetica', 'bold')
@@ -76,17 +83,17 @@ function renderFooter(pdf, { firm, pageWidth, margin }) {
   pdf.text(firm.bank_details, margin, footerY + 30, { maxWidth: pageWidth - margin * 2 })
 }
 
-// Renders a single-page, branded invoice/bill PDF and triggers a download.
-// Deliberately single-amount, not itemized: sales_invoices/purchase_bills
-// don't have a line-items table yet (each record is one total amount), so
-// this shows one summary line rather than pretending to itemize something
-// that isn't itemized in the data. Quotations (downloadQuotePdf, below) got
-// itemized line items first - see migration_quotations.sql for why.
+// Renders a single-page, branded invoice/bill PDF. Deliberately single-
+// amount, not itemized: sales_invoices/purchase_bills don't have a
+// line-items table yet (each record is one total amount), so this shows
+// one summary line rather than pretending to itemize something that isn't
+// itemized in the data. Quotations (buildQuotePdf, below) got itemized
+// line items first - see migration_quotations.sql for why.
 //
 // firm: { name, gstin, address, phone, email, logo_url, bank_details }
 // party: { name, gstin, address, email }
 // doc: { number, issued_date, due_date, amount, paid_amount, status, isSales }
-export async function downloadDocumentPdf({ firm, party, doc }) {
+async function buildDocumentPdf({ firm, party, doc }) {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -157,7 +164,17 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
   pdf.text(`Status: ${doc.status}`, margin, y)
 
   renderFooter(pdf, { firm, pageWidth, margin })
-  pdf.save(`${doc.number || (doc.isSales ? 'invoice' : 'bill')}.pdf`)
+  return pdf
+}
+
+export async function downloadDocumentPdf(args) {
+  const pdf = await buildDocumentPdf(args)
+  pdf.save(`${args.doc.number || (args.doc.isSales ? 'invoice' : 'bill')}.pdf`)
+}
+
+export async function previewDocumentPdf(args) {
+  const pdf = await buildDocumentPdf(args)
+  return { url: pdf.output('bloburl'), filename: `${args.doc.number || (args.doc.isSales ? 'invoice' : 'bill')}.pdf` }
 }
 
 // Renders a branded, itemized quotation PDF - Description/Qty/Rate/Amount
@@ -166,7 +183,7 @@ export async function downloadDocumentPdf({ firm, party, doc }) {
 //
 // quote: { number, issued_date, valid_until, status }
 // lineItems: [{ description, quantity, unit_price, amount }, ...]
-export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
+async function buildQuotePdf({ firm, party, quote, lineItems }) {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -247,14 +264,24 @@ export async function downloadQuotePdf({ firm, party, quote, lineItems }) {
   pdf.text(`Status: ${quote.status}`, margin, y)
 
   renderFooter(pdf, { firm, pageWidth, margin })
-  pdf.save(`${quote.number || 'quotation'}.pdf`)
+  return pdf
+}
+
+export async function downloadQuotePdf(args) {
+  const pdf = await buildQuotePdf(args)
+  pdf.save(`${args.quote.number || 'quotation'}.pdf`)
+}
+
+export async function previewQuotePdf(args) {
+  const pdf = await buildQuotePdf(args)
+  return { url: pdf.output('bloburl'), filename: `${args.quote.number || 'quotation'}.pdf` }
 }
 
 // Renders a branded credit/debit note PDF, reusing the same header/party/
 // footer treatment as invoices and quotes.
 //
 // note: { number, issued_date, reason, amount, status, isCreditNote, originalDocNumber }
-export async function downloadNotePdf({ firm, party, note }) {
+async function buildNotePdf({ firm, party, note }) {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 48
@@ -308,7 +335,17 @@ export async function downloadNotePdf({ firm, party, note }) {
   pdf.text(`Status: ${note.status === 'refunded' ? 'Refunded' : 'Open'}`, margin, y)
 
   renderFooter(pdf, { firm, pageWidth, margin })
-  pdf.save(`${note.number || (note.isCreditNote ? 'credit-note' : 'debit-note')}.pdf`)
+  return pdf
+}
+
+export async function downloadNotePdf(args) {
+  const pdf = await buildNotePdf(args)
+  pdf.save(`${args.note.number || (args.note.isCreditNote ? 'credit-note' : 'debit-note')}.pdf`)
+}
+
+export async function previewNotePdf(args) {
+  const pdf = await buildNotePdf(args)
+  return { url: pdf.output('bloburl'), filename: `${args.note.number || (args.note.isCreditNote ? 'credit-note' : 'debit-note')}.pdf` }
 }
 
 // Renders a generic, paginated tabular report (a list of rows, not a
@@ -319,7 +356,7 @@ export async function downloadNotePdf({ firm, party, note }) {
 //
 // columns: [{ label, align: 'left'|'right' }, ...]
 // rows: [[cell, cell, ...], ...] - already formatted strings, in column order
-export function downloadListPdf({ title, firm, columns, rows, filename, orientation = 'landscape' }) {
+function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' }) {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
@@ -393,7 +430,19 @@ export function downloadListPdf({ title, firm, columns, rows, filename, orientat
     pdf.text('No rows to show.', margin + 8, y + 14)
   }
 
+  return pdf
+}
+
+export function downloadListPdf(args) {
+  const pdf = buildListPdf(args)
+  const filename = args.filename
   pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+}
+
+export function previewListPdf(args) {
+  const pdf = buildListPdf(args)
+  const filename = args.filename
+  return { url: pdf.output('bloburl'), filename: filename.endsWith('.pdf') ? filename : `${filename}.pdf` }
 }
 
 function loadImage(url) {

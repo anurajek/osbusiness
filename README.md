@@ -463,8 +463,36 @@ stays in place underneath this as a fallback - it still runs on every
 login/signup regardless of which link someone used, so an old-style
 invite (sent before this migration) still resolves correctly too.
 
+## PDF preview (Sales & Purchases)
+
+No migration needed — just deploy.
+
+Clicking the PDF action on a Sales invoice or Purchase bill now opens a
+**Preview** modal showing the actual generated PDF inline, instead of
+downloading it straight away. It's the real document rendered in the
+browser's own PDF viewer (via a `blob:` URL in an iframe) — not an HTML
+approximation that could end up looking different from what actually
+downloads. A Download button inside the modal saves that exact same file.
+
+Under the hood, every PDF generator in `lib/pdf.js` (invoices/bills,
+quotes, credit/debit notes, and the tabular list exports) is now split
+into a `build*Pdf()` that constructs the document and a pair of thin
+wrappers — `download*Pdf()` (saves it immediately, same as before) and
+`preview*Pdf()` (returns a `blob:` URL for showing it inline) — both
+drawing from the exact same code, so preview and download can never
+drift apart. Preview is wired up on Sales/Purchases for now; the same
+`preview*Pdf()` functions already exist for Quotations and Credit/Debit
+Notes if you want the same treatment there later.
+
 ## Status
 
+- [x] **PDF preview for Sales/Purchases (Aug 2026):** the PDF action on
+      invoices/bills now opens a Preview modal showing the actual generated
+      PDF inline (a real `blob:` URL in the browser's own PDF viewer, not
+      an HTML approximation), with Download available from inside it.
+      `lib/pdf.js`'s generators were split into build/download/preview so
+      every document type could get this the same way. See "PDF preview
+      (Sales & Purchases)" above for full detail.
 - [x] Self-service signup, team invites, customer/supplier creation
 - [x] Self-heal for an authenticated-but-firmless account: the old
       "No firm linked yet" dead-end (which told you to go edit Supabase's

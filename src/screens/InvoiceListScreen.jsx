@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Plus, Download } from 'lucide-react'
+import { Plus, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
-import { downloadDocumentPdf, downloadListPdf } from '../lib/pdf'
+import { previewDocumentPdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
+import PdfPreviewModal from '../components/PdfPreviewModal'
 import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
@@ -101,8 +102,10 @@ export default function InvoiceListScreen({ type }) {
   const range = getPeriodRange(period, customFrom, customTo)
   const liveStatus = (r) => computeStatus(r, baseStatus)
 
-  const handleDownloadPdf = (row) => {
-    downloadDocumentPdf({
+  const [preview, setPreview] = useState(null)
+
+  const handlePreviewPdf = async (row) => {
+    const { url, filename } = await previewDocumentPdf({
       firm: firm || {},
       party: partyById(row[partyJoinKey]),
       doc: {
@@ -115,6 +118,12 @@ export default function InvoiceListScreen({ type }) {
         isSales,
       },
     })
+    setPreview({ url, filename })
+  }
+
+  const closePreview = () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url)
+    setPreview(null)
   }
 
   const filtered = useMemo(() => {
@@ -542,8 +551,8 @@ export default function InvoiceListScreen({ type }) {
                         <button className="link-btn" onClick={() => openPayForm(r)}>Record payment</button>
                       )}
                       <button className="link-btn" onClick={() => openEditForm(r)}>Edit</button>
-                      <button className="link-btn" onClick={() => handleDownloadPdf(r)} title="Download PDF" aria-label="Download PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <Download size={12} /> PDF
+                      <button className="link-btn" onClick={() => handlePreviewPdf(r)} title="Preview PDF" aria-label="Preview PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <Eye size={12} /> Preview
                       </button>
                     </td>
                   </tr>
@@ -591,6 +600,8 @@ export default function InvoiceListScreen({ type }) {
         </table>
         </div>
       </div>
+
+      {preview && <PdfPreviewModal url={preview.url} filename={preview.filename} onClose={closePreview} />}
     </>
   )
 }
