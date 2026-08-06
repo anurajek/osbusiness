@@ -20,6 +20,7 @@ export default function ReceivablesScreen() {
 
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
+  const [pis, setPis] = useState([])
   const [comms, setComms] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -39,19 +40,21 @@ export default function ReceivablesScreen() {
     setLoading(true)
     setError(null)
 
-    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: commRows, error: commErr }] = await Promise.all([
+    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
+      supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, amount, paid_amount').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
     ])
 
-    if (custErr || invErr || commErr) {
-      setError((custErr || invErr || commErr).message)
+    if (custErr || invErr || piErr || commErr) {
+      setError((custErr || invErr || piErr || commErr).message)
       setLoading(false)
       return
     }
     setCustomers(custRows ?? [])
     setInvoices(invRows ?? [])
+    setPis(piRows ?? [])
     setComms(commRows ?? [])
     setLoading(false)
   }, [firmId])
@@ -69,10 +72,30 @@ export default function ReceivablesScreen() {
     })
   }, [invoices, range])
 
+  const pisInPeriod = useMemo(() => {
+    if (!range) return pis
+    return pis.filter((p) => {
+      const d = new Date(p.issued_date)
+      return d >= range.from && d <= range.to
+    })
+  }, [pis, range])
+
   const tableInvoices = useMemo(() => {
     if (statusFilter === 'all') return invoicesInPeriod
     return invoicesInPeriod.filter((i) => computeStatus(i, 'Sent') === statusFilter)
   }, [invoicesInPeriod, statusFilter])
+
+  // Proforma Invoices don't carry the same Sent/Partial/Due today/Overdue
+  // breakdown a Sales Invoice does (see migration_pi_and_reminders.sql -
+  // "overdue" for a PI is a computed day-count on the PI Follow-up tab,
+  // not a stored status), so they only participate in the general "All
+  // open" and "Paid" views here - a granular status filter (Sent,
+  // Overdue, etc.) is necessarily Invoice-only, and the UI says so.
+  const tablePis = useMemo(() => {
+    if (statusFilter === 'all') return pisInPeriod.filter((p) => Number(p.amount) - Number(p.paid_amount || 0) > 0)
+    if (statusFilter === 'Paid') return pisInPeriod.filter((p) => Number(p.amount) - Number(p.paid_amount || 0) <= 0)
+    return []
+  }, [pisInPeriod, statusFilter])
 
   const lastCommFor = (customerId) => comms.find((c) => c.customer_id === customerId) || null
 
@@ -87,11 +110,22 @@ export default function ReceivablesScreen() {
       // case. Any specific status already selected - including Paid - is
       // already correctly scoped by tableInvoices above, so nothing extra
       // to filter here.
-      const relevant = statusFilter === 'all' ? custInvoices.filter((i) => computeStatus(i, 'Sent') !== 'Paid') : custInvoices
-      const amount = isPaidView
-        ? relevant.reduce((s, i) => s + i.paid_amount, 0)
-        : relevant.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
-      return { customer: cust, count: relevant.length, amount, lastComm: lastCommFor(cust.id) }
+      const relevantInvoices = statusFilter === 'all' ? custInvoices.filter((i) => computeStatus(i, 'Sent') !== 'Paid') : custInvoices
+      const relevantPis = tablePis.filter((p) => p.customer_id === cust.id)
+
+      const invoiceAmount = isPaidView
+        ? relevantInvoices.reduce((s, i) => s + i.paid_amount, 0)
+        : relevantInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
+      const piAmount = isPaidView
+        ? relevantPis.reduce((s, p) => s + Number(p.paid_amount || 0), 0)
+        : relevantPis.reduce((s, p) => s + (Number(p.amount) - Number(p.paid_amount || 0)), 0)
+
+      return {
+        customer: cust,
+        count: relevantInvoices.length + relevantPis.length,
+        amount: invoiceAmount + piAmount,
+        lastComm: lastCommFor(cust.id),
+      }
     }).filter((r) => r.count > 0)
 
     if (search.trim()) {
@@ -106,13 +140,13 @@ export default function ReceivablesScreen() {
 
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customers, tableInvoices, comms, customerFilter, sortBy, search, statusFilter])
+  }, [customers, tableInvoices, tablePis, comms, customerFilter, sortBy, search, statusFilter])
 
   const totals = useMemo(() => {
-    const invoiced = invoicesInPeriod.reduce((s, i) => s + i.amount, 0)
-    const collected = invoicesInPeriod.reduce((s, i) => s + i.paid_amount, 0)
+    const invoiced = invoicesInPeriod.reduce((s, i) => s + i.amount, 0) + pisInPeriod.reduce((s, p) => s + Number(p.amount), 0)
+    const collected = invoicesInPeriod.reduce((s, i) => s + i.paid_amount, 0) + pisInPeriod.reduce((s, p) => s + Number(p.paid_amount || 0), 0)
     return { invoiced, collected, pending: invoiced - collected }
-  }, [invoicesInPeriod])
+  }, [invoicesInPeriod, pisInPeriod])
 
   const addComm = async ({ channel, tag, note }) => {
     setSaving(true)
@@ -134,7 +168,7 @@ export default function ReceivablesScreen() {
   const handleExportCsv = () => {
     downloadCsv(
       'receivables-clients',
-      ['Customer', isPaidView ? 'Paid Invoices' : 'Open Bills', isPaidView ? 'Amount Received' : 'Amount Due', 'Last Follow-up', 'Last Contact Date'],
+      ['Customer', isPaidView ? 'Paid Items' : 'Open Items', isPaidView ? 'Amount Received' : 'Amount Due', 'Last Follow-up', 'Last Contact Date'],
       rows.map((r) => [
         r.customer.name,
         r.count,
@@ -151,7 +185,7 @@ export default function ReceivablesScreen() {
       firm,
       filename: 'receivables-clients',
       columns: [
-        { label: 'Customer' }, { label: isPaidView ? 'Paid Invoices' : 'Open Bills', align: 'right' },
+        { label: 'Customer' }, { label: isPaidView ? 'Paid Items' : 'Open Items', align: 'right' },
         { label: isPaidView ? 'Amount Received' : 'Amount Due', align: 'right' },
         { label: 'Last Follow-up' }, { label: 'Last Contact' },
       ],
@@ -171,7 +205,7 @@ export default function ReceivablesScreen() {
       firm,
       filename: 'receivables-clients',
       columns: [
-        { label: 'Customer' }, { label: isPaidView ? 'Paid Invoices' : 'Open Bills', align: 'right' },
+        { label: 'Customer' }, { label: isPaidView ? 'Paid Items' : 'Open Items', align: 'right' },
         { label: isPaidView ? 'Amount Received' : 'Amount Due', align: 'right' },
         { label: 'Last Follow-up' }, { label: 'Last Contact' },
       ],
@@ -222,17 +256,23 @@ export default function ReceivablesScreen() {
         exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: rows.length === 0 }}
       />
 
+      {statusFilter !== 'all' && statusFilter !== 'Paid' && (
+        <p className="login-footnote" style={{ marginTop: -8 }}>
+          "{statusFilter}" is an Invoice-only status — Proforma Invoices don't have that breakdown, so they're not included in this specific view. Switch to "All open" to see both together.
+        </p>
+      )}
+
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>{isPaidView ? 'Paid clients' : 'Pending clients'}</h2>
-          <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''}</span>
+          <span className="section-header__note">{rows.length} client{rows.length !== 1 ? 's' : ''}{statusFilter === 'all' || statusFilter === 'Paid' ? ' · invoices + proforma invoices combined' : ''}</span>
         </div>
         <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
               <th>Customer</th>
-              <th className="num">{isPaidView ? 'Paid invoices' : 'Open bills'}</th>
+              <th className="num">{isPaidView ? 'Paid items' : 'Open items'}</th>
               <SortableTh label={isPaidView ? 'Amount received' : 'Amount due'} ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
               <th>Last update</th>
               <th>Last contact</th>

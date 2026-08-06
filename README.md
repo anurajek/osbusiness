@@ -582,7 +582,37 @@ provider needs Meta Business verification and pre-approved message
 templates; SMS in India additionally needs DLT template registration) —
 real, separate projects whenever you're ready to take them on.
 
+## Receivables now includes Proforma Invoices, and Preview added to Follow-up
+
+No migration needed for either — just deploy.
+
+**Receivables was only ever showing Sales Invoice pending amounts** -
+Proforma Invoices, even once imported, never contributed to the "Still
+pending" total or any customer's "Amount Due," since the screen never
+queried that table at all. Fixed: the stat cards and the "Pending
+clients"/"Paid clients" list now combine both — a customer's total
+reflects everything they owe, invoice or PI. One nuance worth knowing: the
+Status filter's granular options (Sent/Partial/Due today/Overdue) are
+Invoice-only, since a PI doesn't carry that same breakdown - only "All
+open" and "Paid" pull in both together. The screen says so plainly
+whenever a granular status is selected, rather than silently dropping PI
+data with no explanation.
+
+**Preview added to Invoice Follow-up and PI Follow-up** - same PDF preview
+already on Sales/Purchases, now on these two screens as well, so you can
+see the actual document without leaving the follow-up view. Proforma
+Invoices get their own "PROFORMA INVOICE" title rather than being labeled
+as a regular invoice.
+
 ## Status
+
+- [x] **Receivables now includes PI + Preview on Follow-up screens (Aug
+      2026):** Receivables' stat cards and pending-clients list were
+      silently only reflecting Sales Invoices - now combine Invoice + PI
+      pending amounts (with a plain-language note when a granular status
+      filter can't include PI). Added PDF Preview to Invoice/PI Follow-up,
+      matching what Sales/Purchases already had. See "Receivables now
+      includes Proforma Invoices, and Preview added to Follow-up" above.
 
 - [x] **Proforma Invoices + Payment Reminders (Aug 2026):** PI tracked
       side by side with Tax Invoices (imported, never generated/converted

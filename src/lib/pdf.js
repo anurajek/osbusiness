@@ -124,7 +124,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
   pdf.setTextColor(20)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(20)
-  pdf.text(doc.isSales ? 'INVOICE' : 'BILL', margin, y)
+  pdf.text(doc.docTypeLabel || (doc.isSales ? 'INVOICE' : 'BILL'), margin, y)
   pdf.setFontSize(11)
   pdf.text(doc.number || '—', pageWidth - margin, y, { align: 'right' })
   y += 22

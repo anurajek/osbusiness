@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
-import { Send, PauseCircle, PlayCircle } from 'lucide-react'
+import { Send, PauseCircle, PlayCircle, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow } from '../components/ui'
 import { downloadCsv } from '../lib/exportCsv'
-import { downloadListPdf } from '../lib/pdf'
+import { downloadListPdf, previewDocumentPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
+import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
 
@@ -35,6 +36,7 @@ export default function PaymentFollowUpScreen({ docType }) {
   const [newEmail, setNewEmail] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [actionMsg, setActionMsg] = useState({})
+  const [preview, setPreview] = useState(null)
 
   const load = useCallback(async () => {
     if (!firmId) return
@@ -44,7 +46,7 @@ export default function PaymentFollowUpScreen({ docType }) {
       supabase.from(table)
         .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
-      supabase.from('customers').select('id, name, email').eq('firm_id', firmId),
+      supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
     ])
     if (docErr || custErr) { setError((docErr || custErr).message); setLoading(false); return }
     setRows((docs ?? []).filter((d) => Number(d.amount) - Number(d.paid_amount || 0) > 0))
@@ -139,6 +141,30 @@ export default function PaymentFollowUpScreen({ docType }) {
     load()
   }
 
+  const handlePreview = async (row) => {
+    const party = customers.find((c) => c.id === row.customer_id) || null
+    const { url, filename } = await previewDocumentPdf({
+      firm: firm || {},
+      party,
+      doc: {
+        number: row[numberField],
+        issued_date: row.issued_date,
+        due_date: null,
+        amount: row.amount,
+        paid_amount: row.paid_amount,
+        status: (Number(row.amount) - Number(row.paid_amount || 0)) <= 0 ? 'Paid' : 'Sent',
+        isSales: true,
+        docTypeLabel: isPi ? 'PROFORMA INVOICE' : undefined,
+      },
+    })
+    setPreview({ url, filename })
+  }
+
+  const closePreview = () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url)
+    setPreview(null)
+  }
+
   const exportRows = filtered.map((r) => [
     customerName(r.customer_id), r[numberField], r.issued_date,
     inr(r.amount - r.paid_amount), daysOverdue(r.issued_date),
@@ -204,6 +230,9 @@ export default function PaymentFollowUpScreen({ docType }) {
                         {r.reminders_paused && <span className="pill pill--warn" style={{ marginLeft: 6 }}>Paused</span>}
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                        <button className="link-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} onClick={() => handlePreview(r)}>
+                          <Eye size={12} /> Preview
+                        </button>
                         <button className="link-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} disabled={busy || r.reminders_paused} onClick={() => handleSendNow(r)}>
                           <Send size={12} /> Send now
                         </button>
@@ -253,6 +282,8 @@ export default function PaymentFollowUpScreen({ docType }) {
           </table>
         </div>
       </div>
+
+      {preview && <PdfPreviewModal url={preview.url} filename={preview.filename} onClose={closePreview} />}
     </>
   )
 }
