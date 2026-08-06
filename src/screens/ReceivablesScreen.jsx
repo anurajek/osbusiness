@@ -15,7 +15,7 @@ import { downloadListDocx } from '../lib/exportDocx'
 // of due).
 const SALES_STATUSES = ['Sent', 'Partial', 'Due today', 'Overdue', 'Paid']
 
-export default function ReceivablesScreen() {
+export default function ReceivablesScreen({ navParams, clearNavParams, onNavigate }) {
   const { firmId, firm } = useFirm()
 
   const [customers, setCustomers] = useState([])
@@ -34,6 +34,16 @@ export default function ReceivablesScreen() {
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
+
+  // Arriving here from a click elsewhere (e.g. a customer's name in Sales)
+  // pre-filters to that one customer, instead of landing on the full,
+  // unfiltered list and making the person search for them again.
+  useEffect(() => {
+    if (navParams?.customerId) {
+      setCustomerFilter(navParams.customerId)
+      clearNavParams?.()
+    }
+  }, [navParams, clearNavParams])
 
   const loadAll = useCallback(async () => {
     if (!firmId) return
@@ -291,7 +301,23 @@ export default function ReceivablesScreen() {
                     : <span className="pill pill--neutral">No follow-up yet</span>}
                 </td>
                 <td className="mono">{r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—'}</td>
-                <td><button className="link-btn" onClick={(e) => { e.stopPropagation(); setSelectedCustomerId(r.customer.id) }}>View</button></td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <select
+                    className="select select--sm"
+                    value=""
+                    onChange={(e) => {
+                      const action = e.target.value
+                      if (action === 'view') setSelectedCustomerId(r.customer.id)
+                      else if (action === 'invoice-followup') onNavigate?.('arap', 'invoice-followup', { customerId: r.customer.id })
+                      else if (action === 'pi-followup') onNavigate?.('arap', 'pi-followup', { customerId: r.customer.id })
+                    }}
+                  >
+                    <option value="" disabled>Actions…</option>
+                    <option value="view">View details</option>
+                    {onNavigate && <option value="invoice-followup">Invoice Follow-up →</option>}
+                    {onNavigate && <option value="pi-followup">PI Follow-up →</option>}
+                  </select>
+                </td>
               </tr>
             ))}
             {rows.length === 0 && <EmptyRow colSpan={6}>No {isPaidView ? 'paid' : 'open'} receivables match these filters.</EmptyRow>}
@@ -313,6 +339,10 @@ export default function ReceivablesScreen() {
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
+          links={onNavigate ? [
+            { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
+            { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },
+          ] : undefined}
         />
       )}
     </>

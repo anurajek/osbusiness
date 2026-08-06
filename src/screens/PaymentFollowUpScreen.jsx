@@ -13,7 +13,7 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
 const MANUAL_STATUSES = ['Sent', 'Overdue', 'Paid', 'Invoiced', 'Completed']
 
-export default function PaymentFollowUpScreen({ docType }) {
+export default function PaymentFollowUpScreen({ docType, navParams, clearNavParams }) {
   const { firmId, firm } = useFirm()
   const isPi = docType === 'pi'
   const table = isPi ? 'proforma_invoices' : 'sales_invoices'
@@ -62,6 +62,18 @@ export default function PaymentFollowUpScreen({ docType }) {
   }, [firmId, table, numberField])
 
   useEffect(() => { load() }, [load])
+
+  // Arriving here from a click elsewhere (e.g. "Invoice Follow-up ->" in
+  // Receivables' update drawer) pre-filters to that one customer. This
+  // screen's only filter is the name search box, so that's what gets set -
+  // waits for customers to actually be loaded before looking the name up.
+  useEffect(() => {
+    if (navParams?.customerId && customers.length > 0) {
+      const match = customers.find((c) => c.id === navParams.customerId)
+      if (match) setSearch(match.name)
+      clearNavParams?.()
+    }
+  }, [navParams, customers, clearNavParams])
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || '—'
   const daysSinceIssued = (issuedDate) => Math.floor((Date.now() - new Date(issuedDate + 'T00:00:00').getTime()) / 86400000)

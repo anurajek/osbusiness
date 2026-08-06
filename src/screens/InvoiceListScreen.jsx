@@ -13,7 +13,7 @@ import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/u
 // Full list of statuses a record can ever show as (computed live, not stored).
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
 
-export default function InvoiceListScreen({ type }) {
+export default function InvoiceListScreen({ type, onNavigate }) {
   const { firmId, firm } = useFirm()
   const isSales = type === 'sales'
   const baseStatus = isSales ? 'Sent' : 'Approved'
@@ -541,7 +541,17 @@ export default function InvoiceListScreen({ type }) {
                 <Fragment key={r.id}>
                   <tr className="ledger-row">
                     <td className="mono">{r[numberField]}</td>
-                    <td>{partyName(r[partyJoinKey])}</td>
+                    <td>
+                      {onNavigate ? (
+                        <button
+                          className="link-btn" style={{ padding: 0, textAlign: 'left', color: 'inherit', textDecoration: 'underline', textDecorationColor: 'var(--rule)' }}
+                          title={`View ${partyName(r[partyJoinKey])} in ${isSales ? 'Receivables' : 'Payables'}`}
+                          onClick={() => onNavigate('arap', isSales ? 'receivables' : 'payables', isSales ? { customerId: r[partyJoinKey] } : { supplierId: r[partyJoinKey] })}
+                        >
+                          {partyName(r[partyJoinKey])}
+                        </button>
+                      ) : partyName(r[partyJoinKey])}
+                    </td>
                     <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
                     <td className="num mono">{inr(r.amount)}</td>
                     <td className="num mono">{inr(r.paid_amount)}</td>

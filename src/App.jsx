@@ -100,11 +100,21 @@ function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreate
 
 function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut }) {
   const { permissions, firmId, role } = useFirm()
+  const [navParams, setNavParams] = useState(null)
 
-  const goToModule = (moduleKey, tab) => {
+  // Carries an optional { customerId } or { supplierId } payload along with
+  // the navigation itself - e.g. clicking a customer's name in Sales jumps
+  // to Receivables already filtered to them, rather than landing on the
+  // unfiltered list and making the person search again. Screens that
+  // accept navParams are expected to apply it once (in an effect keyed on
+  // this object) and then call clearNavParams - after that it's null again,
+  // so a later unrelated re-render can't re-trigger the same filter.
+  const goToModule = (moduleKey, tab, params) => {
     setActiveModule(moduleKey)
     if (moduleKey === 'arap' && tab) setArapTab(tab)
+    setNavParams(params ?? null)
   }
+  const clearNavParams = () => setNavParams(null)
 
   if (!firmId) return <NoFirmMessage userEmail={userEmail} onCreateFirm={onCreateFirm} onSignOut={onSignOut} initialError={initialError} />
 
@@ -116,12 +126,12 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
     }
     switch (activeModule) {
       case 'dashboard': return <DashboardScreen onNavigate={goToModule} />
-      case 'sales': return <InvoiceListScreen type="sales" />
-      case 'purchases': return <InvoiceListScreen type="purchases" />
+      case 'sales': return <InvoiceListScreen type="sales" onNavigate={goToModule} />
+      case 'purchases': return <InvoiceListScreen type="purchases" onNavigate={goToModule} />
       case 'quotes': return <QuotationsScreen />
       case 'notes': return <CreditDebitNotesScreen />
       case 'import': return <ImportScreen />
-      case 'arap': return <ARAPScreen tab={arapTab} onTabChange={setArapTab} />
+      case 'arap': return <ARAPScreen tab={arapTab} onTabChange={setArapTab} navParams={navParams} clearNavParams={clearNavParams} onNavigate={goToModule} />
       case 'cashbank': return <CashBankScreen />
       case 'ledger': return <LedgerScreen />
       case 'permissions': return <PermissionsScreen />

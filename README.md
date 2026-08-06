@@ -653,7 +653,52 @@ Both a filter and a per-document setting, on Invoice/PI Follow-up:
   WhatsApp notes, promise-to-pay tags, communication history) already used
   on Receivables — it was simply missing from these two screens before.
 
+## Cross-screen navigation - customer/supplier names are now real links
+
+No migration needed - just deploy.
+
+**Customer and supplier names are clickable** in Sales and Purchases - click
+one and it jumps straight to Receivables/Payables, already filtered to
+that exact customer/supplier, instead of landing on the full list and
+making you search again.
+
+**Receivables' row action is now "Actions..."** (matching Invoice/PI
+Follow-up), not a single "View" button - View details (opens the same
+update-log drawer as before), plus two new direct jumps: "Invoice
+Follow-up →" and "PI Follow-up →", both landing pre-filtered to that
+customer. The update-log drawer itself got the same two links added next
+to its close button, so logging a note and then checking that customer's
+PI/Invoice follow-up status is one click, not a re-navigation.
+
+**Payables did not get the same treatment, on purpose, not by oversight**:
+there's no underlying communication-log data model for suppliers the way
+`ar_comms` exists for customers - Payables never had a drawer or an
+"Actions" menu to begin with, so adding one now would mean either building
+that whole feature (a real, separate piece of work) or adding a dropdown
+that points at nothing. Payables *did* get the pre-filter-on-arrival part
+(clicking a supplier in Purchases lands here filtered correctly), since
+that reuses the same mechanism with no new data model required. Worth a
+separate conversation if supplier-side follow-up tracking would be useful.
+
+How this works, for future screens: `App.jsx`'s existing navigation
+function now carries an optional `{ customerId }` or `{ supplierId }`
+payload alongside the module/tab it's switching to. A screen that wants to
+arrive pre-filtered accepts `navParams`/`clearNavParams` props, applies
+the incoming id in an effect, then clears it - the same small pattern
+used by Receivables, Payables, and Invoice/PI Follow-up here.
+
 ## Status
+
+- [x] **Cross-screen navigation (Aug 2026):** customer/supplier names in
+      Sales/Purchases are now clickable, jumping to Receivables/Payables
+      pre-filtered to that exact one. Receivables' row action is now an
+      "Actions..." dropdown (View details / Invoice Follow-up → / PI
+      Follow-up →), matching the Follow-up screens' style, with the same
+      two jump-links added to the update-log drawer itself. Payables
+      deliberately didn't get an Actions dropdown - no communication-log
+      data model exists for suppliers yet, so there's nothing to open. See
+      "Cross-screen navigation" above for the full detail and the honest
+      reasoning on that asymmetry.
 
 - [x] **Itemized tax breakdown + manual status + Follow-up upgrades (Aug
       2026):** optional item/tax fields (description, qty, rate, subtotal,

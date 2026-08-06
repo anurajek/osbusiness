@@ -3,7 +3,7 @@ import ReceivablesScreen from './ReceivablesScreen'
 import PayablesScreen from './PayablesScreen'
 import PaymentFollowUpScreen from './PaymentFollowUpScreen'
 
-export default function ARAPScreen({ tab, onTabChange }) {
+export default function ARAPScreen({ tab, onTabChange, navParams, clearNavParams, onNavigate }) {
   return (
     <>
       <SectionHeader title="AR / AP" note="who owes you, who you owe" />
@@ -13,10 +13,10 @@ export default function ARAPScreen({ tab, onTabChange }) {
         <button className={`tab ${tab === 'invoice-followup' ? 'tab--active' : ''}`} onClick={() => onTabChange('invoice-followup')}>Invoice Follow-up</button>
         <button className={`tab ${tab === 'pi-followup' ? 'tab--active' : ''}`} onClick={() => onTabChange('pi-followup')}>PI Follow-up</button>
       </div>
-      {tab === 'receivables' && <ReceivablesScreen />}
-      {tab === 'payables' && <PayablesScreen />}
-      {tab === 'invoice-followup' && <PaymentFollowUpScreen docType="invoice" />}
-      {tab === 'pi-followup' && <PaymentFollowUpScreen docType="pi" />}
+      {tab === 'receivables' && <ReceivablesScreen navParams={navParams} clearNavParams={clearNavParams} onNavigate={onNavigate} />}
+      {tab === 'payables' && <PayablesScreen navParams={navParams} clearNavParams={clearNavParams} />}
+      {tab === 'invoice-followup' && <PaymentFollowUpScreen docType="invoice" navParams={navParams} clearNavParams={clearNavParams} />}
+      {tab === 'pi-followup' && <PaymentFollowUpScreen docType="pi" navParams={navParams} clearNavParams={clearNavParams} />}
     </>
   )
 }

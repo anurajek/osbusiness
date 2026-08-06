@@ -14,7 +14,7 @@ import { downloadListDocx } from '../lib/exportDocx'
 // due).
 const PURCHASE_STATUSES = ['Approved', 'Partial', 'Due today', 'Overdue', 'Paid']
 
-export default function PayablesScreen() {
+export default function PayablesScreen({ navParams, clearNavParams }) {
   const { firmId, firm } = useFirm()
 
   const [suppliers, setSuppliers] = useState([])
@@ -29,6 +29,15 @@ export default function PayablesScreen() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
+
+  // Arriving here from a click elsewhere (e.g. a supplier's name in
+  // Purchases) pre-filters to that one supplier.
+  useEffect(() => {
+    if (navParams?.supplierId) {
+      setSupplierFilter(navParams.supplierId)
+      clearNavParams?.()
+    }
+  }, [navParams, clearNavParams])
 
   useEffect(() => {
     if (!firmId) return

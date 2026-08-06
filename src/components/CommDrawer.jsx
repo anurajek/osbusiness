@@ -20,7 +20,11 @@ function relativeTime(dateStr) {
 // internally, specifically so this same drawer works for Proforma
 // Invoices too (which have a pi_no, not an invoice_no, and no due_date to
 // compute a status from) without hardcoding Sales-Invoice-only logic here.
-export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving }) {
+//
+// links: optional [{ label, onClick }] - rendered as small buttons next to
+// the close button, for jumping to a related screen (e.g. "Invoice
+// Follow-up ->") without leaving this drawer open on top of it.
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
@@ -36,7 +40,12 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
         <div className="drawer__header">
           <h2>{customer.name}</h2>
-          <button className="drawer__close" onClick={onClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {links && links.map((l) => (
+              <button key={l.label} className="link-btn" style={{ whiteSpace: 'nowrap' }} onClick={l.onClick}>{l.label}</button>
+            ))}
+            <button className="drawer__close" onClick={onClose}><X size={18} /></button>
+          </div>
         </div>
 
         <div>
