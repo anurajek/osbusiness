@@ -139,34 +139,90 @@ async function buildDocumentPdf({ firm, party, doc }) {
   y += 14
   y = renderPartyBlock(pdf, { party, label: doc.isSales ? 'Bill To' : 'Vendor', margin, y })
 
-  // --- Amount summary table ---
-  y += 24
-  pdf.setDrawColor(220)
-  pdf.setFillColor(245, 245, 245)
-  pdf.rect(margin, y, pageWidth - margin * 2, 26, 'F')
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.setTextColor(90)
-  pdf.text('Description', margin + 10, y + 17)
-  pdf.text('Amount', pageWidth - margin - 10, y + 17, { align: 'right' })
-  y += 26
+  // Real itemized + tax breakdown when the import actually carried that
+  // detail (see migration_itemized_tax_and_manual_status.sql) - one line
+  // item, matching what a CSV import can realistically carry (one row per
+  // document). Falls back to the plain single-total summary when none of
+  // this was mapped, so older imports render exactly as they always have.
+  const hasItemDetail = doc.itemDescription || doc.subtotal != null || doc.cgstAmount != null || doc.sgstAmount != null || doc.igstAmount != null
 
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(10)
-  pdf.setTextColor(30)
-  pdf.text(doc.isSales ? 'Goods / services rendered' : 'Goods / services received', margin + 10, y + 18)
-  pdf.text(inr(doc.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
-  y += 28
-  pdf.setDrawColor(230)
-  pdf.line(margin, y, pageWidth - margin, y)
+  y += 24
+  if (hasItemDetail) {
+    const colDesc = margin + 10
+    const colQty = pageWidth - margin - 220
+    const colRate = pageWidth - margin - 140
+    const colAmt = pageWidth - margin - 10
+
+    pdf.setDrawColor(220)
+    pdf.setFillColor(245, 245, 245)
+    pdf.rect(margin, y, pageWidth - margin * 2, 22, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(90)
+    pdf.text('Items & Description', colDesc, y + 15)
+    pdf.text('Qty', colQty, y + 15, { align: 'right' })
+    pdf.text('Rate', colRate, y + 15, { align: 'right' })
+    pdf.text('Amount', colAmt, y + 15, { align: 'right' })
+    y += 22
+
+    const lineAmount = doc.itemQuantity != null && doc.itemRate != null
+      ? Number(doc.itemQuantity) * Number(doc.itemRate)
+      : (doc.subtotal != null ? Number(doc.subtotal) : Number(doc.amount))
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9.5)
+    pdf.setTextColor(30)
+    pdf.text(doc.itemDescription || '—', colDesc, y + 14, { maxWidth: colQty - colDesc - 20 })
+    pdf.text(doc.itemQuantity != null ? String(doc.itemQuantity) : '', colQty, y + 14, { align: 'right' })
+    pdf.text(doc.itemRate != null ? inr(doc.itemRate) : '', colRate, y + 14, { align: 'right' })
+    pdf.text(inr(lineAmount), colAmt, y + 14, { align: 'right' })
+    y += 24
+    pdf.setDrawColor(230)
+    pdf.line(margin, y, pageWidth - margin, y)
+    y += 16
+
+    const taxRows = [['Sub Total', inr(doc.subtotal ?? lineAmount), false]]
+    if (doc.discountAmount) taxRows.push(['Discount', `(-)${inr(doc.discountAmount)}`, false])
+    if (doc.cgstAmount != null) taxRows.push([`CGST${doc.cgstRate != null ? ` (${doc.cgstRate}%)` : ''}`, inr(doc.cgstAmount), false])
+    if (doc.sgstAmount != null) taxRows.push([`SGST${doc.sgstRate != null ? ` (${doc.sgstRate}%)` : ''}`, inr(doc.sgstAmount), false])
+    if (doc.igstAmount != null) taxRows.push([`IGST${doc.igstRate != null ? ` (${doc.igstRate}%)` : ''}`, inr(doc.igstAmount), false])
+    taxRows.push(['Total', inr(doc.amount), true])
+
+    for (const [label, value, bold] of taxRows) {
+      pdf.setFont('helvetica', bold ? 'bold' : 'normal')
+      pdf.setFontSize(bold ? 11 : 9.5)
+      pdf.setTextColor(bold ? 20 : 90)
+      pdf.text(label, colRate, y, { align: 'left' })
+      pdf.text(value, colAmt, y, { align: 'right' })
+      y += bold ? 18 : 15
+    }
+    y += 6
+  } else {
+    pdf.setDrawColor(220)
+    pdf.setFillColor(245, 245, 245)
+    pdf.rect(margin, y, pageWidth - margin * 2, 26, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(90)
+    pdf.text('Description', margin + 10, y + 17)
+    pdf.text('Amount', pageWidth - margin - 10, y + 17, { align: 'right' })
+    y += 26
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(10)
+    pdf.setTextColor(30)
+    pdf.text(doc.isSales ? 'Goods / services rendered' : 'Goods / services received', margin + 10, y + 18)
+    pdf.text(inr(doc.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
+    y += 28
+    pdf.setDrawColor(230)
+    pdf.line(margin, y, pageWidth - margin, y)
+    y += 14
+  }
 
   const balance = (Number(doc.amount) || 0) - (Number(doc.paid_amount) || 0)
   const summaryRows = [
-    ['Total', inr(doc.amount)],
     ['Paid', inr(doc.paid_amount || 0)],
     ['Balance Due', inr(balance)],
   ]
-  y += 14
   for (const [label, value] of summaryRows) {
     pdf.setFont('helvetica', label === 'Balance Due' ? 'bold' : 'normal')
     pdf.setFontSize(10)
@@ -466,6 +522,26 @@ export function previewListPdf(args) {
   const pdf = buildListPdf(args)
   const filename = args.filename
   return { url: pdf.output('bloburl'), filename: filename.endsWith('.pdf') ? filename : `${filename}.pdf` }
+}
+
+// Maps a raw DB row's snake_case item/tax columns to the camelCase doc.*
+// fields buildDocumentPdf expects - shared so every screen that previews
+// an invoice/bill/PI does this mapping identically, rather than each
+// hand-rolling the same conversion.
+export function itemTaxFieldsFromRow(row) {
+  return {
+    itemDescription: row.item_description,
+    itemQuantity: row.item_quantity,
+    itemRate: row.item_rate,
+    subtotal: row.subtotal,
+    discountAmount: row.discount_amount,
+    cgstRate: row.cgst_rate,
+    cgstAmount: row.cgst_amount,
+    sgstRate: row.sgst_rate,
+    sgstAmount: row.sgst_amount,
+    igstRate: row.igst_rate,
+    igstAmount: row.igst_amount,
+  }
 }
 
 function loadImage(url) {

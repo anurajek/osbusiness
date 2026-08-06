@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { inr, toISODate, computeStatus } from '../lib/format'
+import { inr, toISODate } from '../lib/format'
 import { StatusPill } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
@@ -14,15 +14,16 @@ function relativeTime(dateStr) {
   return `${days} days ago`
 }
 
-export default function CommDrawer({ customer, invoices, comms, onAddComm, onClose, saving }) {
+// openDocs: pre-computed, already filtered to this customer's open items -
+// [{ id, number, issued_date, amountDue, statusLabel }]. Takes already-
+// computed rows rather than raw invoices + doing its own computeStatus
+// internally, specifically so this same drawer works for Proforma
+// Invoices too (which have a pi_no, not an invoice_no, and no due_date to
+// compute a status from) without hardcoding Sales-Invoice-only logic here.
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
-
-  const openInvoices = invoices
-    .filter((i) => i.customer_id === customer.id)
-    .map((i) => ({ ...i, liveStatus: computeStatus(i, 'Sent') }))
-    .filter((i) => i.liveStatus !== 'Paid')
 
   const submit = async () => {
     if (!text.trim()) return
@@ -42,17 +43,17 @@ export default function CommDrawer({ customer, invoices, comms, onAddComm, onClo
           <div className="drawer__label">Bills</div>
           <div className="table-scroll">
           <table className="ledger-table">
-            <thead><tr><th>Invoice</th><th>Issued</th><th className="num">Amount due</th><th>Status</th></tr></thead>
+            <thead><tr><th>{docLabel}</th><th>Issued</th><th className="num">Amount due</th><th>Status</th></tr></thead>
             <tbody>
-              {openInvoices.map((i) => (
-                <tr key={i.id} className="ledger-row">
-                  <td className="mono">{i.invoice_no}</td>
-                  <td className="mono">{toISODate(new Date(i.issued_date))}</td>
-                  <td className="num mono">{inr(i.amount - i.paid_amount)}</td>
-                  <td><StatusPill status={i.liveStatus} /></td>
+              {openDocs.map((d) => (
+                <tr key={d.id} className="ledger-row">
+                  <td className="mono">{d.number}</td>
+                  <td className="mono">{toISODate(new Date(d.issued_date))}</td>
+                  <td className="num mono">{inr(d.amountDue)}</td>
+                  <td><StatusPill status={d.statusLabel} /></td>
                 </tr>
               ))}
-              {openInvoices.length === 0 && (
+              {openDocs.length === 0 && (
                 <tr><td colSpan={4} className="empty-state">No open bills for this client.</td></tr>
               )}
             </tbody>

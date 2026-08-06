@@ -303,7 +303,12 @@ export default function ReceivablesScreen() {
       {selectedCustomer && (
         <CommDrawer
           customer={selectedCustomer}
-          invoices={invoices}
+          docLabel="Invoice"
+          openDocs={invoices
+            .filter((i) => i.customer_id === selectedCustomer.id)
+            .map((i) => ({ ...i, liveStatus: computeStatus(i, 'Sent') }))
+            .filter((i) => i.liveStatus !== 'Paid')
+            .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: i.liveStatus }))}
           comms={comms.filter((c) => c.customer_id === selectedCustomer.id)}
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}

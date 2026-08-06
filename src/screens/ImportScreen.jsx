@@ -14,6 +14,25 @@ const PARTY_FIELDS = [
   { key: 'contact', label: 'Contact' },
 ]
 
+// All optional - when mapped, the PDF preview shows a real itemized line +
+// tax breakdown (matching how Zoho/Tally present a bill); when left
+// unmapped, everything falls back to the plain single-total summary
+// exactly as before. One line item per document, not a full multi-line
+// items table - see the migration file's header comment for why.
+const ITEM_TAX_FIELDS = [
+  { key: 'item_description', label: 'Item Description' },
+  { key: 'item_quantity', label: 'Quantity', type: 'number' },
+  { key: 'item_rate', label: 'Rate', type: 'number' },
+  { key: 'subtotal', label: 'Sub Total', type: 'number' },
+  { key: 'discount_amount', label: 'Discount', type: 'number' },
+  { key: 'cgst_rate', label: 'CGST Rate (%)', type: 'number' },
+  { key: 'cgst_amount', label: 'CGST Amount', type: 'number' },
+  { key: 'sgst_rate', label: 'SGST Rate (%)', type: 'number' },
+  { key: 'sgst_amount', label: 'SGST Amount', type: 'number' },
+  { key: 'igst_rate', label: 'IGST Rate (%)', type: 'number' },
+  { key: 'igst_amount', label: 'IGST Amount', type: 'number' },
+]
+
 const TARGETS = {
   customers: { label: 'Customers', table: 'customers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
   suppliers: { label: 'Suppliers', table: 'suppliers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
@@ -28,6 +47,7 @@ const TARGETS = {
       { key: 'due_date', label: 'Due Date', type: 'date' },
       { key: 'amount', label: 'Amount', required: true, type: 'number' },
       { key: 'paid_amount', label: 'Paid Amount', type: 'number' },
+      ...ITEM_TAX_FIELDS,
     ],
   },
   proforma_invoices: {
@@ -40,6 +60,7 @@ const TARGETS = {
       { key: 'issued_date', label: 'Issued Date', required: true, type: 'date' },
       { key: 'amount', label: 'Amount', required: true, type: 'number' },
       { key: 'paid_amount', label: 'Paid Amount', type: 'number' },
+      ...ITEM_TAX_FIELDS,
     ],
   },
   purchase_bills: {
@@ -53,6 +74,7 @@ const TARGETS = {
       { key: 'due_date', label: 'Due Date', type: 'date' },
       { key: 'amount', label: 'Amount', required: true, type: 'number' },
       { key: 'paid_amount', label: 'Paid Amount', type: 'number' },
+      ...ITEM_TAX_FIELDS,
     ],
   },
 }
@@ -234,6 +256,7 @@ export default function ImportScreen() {
       }
 
       const baseStatus = def.isSales ? 'Sent' : 'Approved'
+      const ITEM_TAX_KEYS = ['item_description', 'item_quantity', 'item_rate', 'subtotal', 'discount_amount', 'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount', 'igst_rate', 'igst_amount']
       const docRows = validRows.map((r) => {
         const paidAmount = r.parsed.paid_amount || 0
         const payload = {
@@ -244,6 +267,14 @@ export default function ImportScreen() {
           issued_date: r.parsed.issued_date,
           amount: r.parsed.amount,
           paid_amount: paidAmount,
+        }
+        // validateRow always sets a key here for every field in the target's
+        // field list - null when a column wasn't mapped or was left blank
+        // in the CSV, an actual value otherwise. Writing an explicit null
+        // has the same effect as not writing the column at all (both leave
+        // it unset), so this is safe either way.
+        for (const key of ITEM_TAX_KEYS) {
+          if (key in r.parsed) payload[key] = r.parsed[key]
         }
         if (def.hasDueDate) {
           payload.due_date = r.parsed.due_date || null

@@ -3,7 +3,7 @@ import { Plus, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
-import { previewDocumentPdf, downloadListPdf } from '../lib/pdf'
+import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
@@ -79,7 +79,7 @@ export default function InvoiceListScreen({ type }) {
 
     const { data: invoiceRows, error: invErr } = await supabase
       .from(table)
-      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status`)
+      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
       .eq('firm_id', firmId)
       .order('issued_date', { ascending: false })
 
@@ -116,6 +116,7 @@ export default function InvoiceListScreen({ type }) {
         paid_amount: row.paid_amount,
         status: liveStatus(row),
         isSales,
+        ...itemTaxFieldsFromRow(row),
       },
     })
     setPreview({ url, filename })

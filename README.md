@@ -604,7 +604,67 @@ see the actual document without leaving the follow-up view. Proforma
 Invoices get their own "PROFORMA INVOICE" title rather than being labeled
 as a regular invoice.
 
+## Itemized tax breakdown + manual workflow status + Follow-up screen upgrades
+
+Run `migration_itemized_tax_and_manual_status.sql` in Supabase's SQL
+Editor — additive, safe on the existing database.
+
+### Real itemized + tax breakdown on PDFs
+
+Sales Invoices, Purchase Bills, and Proforma Invoices now have optional
+item/tax fields — description, quantity, rate, subtotal, discount, and
+CGST/SGST/IGST rate+amount — mappable during CSV import just like every
+other field. When mapped, the PDF preview shows a real itemized line and
+tax breakdown (Items & Description / Qty / Rate / Amount, then Sub Total,
+Discount, CGST, SGST, IGST, Total) instead of the plain single-total
+summary. **This is one line item per document**, not a full multi-line
+items table — matching what a CSV import can realistically carry (one
+row = one document), and matching what the reference screenshot actually
+showed (a single line item with a tax breakdown). Any document imported
+without this data (or imported before this migration) renders exactly as
+it always has — nothing required to keep using the app as-is.
+
+### Manual workflow status — Sent / Overdue / Paid / Invoiced / Completed
+
+Both a filter and a per-document setting, on Invoice/PI Follow-up:
+
+- **As a filter**: pick any of the five in the Status dropdown to see every
+  document tagged with it, regardless of whether it's still amount-pending
+  — "Pending (default)" is what shows normally (the actionable, amount-
+  based list, unchanged from before).
+- **As a setting**: every row has its own Status dropdown, right in the
+  table — set it directly, no extra screen. This is a separate, manual
+  tracking dimension, not tied to the automatic amount/days-based pending
+  and overdue calculations used everywhere else in the app — most usefully
+  for "Invoiced" (this PI has now been converted to a real Tax Invoice
+  over in the accounting software), which nothing in this tool could ever
+  detect on its own.
+
+### Invoice/PI Follow-up also got:
+
+- **Stat cards** — "{Invoices/PIs} in period," "Collected in period,"
+  "Still pending," matching what Receivables already shows, scoped to just
+  this document type.
+- **Actions as one dropdown** instead of three separate buttons crowding
+  the row (Preview / Send reminder now / Pause / Resume / Log an update)
+  — same "Export as" pattern already used elsewhere, picked specifically
+  because the old stacked-button layout wrapped badly on narrower screens.
+- **"Log an update"** now opens the same follow-up drawer (call/email/
+  WhatsApp notes, promise-to-pay tags, communication history) already used
+  on Receivables — it was simply missing from these two screens before.
+
 ## Status
+
+- [x] **Itemized tax breakdown + manual status + Follow-up upgrades (Aug
+      2026):** optional item/tax fields (description, qty, rate, subtotal,
+      discount, CGST/SGST/IGST) importable per document, rendering a real
+      itemized+tax PDF breakdown when present. Added a manual workflow
+      status (Sent/Overdue/Paid/Invoiced/Completed) as both a filter and a
+      per-row setting on Invoice/PI Follow-up, plus stat cards, an Actions
+      dropdown replacing three crowded buttons, and "Log an update"
+      (previously missing from these two screens). See "Itemized tax
+      breakdown + manual workflow status + Follow-up screen upgrades"
+      above for full detail.
 
 - [x] **Receivables now includes PI + Preview on Follow-up screens (Aug
       2026):** Receivables' stat cards and pending-clients list were
