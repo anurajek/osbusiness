@@ -484,7 +484,128 @@ drift apart. Preview is wired up on Sales/Purchases for now; the same
 `preview*Pdf()` functions already exist for Quotations and Credit/Debit
 Notes if you want the same treatment there later.
 
+## Proforma Invoices + Payment Reminders
+
+This is the biggest single addition to the app so far, and needs a few
+setup steps — read this whole section before deploying.
+
+**The core idea:** this tool never generates or converts either Proforma
+Invoices or Tax Invoices — that stays in Zoho/Tally/whichever accounting
+software a firm already uses. Both document types arrive here the same
+way, via CSV import, and are tracked **side by side**, not one converting
+into the other, because different firms follow up differently: some chase
+the PI, some skip straight to the Tax Invoice, some do both.
+
+### Proforma Invoices
+
+A new import type (Import Data → "Proforma Invoices"), a `proforma_invoices`
+table mirroring Sales Invoices closely (customer, PI #, issued date,
+amount, paid amount) but **without a due date** — "overdue" for a PI is
+always computed from the firm's payment-due setting (see below), not a
+stored date, since a proforma invoice doesn't carry its own due date the
+way a tax invoice does.
+
+### AR/AP → two new tabs: Invoice Follow-up / PI Follow-up
+
+Alongside the existing Receivables/Payables (which stay as customer-level
+rollups), two new tabs give the **per-document** view this needed: one row
+per pending Invoice or PI, with exactly what you asked for — customer,
+document #, issued date, amount pending, days overdue, and reminder
+status — plus Pause/Resume and Send Now right there, and the same
+Export CSV/PDF/Word every other list has.
+
+**Payment due (days after issue)** is a new per-firm setting (Users &
+Permissions → Firm details, default 7) — this is what "overdue" is
+calculated against for both Invoices and PIs.
+
+### Reminder emails — per customer, not per document
+
+Click any row in Invoice/PI Follow-up to expand it and manage that
+customer's reminder email list — add or remove addresses freely, any time.
+Set once per customer, used for every pending document they have, rather
+than re-entering the same emails for each invoice. If none are set, it
+falls back to the customer's main email (from Sales).
+
+### The reminder schedule
+
+Exactly as specified — day 3 is a gentle nudge, the day before the payment
+is due is a firmer reminder, the due date itself gets a due-today notice,
+and every 2 days past that sends an overdue notice with the day count.
+Reminders stop entirely once paused, or once the balance reaches zero.
+
+### Manual send vs. automatic — both exist, and need separate setup
+
+**Manual ("Send now")** works as soon as you deploy this update and the
+Edge Function below — click it any time from day 3 onward and it sends
+whatever stage currently applies.
+
+**Automatic** (fires on its own, on schedule, every day) needs one more
+piece: a **Supabase Cron Job**, because a scheduled send has to run
+somewhere even when nobody has the app open — a browser tab can't do that
+reliably. Setup:
+
+1. **Deploy two new Edge Functions** (Supabase Dashboard → Edge Functions
+   → Create a new function, for each):
+   - `send-payment-reminder` — paste in
+     `supabase/functions/send-payment-reminder/index.ts`. This is what the
+     manual "Send now" button calls.
+   - `send-payment-reminders-batch` — paste in
+     `supabase/functions/send-payment-reminders-batch/index.ts`. This is
+     what the daily cron job below calls. It also needs
+     `supabase/functions/_shared/reminderLogic.ts` — Supabase's dashboard
+     editor supports adding extra files to a function via "Add File" in
+     the Files panel; add it there as `_shared/reminderLogic.ts` (one
+     level up from the function's own `index.ts`) for **both** functions,
+     since both import from it.
+2. No new secrets needed — this reuses the same `RESEND_API_KEY` (and
+   optional `INVITE_FROM_EMAIL`) already set up for invite emails, plus
+   `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY`, which
+   Supabase provides automatically to every Edge Function — nothing to
+   add there.
+3. **Schedule it**: Supabase Dashboard → Integrations → Cron (or Database
+   → Cron Jobs) → create a new job → set it to invoke the
+   `send-payment-reminders-batch` function once a day (any time works,
+   e.g. 9:00 AM). Supabase's cron UI handles the actual scheduling; you're
+   just pointing it at that one function.
+
+Until step 3 is done, reminders only go out when someone clicks "Send
+now" — which may be exactly right if you picked manual-first deliberately.
+Automatic sending turns on the moment the cron job exists, no code change
+needed on this end.
+
+### What's deliberately not built yet
+
+WhatsApp and SMS reminders — email was the explicit starting point, given
+it reuses infrastructure already in place and needs no new account setup.
+Both would need their own provider account (a WhatsApp Business API
+provider needs Meta Business verification and pre-approved message
+templates; SMS in India additionally needs DLT template registration) —
+real, separate projects whenever you're ready to take them on.
+
 ## Status
+
+- [x] **Proforma Invoices + Payment Reminders (Aug 2026):** PI tracked
+      side by side with Tax Invoices (imported, never generated/converted
+      in-app), two new AR/AP tabs (Invoice Follow-up / PI Follow-up) with
+      per-document days-overdue and reminder status, per-customer
+      reminder email lists, Pause/Resume, and a manual "Send now" that
+      works today. Automatic daily sending needs a one-time Supabase Cron
+      Job setup - see "Proforma Invoices + Payment Reminders" above for
+      the full walkthrough, including deploying the two new Edge
+      Functions this needs. WhatsApp/SMS reminders deliberately not built
+      yet - each needs its own provider account and approval process.
+
+- [x] **Fixed PDF text overlapping itself on long addresses (Aug 2026):**
+      the actual bug behind the garbled-looking header on generated
+      invoice/bill PDFs — a long firm or customer address wraps onto two
+      lines, but the code only ever advanced past it by a fixed one-line
+      amount, so the next field (GSTIN, in the reported case) got drawn
+      directly on top of the wrapped second line instead of below it.
+      Fixed properly using jsPDF's actual wrapped-line count rather than
+      assuming everything is always one line — same fix applied to the
+      firm header, the Bill To/Vendor block, quotation line-item
+      descriptions, and credit/debit note reasons, since all four had the
+      identical root cause.
 
 - [x] **PDF preview for Sales/Purchases (Aug 2026):** the PDF action on
       invoices/bills now opens a Preview modal showing the actual generated

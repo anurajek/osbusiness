@@ -25,12 +25,26 @@ function renderHeader(pdf, { firm, pageWidth, margin, y }) {
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   let hy = y + 30
-  if (firm.address) { pdf.text(firm.address, pageWidth - margin, hy, { align: 'right', maxWidth: 260 }); hy += 12 }
-  if (firm.gstin) { pdf.text(`GSTIN: ${firm.gstin}`, pageWidth - margin, hy, { align: 'right' }); hy += 12 }
-  if (firm.phone) { pdf.text(firm.phone, pageWidth - margin, hy, { align: 'right' }); hy += 12 }
-  if (firm.email) { pdf.text(firm.email, pageWidth - margin, hy, { align: 'right' }); hy += 12 }
+  const lineH = 12
+  // splitTextToSize wraps to however many lines the text actually needs at
+  // this width - advancing hy by that many lines (not a fixed amount) is
+  // what stops a long address from overlapping the GSTIN/phone/email lines
+  // that follow it.
+  if (firm.address) {
+    const lines = pdf.splitTextToSize(firm.address, 260)
+    pdf.text(lines, pageWidth - margin, hy, { align: 'right' })
+    hy += lines.length * lineH
+  }
+  if (firm.gstin) { pdf.text(`GSTIN: ${firm.gstin}`, pageWidth - margin, hy, { align: 'right' }); hy += lineH }
+  if (firm.phone) { pdf.text(firm.phone, pageWidth - margin, hy, { align: 'right' }); hy += lineH }
+  if (firm.email) { pdf.text(firm.email, pageWidth - margin, hy, { align: 'right' }); hy += lineH }
 
-  let ny = y + 70
+  // The divider line sits below whichever is taller - the logo (fixed 48pt
+  // max height) on the left, or the text block on the right, which can now
+  // grow taller than one line - rather than a fixed offset that assumed
+  // the text block was always short.
+  const logoBottom = y + 58
+  const ny = Math.max(logoBottom, hy) + 10
   pdf.setDrawColor(200)
   pdf.line(margin, ny, pageWidth - margin, ny)
   return ny + 30
@@ -62,9 +76,14 @@ function renderPartyBlock(pdf, { party, label, margin, y }) {
   y += 13
   pdf.setFontSize(9)
   pdf.setTextColor(90)
-  if (party?.address) { pdf.text(party.address, margin, y, { maxWidth: 260 }); y += 12 }
-  if (party?.gstin) { pdf.text(`GSTIN: ${party.gstin}`, margin, y); y += 12 }
-  if (party?.email) { pdf.text(party.email, margin, y); y += 12 }
+  const lineH = 12
+  if (party?.address) {
+    const lines = pdf.splitTextToSize(party.address, 260)
+    pdf.text(lines, margin, y)
+    y += lines.length * lineH
+  }
+  if (party?.gstin) { pdf.text(`GSTIN: ${party.gstin}`, margin, y); y += lineH }
+  if (party?.email) { pdf.text(party.email, margin, y); y += lineH }
   return y
 }
 
@@ -232,11 +251,13 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   pdf.setFontSize(9.5)
   pdf.setTextColor(30)
   let total = 0
+  const descWidth = colQty - colDesc - 20
   for (const item of lineItems || []) {
     const amount = Number(item.amount ?? (Number(item.quantity) || 0) * (Number(item.unit_price) || 0))
     total += amount
-    const rowH = 20
-    pdf.text(item.description || '—', colDesc, y + 14, { maxWidth: colQty - colDesc - 20 })
+    const descLines = pdf.splitTextToSize(item.description || '—', descWidth)
+    const rowH = Math.max(20, descLines.length * 12 + 6)
+    pdf.text(descLines, colDesc, y + 14)
     pdf.text(String(item.quantity ?? ''), colQty, y + 14, { align: 'right' })
     pdf.text(inr(item.unit_price), colRate, y + 14, { align: 'right' })
     pdf.text(inr(amount), colAmt, y + 14, { align: 'right' })
@@ -324,9 +345,11 @@ async function buildNotePdf({ firm, party, note }) {
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(10)
   pdf.setTextColor(30)
-  pdf.text(note.reason || '—', margin + 10, y + 18, { maxWidth: pageWidth - margin * 2 - 140 })
+  const reasonWidth = pageWidth - margin * 2 - 140
+  const reasonLines = pdf.splitTextToSize(note.reason || '—', reasonWidth)
+  pdf.text(reasonLines, margin + 10, y + 18)
   pdf.text(inr(note.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
-  y += 30
+  y += Math.max(30, reasonLines.length * 12 + 16)
 
   y += 12
   pdf.setFont('helvetica', 'bold')

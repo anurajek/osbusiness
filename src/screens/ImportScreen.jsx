@@ -18,7 +18,7 @@ const TARGETS = {
   customers: { label: 'Customers', table: 'customers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
   suppliers: { label: 'Suppliers', table: 'suppliers', kind: 'party', fields: PARTY_FIELDS, dedupeField: 'name', dedupeColumn: 'name', dedupeLabel: 'Name' },
   sales_invoices: {
-    label: 'Sales Invoices', table: 'sales_invoices', kind: 'doc', isSales: true,
+    label: 'Sales Invoices', table: 'sales_invoices', kind: 'doc', isSales: true, hasDueDate: true,
     partyTable: 'customers', partyField: 'customer_id', partyLabel: 'Customer', docLabel: 'Invoice #', dbNumberField: 'invoice_no',
     dedupeField: 'doc_no', dedupeColumn: 'invoice_no', dedupeLabel: 'Invoice #',
     fields: [
@@ -30,8 +30,20 @@ const TARGETS = {
       { key: 'paid_amount', label: 'Paid Amount', type: 'number' },
     ],
   },
+  proforma_invoices: {
+    label: 'Proforma Invoices', table: 'proforma_invoices', kind: 'doc', isSales: true, hasDueDate: false,
+    partyTable: 'customers', partyField: 'customer_id', partyLabel: 'Customer', docLabel: 'PI #', dbNumberField: 'pi_no',
+    dedupeField: 'doc_no', dedupeColumn: 'pi_no', dedupeLabel: 'PI #',
+    fields: [
+      { key: 'party_name', label: 'Customer Name', required: true },
+      { key: 'doc_no', label: 'PI #', required: true },
+      { key: 'issued_date', label: 'Issued Date', required: true, type: 'date' },
+      { key: 'amount', label: 'Amount', required: true, type: 'number' },
+      { key: 'paid_amount', label: 'Paid Amount', type: 'number' },
+    ],
+  },
   purchase_bills: {
-    label: 'Purchase Bills', table: 'purchase_bills', kind: 'doc', isSales: false,
+    label: 'Purchase Bills', table: 'purchase_bills', kind: 'doc', isSales: false, hasDueDate: true,
     partyTable: 'suppliers', partyField: 'supplier_id', partyLabel: 'Supplier', docLabel: 'Bill #', dbNumberField: 'bill_no',
     dedupeField: 'doc_no', dedupeColumn: 'bill_no', dedupeLabel: 'Bill #',
     fields: [
@@ -223,18 +235,27 @@ export default function ImportScreen() {
 
       const baseStatus = def.isSales ? 'Sent' : 'Approved'
       const docRows = validRows.map((r) => {
-        const computed = computeStatus({ amount: r.parsed.amount, paid_amount: r.parsed.paid_amount || 0, due_date: r.parsed.due_date }, baseStatus)
-        return {
+        const paidAmount = r.parsed.paid_amount || 0
+        const payload = {
           firm_id: firmId,
           import_batch_id: batch.id,
           [def.partyField]: nameToId.get(r.parsed.party_name.trim().toLowerCase()),
           [def.dbNumberField]: r.parsed.doc_no,
           issued_date: r.parsed.issued_date,
-          due_date: r.parsed.due_date || null,
           amount: r.parsed.amount,
-          paid_amount: r.parsed.paid_amount || 0,
-          status: statusForStorage(computed, def.isSales),
+          paid_amount: paidAmount,
         }
+        if (def.hasDueDate) {
+          payload.due_date = r.parsed.due_date || null
+          const computed = computeStatus({ amount: r.parsed.amount, paid_amount: paidAmount, due_date: r.parsed.due_date }, baseStatus)
+          payload.status = statusForStorage(computed, def.isSales)
+        } else {
+          // Proforma Invoices don't have a due_date column - "overdue" is
+          // computed from the firm's reminder grace period at display
+          // time (see PaymentFollowUpScreen.jsx), not stored as a status.
+          payload.status = paidAmount >= r.parsed.amount ? 'Paid' : 'Sent'
+        }
+        return payload
       })
 
       const { error: err } = await supabase.from(def.table).insert(docRows)

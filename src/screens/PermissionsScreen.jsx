@@ -45,6 +45,7 @@ export default function PermissionsScreen() {
     logo_url: firm?.logo_url ?? '',
     bank_details: firm?.bank_details ?? '',
     invoice_prefix: firm?.invoice_prefix ?? 'INV-',
+    reminder_grace_days: String(firm?.reminder_grace_days ?? 7),
   })
   const [firmForm, setFirmForm] = useState(blankFirmForm)
   const [savingFirm, setSavingFirm] = useState(false)
@@ -226,6 +227,7 @@ export default function PermissionsScreen() {
         logo_url: firmForm.logo_url.trim() || null,
         bank_details: firmForm.bank_details.trim() || null,
         invoice_prefix: firmForm.invoice_prefix.trim() || 'INV-',
+        reminder_grace_days: parseInt(firmForm.reminder_grace_days, 10) || 7,
       })
       .eq('id', firmId)
     setSavingFirm(false)
@@ -298,6 +300,10 @@ export default function PermissionsScreen() {
               </div>
               <div className="add-comm-row">
                 <input className="text-input" style={{ maxWidth: 160 }} placeholder="Invoice prefix" value={firmForm.invoice_prefix} onChange={setFirmField('invoice_prefix')} />
+                <div style={{ maxWidth: 260 }}>
+                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Payment due (days after issue)</label>
+                  <input type="number" min="1" className="text-input" value={firmForm.reminder_grace_days} onChange={setFirmField('reminder_grace_days')} />
+                </div>
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>Payment instructions (shown on invoice PDFs)</label>
