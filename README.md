@@ -745,7 +745,46 @@ drawer everywhere. Managing reminder emails is still there, just moved to
 an explicit "Manage reminder emails" option in the Actions dropdown,
 rather than being what a plain click does by default.
 
+## DSO & Collection Trends
+
+No migration needed — just deploy. New AR/AP tab.
+
+**A real data limitation, stated upfront**: textbook DSO (Days Sales
+Outstanding) is a balance-sheet snapshot — outstanding AR against recent
+sales, computed fresh each time. It cannot be reconstructed for *past*
+months without historical daily AR balances, which this app has never
+recorded. Rather than fake a "12-month DSO trend" using numbers that would
+quietly be wrong, this screen is honest about the split:
+
+- **DSO (trailing 90 days)** — a real, standard, correctly-computed
+  snapshot, valid for right now: outstanding AR ÷ sales in the last 90
+  days × 90.
+- **The trend charts are a different, genuinely computable metric** — for
+  invoices *issued* in each of the last 12 months, how many days they
+  actually took to get paid (using the linked Cash & Bank transaction as
+  the payment date), and what fraction of that month's invoiced amount has
+  been collected so far. Not identical to DSO, but real, retroactively
+  computable from data that already exists, and arguably more actionable
+  — it answers "are we collecting faster or slower than we used to."
+
+**Coverage caveat, shown directly in the UI**: an invoice marked paid at
+creation/import time (rather than through Record Payment) has no linked
+transaction, so it can't contribute a real days-to-collect number. Every
+month's tooltip shows "X of Y paid invoices" so this is never hidden.
+
+Scoped to Sales Invoices only — Proforma Invoices aren't recognized
+revenue, so including them would misstate a financial metric.
+
 ## Status
+
+- [x] **DSO & Collection Trends (Aug 2026):** new AR/AP tab - a real,
+      correctly-computed current DSO snapshot, plus a 12-month cohort trend
+      (avg days to collect, collection rate) computed from data that
+      actually exists, since true historical DSO can't be reconstructed
+      without daily AR balances this app never recorded. Coverage gaps
+      (invoices paid without a linked transaction) are shown directly in
+      the UI, not hidden. See "DSO & Collection Trends" above for the full
+      methodology and honest limitations.
 
 - [x] **Row click consistency on Follow-up screens (Aug 2026):** clicking a
       row on Invoice/PI Follow-up now opens the Log-an-update drawer,
