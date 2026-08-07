@@ -734,7 +734,25 @@ until that's clicked. If a customer has no email anywhere (no reminder
 email added, no main email on their record), it says so plainly instead
 of letting you try to send into nothing.
 
+## Row click on Invoice/PI Follow-up now matches Receivables/Payables
+
+No migration needed - just deploy.
+
+Clicking a row on Invoice/PI Follow-up previously opened the reminder-email
+management panel - inconsistent with Receivables and Payables, where a row
+click opens the Log-an-update drawer. Fixed: row click now opens that same
+drawer everywhere. Managing reminder emails is still there, just moved to
+an explicit "Manage reminder emails" option in the Actions dropdown,
+rather than being what a plain click does by default.
+
 ## Status
+
+- [x] **Row click consistency on Follow-up screens (Aug 2026):** clicking a
+      row on Invoice/PI Follow-up now opens the Log-an-update drawer,
+      matching Receivables/Payables, instead of the reminder-email panel.
+      Managing reminder emails moved to an explicit Actions dropdown
+      option. See "Row click on Invoice/PI Follow-up now matches
+      Receivables/Payables" above.
 
 - [x] **Bill cancellation, Payables parity, deeper hyperlinks, send-reminder
       confirmation (Aug 2026):** Purchases got a real Cancel/Reinstate bill

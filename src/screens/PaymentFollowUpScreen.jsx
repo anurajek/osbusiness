@@ -122,8 +122,12 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setEmailsByCustomer((prev) => ({ ...prev, [customerId]: data ?? [] }))
   }
 
-  const toggleExpand = (row) => {
-    if (expandedId === row.id) { setExpandedId(null); setSendConfirmId(null); return }
+  // Explicit "Manage reminder emails" action now, not what a plain row
+  // click does - row click opens the same Log-an-update drawer Receivables
+  // and Payables use (see the click handler on <tr> below), for
+  // consistency across all four AR/AP screens.
+  const openManageEmails = (row) => {
+    if (expandedId === row.id && sendConfirmId === null) { setExpandedId(null); return }
     setExpandedId(row.id)
     setSendConfirmId(null)
     loadEmails(row.customer_id)
@@ -215,6 +219,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'send') openSendConfirm(row)
     else if (action === 'pause') handleTogglePause(row)
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
+    else if (action === 'emails') openManageEmails(row)
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -291,7 +296,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                 const msg = actionMsg[r.id]
                 return (
                   <Fragment key={r.id}>
-                    <tr className="ledger-row" style={{ cursor: 'pointer' }} onClick={() => toggleExpand(r)}>
+                    <tr className="ledger-row ledger-row--clickable" onClick={() => setSelectedCustomerId(r.customer_id)}>
                       <td>{customerName(r.customer_id)}</td>
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
@@ -325,6 +330,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="send" disabled={r.reminders_paused}>Send reminder now</option>
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
+                          <option value="emails">Manage reminder emails</option>
                         </select>
                       </td>
                     </tr>
