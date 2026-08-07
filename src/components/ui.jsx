@@ -16,6 +16,7 @@ const STATUS_PILL_MAP = {
   'Due today': 'pill pill--warn',
   Partial: 'pill pill--warn',
   Overdue: 'pill pill--bad',
+  Cancelled: 'pill pill--neutral',
 }
 
 export function StatusPill({ status }) {

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
+import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -19,8 +20,10 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
 
   const [suppliers, setSuppliers] = useState([])
   const [bills, setBills] = useState([])
+  const [comms, setComms] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   const [period, setPeriod] = useState('All time')
   const [customFrom, setCustomFrom] = useState('')
@@ -29,6 +32,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('amount-desc')
   const [search, setSearch] = useState('')
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null)
 
   // Arriving here from a click elsewhere (e.g. a supplier's name in
   // Purchases) pre-filters to that one supplier.
@@ -39,31 +43,31 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     }
   }, [navParams, clearNavParams])
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!firmId) return
-    let cancelled = false
-
-    async function load() {
-      setLoading(true)
-      setError(null)
-      const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }] = await Promise.all([
-        supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
-        supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
-      ])
-      if (cancelled) return
-      if (supErr || billErr) {
-        setError((supErr || billErr).message)
-        setLoading(false)
-        return
-      }
-      setSuppliers(supRows ?? [])
-      setBills(billRows ?? [])
+    setLoading(true)
+    setError(null)
+    const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: commRows, error: commErr }] = await Promise.all([
+      supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
+      supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+      supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+    ])
+    if (supErr || billErr || commErr) {
+      setError((supErr || billErr || commErr).message)
       setLoading(false)
+      return
     }
-
-    load()
-    return () => { cancelled = true }
+    setSuppliers(supRows ?? [])
+    // A cancelled bill is void - it shouldn't count toward what's owed (or
+    // what's been paid) at all, the same way this screen already never
+    // counted a deleted record. Filtered out here, once, rather than
+    // threaded through every downstream calculation individually.
+    setBills((billRows ?? []).filter((b) => !b.is_cancelled))
+    setComms(commRows ?? [])
+    setLoading(false)
   }, [firmId])
+
+  useEffect(() => { load() }, [load])
 
   const range = getPeriodRange(period, customFrom, customTo)
   const isPaidView = statusFilter === 'Paid'
@@ -77,6 +81,8 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     if (statusFilter === 'all') return billsInPeriod
     return billsInPeriod.filter((b) => computeStatus(b, 'Approved') === statusFilter)
   }, [billsInPeriod, statusFilter])
+
+  const lastCommFor = (supplierId) => comms.find((c) => c.supplier_id === supplierId) || null
 
   const rows = useMemo(() => {
     let supList = suppliers
@@ -93,7 +99,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
         ? relevant.reduce((s, b) => s + b.paid_amount, 0)
         : relevant.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
       const mostUrgent = relevant.slice().sort((a, b) => new Date(a.issued_date) - new Date(b.issued_date))[0] || null
-      return { supplier: sup, count: relevant.length, amount, mostUrgent }
+      return { supplier: sup, count: relevant.length, amount, mostUrgent, lastComm: lastCommFor(sup.id) }
     }).filter((r) => r.count > 0)
 
     if (search.trim()) {
@@ -104,15 +110,29 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     if (sortBy === 'amount-desc') result.sort((a, b) => b.amount - a.amount)
     else if (sortBy === 'amount-asc') result.sort((a, b) => a.amount - b.amount)
     else if (sortBy === 'name-asc') result.sort((a, b) => a.supplier.name.localeCompare(b.supplier.name))
+    else if (sortBy === 'last-contact') result.sort((a, b) => new Date(b.lastComm?.created_at ?? 0) - new Date(a.lastComm?.created_at ?? 0))
 
     return result
-  }, [suppliers, tableBills, supplierFilter, sortBy, search, statusFilter, isPaidView])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suppliers, tableBills, supplierFilter, sortBy, search, statusFilter, isPaidView, comms])
 
   const totals = useMemo(() => {
     const billed = billsInPeriod.reduce((s, b) => s + b.amount, 0)
     const paid = billsInPeriod.reduce((s, b) => s + b.paid_amount, 0)
     return { billed, paid, pending: billed - paid }
   }, [billsInPeriod])
+
+  const addComm = async ({ channel, tag, note }) => {
+    setSaving(true)
+    const { error: insertErr } = await supabase.from('supplier_comms').insert({
+      firm_id: firmId, supplier_id: selectedSupplierId, channel, tag, note,
+    })
+    setSaving(false)
+    if (insertErr) { alert(`Couldn't save that update: ${insertErr.message}`); return }
+    await load()
+  }
+
+  const selectedSupplier = suppliers.find((s) => s.id === selectedSupplierId)
 
   const handleExportCsv = () => {
     downloadCsv(
@@ -195,6 +215,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
           options: [
             { value: 'amount-desc', label: `Amount ${isPaidView ? 'paid' : 'due'}: high to low` },
             { value: 'amount-asc', label: `Amount ${isPaidView ? 'paid' : 'due'}: low to high` },
+            { value: 'last-contact', label: 'Last contact: most recent' },
             { value: 'name-asc', label: 'Supplier name: A–Z' },
           ],
         }}
@@ -214,22 +235,50 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
               <th className="num">{isPaidView ? 'Paid bills' : 'Open bills'}</th>
               <SortableTh label={isPaidView ? 'Amount paid' : 'Amount due'} ascValue="amount-asc" descValue="amount-desc" sortBy={sortBy} onSort={setSortBy} className="num" />
               {!isPaidView && <th>Most urgent</th>}
+              <th>Last update</th>
+              <th>Last contact</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.supplier.id} className="ledger-row">
+              <tr key={r.supplier.id} className="ledger-row ledger-row--clickable" onClick={() => setSelectedSupplierId(r.supplier.id)}>
                 <td>{r.supplier.name}</td>
                 <td className="num mono">{r.count}</td>
                 <td className="num mono">{inr(r.amount)}</td>
                 {!isPaidView && <td>{r.mostUrgent ? <StatusPill status={computeStatus(r.mostUrgent, 'Approved')} /> : '—'}</td>}
+                <td>
+                  {r.lastComm
+                    ? <span className="comm-tag">{r.lastComm.tag}</span>
+                    : <span className="pill pill--neutral">No follow-up yet</span>}
+                </td>
+                <td className="mono">{r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—'}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <button className="link-btn" onClick={(e) => { e.stopPropagation(); setSelectedSupplierId(r.supplier.id) }}>View details</button>
+                </td>
               </tr>
             ))}
-            {rows.length === 0 && <EmptyRow colSpan={isPaidView ? 3 : 4}>No {isPaidView ? 'paid' : 'open'} payables match these filters.</EmptyRow>}
+            {rows.length === 0 && <EmptyRow colSpan={isPaidView ? 6 : 7}>No {isPaidView ? 'paid' : 'open'} payables match these filters.</EmptyRow>}
           </tbody>
         </table>
         </div>
       </div>
+
+      {selectedSupplier && (
+        <CommDrawer
+          customer={selectedSupplier}
+          docLabel="Bill"
+          openDocs={bills
+            .filter((b) => b.supplier_id === selectedSupplier.id)
+            .map((b) => ({ ...b, liveStatus: computeStatus(b, 'Approved') }))
+            .filter((b) => b.liveStatus !== 'Paid')
+            .map((b) => ({ id: b.id, number: b.bill_no, issued_date: b.issued_date, amountDue: b.amount - b.paid_amount, statusLabel: b.liveStatus }))}
+          comms={comms.filter((c) => c.supplier_id === selectedSupplier.id)}
+          onAddComm={addComm}
+          onClose={() => setSelectedSupplierId(null)}
+          saving={saving}
+        />
+      )}
     </>
   )
 }

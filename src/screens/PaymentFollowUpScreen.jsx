@@ -36,6 +36,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [statusFilter, setStatusFilter] = useState('all')
 
   const [expandedId, setExpandedId] = useState(null)
+  const [sendConfirmId, setSendConfirmId] = useState(null)
   const [emailsByCustomer, setEmailsByCustomer] = useState({})
   const [newEmail, setNewEmail] = useState('')
   const [busyId, setBusyId] = useState(null)
@@ -122,8 +123,19 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   }
 
   const toggleExpand = (row) => {
-    if (expandedId === row.id) { setExpandedId(null); return }
+    if (expandedId === row.id) { setExpandedId(null); setSendConfirmId(null); return }
     setExpandedId(row.id)
+    setSendConfirmId(null)
+    loadEmails(row.customer_id)
+  }
+
+  // "Send reminder now" no longer fires immediately - it opens the same
+  // expand panel used for managing reminder emails, so the address it's
+  // about to send to is visible (and editable, right there, if it's
+  // missing or wrong) before anything actually goes out.
+  const openSendConfirm = (row) => {
+    setExpandedId(row.id)
+    setSendConfirmId(row.id)
     loadEmails(row.customer_id)
   }
 
@@ -157,6 +169,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       body: { documentType: isPi ? 'proforma_invoice' : 'invoice', documentId: row.id },
     })
     setBusyId(null)
+    setSendConfirmId(null)
     if (err) {
       let message = err.message
       try {
@@ -199,7 +212,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const handleAction = (row, action) => {
     if (action === 'preview') handlePreview(row)
-    else if (action === 'send') handleSendNow(row)
+    else if (action === 'send') openSendConfirm(row)
     else if (action === 'pause') handleTogglePause(row)
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
   }
@@ -326,7 +339,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <tr>
                         <td colSpan={8} style={{ padding: 12, background: 'var(--panel-alt)' }}>
                           <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
-                            Reminder emails for {customerName(r.customer_id)}
+                            {sendConfirmId === r.id
+                              ? `This reminder will go to — ${customerName(r.customer_id)}`
+                              : `Reminder emails for ${customerName(r.customer_id)}`}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                             {(emailsByCustomer[r.customer_id] ?? []).map((e) => (
@@ -336,15 +351,32 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               </span>
                             ))}
                             {(emailsByCustomer[r.customer_id]?.length ?? 0) === 0 && (
-                              <span className="login-footnote" style={{ margin: 0 }}>
-                                No reminder emails added yet — falls back to {customers.find((c) => c.id === r.customer_id)?.email || 'the customer\'s main email, if set'}.
-                              </span>
+                              customers.find((c) => c.id === r.customer_id)?.email ? (
+                                <span className="login-footnote" style={{ margin: 0 }}>
+                                  No reminder emails added — will use {customerName(r.customer_id)}'s main email: {customers.find((c) => c.id === r.customer_id)?.email}
+                                </span>
+                              ) : (
+                                <span className="text-[12.5px]" style={{ color: 'var(--brick)' }}>
+                                  No email on file for this customer yet — add one below before sending.
+                                </span>
+                              )
                             )}
                           </div>
                           <div className="add-comm-row" style={{ maxWidth: 420 }}>
                             <input className="text-input" type="email" placeholder="Add an email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
                             <button type="button" className="btn-primary" onClick={() => handleAddEmail(r.customer_id)}>Add</button>
                           </div>
+                          {sendConfirmId === r.id && (
+                            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                              <button
+                                className="btn-primary" disabled={busyId === r.id}
+                                onClick={() => handleSendNow(r)}
+                              >
+                                {busyId === r.id ? 'Sending…' : 'Confirm & Send'}
+                              </button>
+                              <button className="link-btn" onClick={() => { setSendConfirmId(null); setExpandedId(null) }}>Cancel</button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}

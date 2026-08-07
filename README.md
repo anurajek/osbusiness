@@ -687,7 +687,66 @@ arrive pre-filtered accepts `navParams`/`clearNavParams` props, applies
 the incoming id in an effect, then clears it - the same small pattern
 used by Receivables, Payables, and Invoice/PI Follow-up here.
 
+## Bill cancellation, Payables parity, deeper hyperlinks, send-reminder confirmation
+
+Run `migration_bill_cancel_and_supplier_comms.sql` in Supabase's SQL
+Editor — additive, safe on the existing database.
+
+### Cancel a bill
+
+Purchases now has a real "Cancel bill" action (Actions → Cancel bill),
+asks for confirmation, and stays reversible ("Reinstate bill" undoes it).
+A cancelled bill shows a **Cancelled** status pill and is completely
+excluded from Payables — not just hidden, genuinely not counted toward
+what's owed or what's been paid, the same way a deleted record wouldn't
+count. The bill itself isn't deleted; it's still visible and filterable
+via the Status dropdown.
+
+### Payables now matches Receivables
+
+This needed a real piece of missing infrastructure: there was no
+communication-log table for suppliers at all (`ar_comms` only ever existed
+for customers). Added `supplier_comms`, and with it, Payables gets exactly
+what Receivables has - a "View details" action opening the same drawer
+component (Bills + communication timeline + Log an update), a "Last
+update"/"Last contact" column, and sorting by most recent contact.
+
+### Deeper hyperlinking
+
+Sales and Purchases rows now have the same "Actions..." dropdown pattern
+as everywhere else (replacing the separate Record payment/Edit/Preview
+buttons), and it's where the cross-navigation lives:
+- **Sales**: Receivables →, Invoice Follow-up →, PI Follow-up → (all
+  pre-filtered to that row's customer)
+- **Purchases**: Payables →, plus Cancel bill
+
+Clicking a customer/supplier name still works exactly as before too - the
+Actions dropdown is an additional way to reach the same destinations, not
+a replacement for it.
+
+### "Send reminder now" shows the email before it sends anything
+
+Instead of firing immediately, it now opens the same panel used for
+managing reminder emails - showing exactly who this is about to go to,
+letting you add an email right there if none exists (or the one on file
+looks wrong), with an explicit **Confirm & Send** button. Nothing sends
+until that's clicked. If a customer has no email anywhere (no reminder
+email added, no main email on their record), it says so plainly instead
+of letting you try to send into nothing.
+
 ## Status
+
+- [x] **Bill cancellation, Payables parity, deeper hyperlinks, send-reminder
+      confirmation (Aug 2026):** Purchases got a real Cancel/Reinstate bill
+      action (excluded from Payables entirely while cancelled). Payables
+      finally has the same update-log drawer Receivables has, via a new
+      `supplier_comms` table. Sales/Purchases rows got the same
+      "Actions..." dropdown pattern, adding direct jumps to Receivables/
+      Payables/Invoice Follow-up/PI Follow-up. "Send reminder now" shows
+      the destination email and requires an explicit confirm before
+      sending, instead of firing blind. See "Bill cancellation, Payables
+      parity, deeper hyperlinks, send-reminder confirmation" above for
+      full detail.
 
 - [x] **Cross-screen navigation (Aug 2026):** customer/supplier names in
       Sales/Purchases are now clickable, jumping to Receivables/Payables

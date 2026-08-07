@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
-import { Plus, Eye } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
@@ -17,7 +17,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const { firmId, firm } = useFirm()
   const isSales = type === 'sales'
   const baseStatus = isSales ? 'Sent' : 'Approved'
-  const statusOptions = [baseStatus, ...ALL_STATUSES]
+  const statusOptions = isSales ? [baseStatus, ...ALL_STATUSES] : [baseStatus, ...ALL_STATUSES, 'Cancelled']
   const partyLabel = isSales ? 'customer' : 'supplier'
   const docLabel = isSales ? 'invoice' : 'bill'
 
@@ -79,7 +79,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
 
     const { data: invoiceRows, error: invErr } = await supabase
       .from(table)
-      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
+      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount${isSales ? '' : ', is_cancelled'}`)
       .eq('firm_id', firmId)
       .order('issued_date', { ascending: false })
 
@@ -100,7 +100,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const partyName = (id) => parties.find((p) => p.id === id)?.name || '—'
   const partyById = (id) => parties.find((p) => p.id === id) || null
   const range = getPeriodRange(period, customFrom, customTo)
-  const liveStatus = (r) => computeStatus(r, baseStatus)
+  const liveStatus = (r) => (r.is_cancelled ? 'Cancelled' : computeStatus(r, baseStatus))
 
   const [preview, setPreview] = useState(null)
 
@@ -125,6 +125,20 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const closePreview = () => {
     if (preview?.url) URL.revokeObjectURL(preview.url)
     setPreview(null)
+  }
+
+  // Purchases-only - cancelling isn't "delete," it's "this bill is void,
+  // stop counting it toward what's owed" while keeping the record (and
+  // whatever payment history it has) intact and visible via the Status
+  // filter. See PayablesScreen.jsx, which excludes is_cancelled bills from
+  // every pending/amount-due calculation the same way it already excludes
+  // fully-paid ones.
+  const handleToggleCancelled = async (row) => {
+    const willCancel = !row.is_cancelled
+    if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what you owe this supplier, but stays on record.`)) return
+    const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
+    if (err) { alert(`Couldn't update that: ${err.message}`); return }
+    load()
   }
 
   const filtered = useMemo(() => {
@@ -558,13 +572,31 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                     <td className={`num mono ${r.amount - r.paid_amount > 0 ? 'amt-neg' : ''}`}>{inr(r.amount - r.paid_amount)}</td>
                     <td><StatusPill status={status} /></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      {!fullyPaid && (
-                        <button className="link-btn" onClick={() => openPayForm(r)}>Record payment</button>
-                      )}
-                      <button className="link-btn" onClick={() => openEditForm(r)}>Edit</button>
-                      <button className="link-btn" onClick={() => handlePreviewPdf(r)} title="Preview PDF" aria-label="Preview PDF" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <Eye size={12} /> Preview
-                      </button>
+                      <select
+                        className="select select--sm"
+                        value=""
+                        onChange={(e) => {
+                          const action = e.target.value
+                          if (action === 'pay') openPayForm(r)
+                          else if (action === 'edit') openEditForm(r)
+                          else if (action === 'preview') handlePreviewPdf(r)
+                          else if (action === 'cancel') handleToggleCancelled(r)
+                          else if (action === 'receivables') onNavigate?.('arap', 'receivables', { customerId: r[partyJoinKey] })
+                          else if (action === 'payables') onNavigate?.('arap', 'payables', { supplierId: r[partyJoinKey] })
+                          else if (action === 'invoice-followup') onNavigate?.('arap', 'invoice-followup', { customerId: r[partyJoinKey] })
+                          else if (action === 'pi-followup') onNavigate?.('arap', 'pi-followup', { customerId: r[partyJoinKey] })
+                        }}
+                      >
+                        <option value="" disabled>Actions…</option>
+                        {!fullyPaid && <option value="pay">Record payment</option>}
+                        <option value="edit">Edit</option>
+                        <option value="preview">Preview</option>
+                        {!isSales && <option value="cancel">{r.is_cancelled ? 'Reinstate bill' : 'Cancel bill'}</option>}
+                        {onNavigate && isSales && <option value="receivables">Receivables →</option>}
+                        {onNavigate && !isSales && <option value="payables">Payables →</option>}
+                        {onNavigate && isSales && <option value="invoice-followup">Invoice Follow-up →</option>}
+                        {onNavigate && isSales && <option value="pi-followup">PI Follow-up →</option>}
+                      </select>
                     </td>
                   </tr>
                   {payingId === r.id && (
