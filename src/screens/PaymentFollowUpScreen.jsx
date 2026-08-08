@@ -37,7 +37,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const [expandedId, setExpandedId] = useState(null)
   const [sendConfirmId, setSendConfirmId] = useState(null)
-  const [statusPickerId, setStatusPickerId] = useState(null)
   const [emailsByCustomer, setEmailsByCustomer] = useState({})
   const [newEmail, setNewEmail] = useState('')
   const [busyId, setBusyId] = useState(null)
@@ -117,8 +116,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const handleSetManualStatus = async (row, value) => {
     const { error: err } = await supabase.from(table).update({ manual_status: value || null }).eq('id', row.id)
     if (err) { alert(`Couldn't update status: ${err.message}`); return }
-    setStatusPickerId(null)
-    setExpandedId(null)
     load()
   }
 
@@ -146,10 +143,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // and Payables use (see the click handler on <tr> below), for
   // consistency across all four AR/AP screens.
   const openManageEmails = (row) => {
-    if (expandedId === row.id && sendConfirmId === null && statusPickerId === null) { setExpandedId(null); return }
+    if (expandedId === row.id && sendConfirmId === null) { setExpandedId(null); return }
     setExpandedId(row.id)
     setSendConfirmId(null)
-    setStatusPickerId(null)
     loadEmails(row.customer_id)
   }
 
@@ -160,19 +156,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const openSendConfirm = (row) => {
     setExpandedId(row.id)
     setSendConfirmId(row.id)
-    setStatusPickerId(null)
     loadEmails(row.customer_id)
-  }
-
-  // "Set status" - the same expand panel, third mode. Status used to be
-  // its own always-visible column with an inline select; moved here to
-  // match "Log an update"/"Manage reminder emails" already living in this
-  // one Actions menu, rather than every row carrying two separate
-  // dropdowns side by side.
-  const openStatusPicker = (row) => {
-    setExpandedId(row.id)
-    setStatusPickerId(row.id)
-    setSendConfirmId(null)
   }
 
   const handleAddEmail = async (customerId) => {
@@ -252,7 +236,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'pause') handleTogglePause(row)
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
     else if (action === 'emails') openManageEmails(row)
-    else if (action === 'status') openStatusPicker(row)
     else if (action === 'cancel') handleToggleCancelled(row)
   }
 
@@ -338,8 +321,15 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <td className="num mono">{inr(r.amount - r.paid_amount)}</td>
                       <td className="mono">{toISODate(dueDate)}</td>
                       <td className="num mono" style={{ color: overdue > 0 ? 'var(--brick)' : 'inherit' }}>{overdue > 0 ? overdue : '—'}</td>
-                      <td>
-                        {r.manual_status ? <span className="pill pill--neutral">{r.manual_status}</span> : <span className="login-footnote" style={{ margin: 0 }}>—</span>}
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <select
+                          className="select select--sm"
+                          value={r.manual_status || ''}
+                          onChange={(e) => handleSetManualStatus(r, e.target.value || null)}
+                        >
+                          <option value="">—</option>
+                          {MANUAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
                       </td>
                       <td>
                         {r.last_reminder_sent_date
@@ -360,7 +350,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
                           <option value="emails">Manage reminder emails</option>
-                          <option value="status">Set status</option>
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
                         </select>
                       </td>
@@ -375,76 +364,44 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                     {expandedId === r.id && (
                       <tr>
                         <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
-                          {statusPickerId === r.id ? (
-                            <>
-                              <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
-                                Set status — {customerName(r.customer_id)}
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                <button
-                                  className={`pill ${!r.manual_status ? 'pill--ok' : 'pill--neutral'}`}
-                                  style={{ cursor: 'pointer', border: 'none' }}
-                                  onClick={() => handleSetManualStatus(r, null)}
-                                >
-                                  — (clear)
-                                </button>
-                                {MANUAL_STATUSES.map((s) => (
-                                  <button
-                                    key={s}
-                                    className={`pill ${r.manual_status === s ? 'pill--ok' : 'pill--neutral'}`}
-                                    style={{ cursor: 'pointer', border: 'none' }}
-                                    onClick={() => handleSetManualStatus(r, s)}
-                                  >
-                                    {s}
-                                  </button>
-                                ))}
-                              </div>
-                              <p className="login-footnote" style={{ marginTop: 10, marginBottom: 0 }}>
-                                Paid, Invoiced, and Completed all stop this {docLabel.toLowerCase()} from counting toward what's still owed, here and on Receivables.
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
-                                {sendConfirmId === r.id
-                                  ? `This reminder will go to — ${customerName(r.customer_id)}`
-                                  : `Reminder emails for ${customerName(r.customer_id)}`}
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                                {(emailsByCustomer[r.customer_id] ?? []).map((e) => (
-                                  <span key={e.id} className="pill pill--neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                    {e.email}
-                                    <button className="link-btn" style={{ padding: 0, color: 'var(--brick)' }} onClick={() => handleRemoveEmail(r.customer_id, e.id)}>×</button>
-                                  </span>
-                                ))}
-                                {(emailsByCustomer[r.customer_id]?.length ?? 0) === 0 && (
-                                  customers.find((c) => c.id === r.customer_id)?.email ? (
-                                    <span className="login-footnote" style={{ margin: 0 }}>
-                                      No reminder emails added — will use {customerName(r.customer_id)}'s main email: {customers.find((c) => c.id === r.customer_id)?.email}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[12.5px]" style={{ color: 'var(--brick)' }}>
-                                      No email on file for this customer yet — add one below before sending.
-                                    </span>
-                                  )
-                                )}
-                              </div>
-                              <div className="add-comm-row" style={{ maxWidth: 420 }}>
-                                <input className="text-input" type="email" placeholder="Add an email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-                                <button type="button" className="btn-primary" onClick={() => handleAddEmail(r.customer_id)}>Add</button>
-                              </div>
-                              {sendConfirmId === r.id && (
-                                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-                                  <button
-                                    className="btn-primary" disabled={busyId === r.id}
-                                    onClick={() => handleSendNow(r)}
-                                  >
-                                    {busyId === r.id ? 'Sending…' : 'Confirm & Send'}
-                                  </button>
-                                  <button className="link-btn" onClick={() => { setSendConfirmId(null); setExpandedId(null) }}>Cancel</button>
-                                </div>
-                              )}
-                            </>
+                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
+                            {sendConfirmId === r.id
+                              ? `This reminder will go to — ${customerName(r.customer_id)}`
+                              : `Reminder emails for ${customerName(r.customer_id)}`}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                            {(emailsByCustomer[r.customer_id] ?? []).map((e) => (
+                              <span key={e.id} className="pill pill--neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                {e.email}
+                                <button className="link-btn" style={{ padding: 0, color: 'var(--brick)' }} onClick={() => handleRemoveEmail(r.customer_id, e.id)}>×</button>
+                              </span>
+                            ))}
+                            {(emailsByCustomer[r.customer_id]?.length ?? 0) === 0 && (
+                              customers.find((c) => c.id === r.customer_id)?.email ? (
+                                <span className="login-footnote" style={{ margin: 0 }}>
+                                  No reminder emails added — will use {customerName(r.customer_id)}'s main email: {customers.find((c) => c.id === r.customer_id)?.email}
+                                </span>
+                              ) : (
+                                <span className="text-[12.5px]" style={{ color: 'var(--brick)' }}>
+                                  No email on file for this customer yet — add one below before sending.
+                                </span>
+                              )
+                            )}
+                          </div>
+                          <div className="add-comm-row" style={{ maxWidth: 420 }}>
+                            <input className="text-input" type="email" placeholder="Add an email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                            <button type="button" className="btn-primary" onClick={() => handleAddEmail(r.customer_id)}>Add</button>
+                          </div>
+                          {sendConfirmId === r.id && (
+                            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                              <button
+                                className="btn-primary" disabled={busyId === r.id}
+                                onClick={() => handleSendNow(r)}
+                              >
+                                {busyId === r.id ? 'Sending…' : 'Confirm & Send'}
+                              </button>
+                              <button className="link-btn" onClick={() => { setSendConfirmId(null); setExpandedId(null) }}>Cancel</button>
+                            </div>
                           )}
                         </td>
                       </tr>

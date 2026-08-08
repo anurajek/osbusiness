@@ -9,6 +9,8 @@ import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
 
+const MANUAL_STATUSES = ['Sent', 'Overdue', 'Paid', 'Invoiced', 'Completed']
+
 // "Paid" sits alongside the open statuses in the same dropdown now, rather
 // than living in a separate report - selecting it just changes what this
 // one table shows and how its amount column is computed (received instead
@@ -174,6 +176,18 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       + activePis.filter((p) => !isResolved(p)).reduce((s, p) => s + (Number(p.amount) - Number(p.paid_amount || 0)), 0)
     return { invoiced, collected, pending }
   }, [invoicesInPeriod, pisInPeriod])
+
+  // Sets the manual status directly from the drawer's Bills table -
+  // updates whichever table the document actually belongs to (docType is
+  // set when building openDocs below). Since Invoice/PI Follow-up reads
+  // from these exact same tables, this shows up there automatically on
+  // next load - no separate sync mechanism, it's the same data either way.
+  const handleSetDocStatus = async (doc, value) => {
+    const targetTable = doc.docType === 'pi' ? 'proforma_invoices' : 'sales_invoices'
+    const { error: err } = await supabase.from(targetTable).update({ manual_status: value || null }).eq('id', doc.id)
+    if (err) { alert(`Couldn't update status: ${err.message}`); return }
+    await loadAll()
+  }
 
   const addComm = async ({ channel, tag, note }) => {
     setSaving(true)
@@ -349,15 +363,17 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           openDocs={[
             ...invoices
               .filter((i) => i.customer_id === selectedCustomer.id && !isResolved(i))
-              .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: computeStatus(i, 'Sent') })),
+              .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: computeStatus(i, 'Sent'), manualStatus: i.manual_status, docType: 'invoice' })),
             ...pis
               .filter((p) => p.customer_id === selectedCustomer.id && !isResolved(p))
-              .map((p) => ({ id: p.id, number: p.pi_no, issued_date: p.issued_date, amountDue: p.amount - p.paid_amount, statusLabel: 'Proforma' })),
+              .map((p) => ({ id: p.id, number: p.pi_no, issued_date: p.issued_date, amountDue: p.amount - p.paid_amount, statusLabel: 'Proforma', manualStatus: p.manual_status, docType: 'pi' })),
           ]}
           comms={comms.filter((c) => c.customer_id === selectedCustomer.id)}
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
+          onSetStatus={handleSetDocStatus}
+          manualStatusOptions={MANUAL_STATUSES}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
             { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },

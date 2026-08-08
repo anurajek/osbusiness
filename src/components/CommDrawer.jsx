@@ -15,16 +15,24 @@ function relativeTime(dateStr) {
 }
 
 // openDocs: pre-computed, already filtered to this customer's open items -
-// [{ id, number, issued_date, amountDue, statusLabel }]. Takes already-
-// computed rows rather than raw invoices + doing its own computeStatus
-// internally, specifically so this same drawer works for Proforma
-// Invoices too (which have a pi_no, not an invoice_no, and no due_date to
-// compute a status from) without hardcoding Sales-Invoice-only logic here.
+// [{ id, number, issued_date, amountDue, statusLabel, manualStatus,
+// docType }]. Takes already-computed rows rather than raw invoices + doing
+// its own computeStatus internally, specifically so this same drawer works
+// for Proforma Invoices too (which have a pi_no, not an invoice_no, and no
+// due_date to compute a status from) without hardcoding Sales-Invoice-only
+// logic here.
 //
 // links: optional [{ label, onClick }] - rendered as small buttons next to
 // the close button, for jumping to a related screen (e.g. "Invoice
 // Follow-up ->") without leaving this drawer open on top of it.
-export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links }) {
+//
+// onSetStatus/manualStatusOptions: optional - when provided, each Bills
+// row gets its own "Tag" select for the same manual status (Sent/Overdue/
+// Paid/Invoiced/Completed) Invoice/PI Follow-up already has. Since both
+// screens read the exact same sales_invoices/proforma_invoices rows,
+// setting it here shows up there automatically on next load - no separate
+// sync needed, it's the same underlying data either way.
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
@@ -52,7 +60,12 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
           <div className="drawer__label">Bills</div>
           <div className="table-scroll">
           <table className="ledger-table">
-            <thead><tr><th>{docLabel}</th><th>Issued</th><th className="num">Amount due</th><th>Status</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{docLabel}</th><th>Issued</th><th className="num">Amount due</th><th>Status</th>
+                {onSetStatus && <th>Tag</th>}
+              </tr>
+            </thead>
             <tbody>
               {openDocs.map((d) => (
                 <tr key={d.id} className="ledger-row">
@@ -60,10 +73,18 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                   <td className="mono">{toISODate(new Date(d.issued_date))}</td>
                   <td className="num mono">{inr(d.amountDue)}</td>
                   <td><StatusPill status={d.statusLabel} /></td>
+                  {onSetStatus && (
+                    <td>
+                      <select className="select select--sm" value={d.manualStatus || ''} onChange={(e) => onSetStatus(d, e.target.value || null)}>
+                        <option value="">—</option>
+                        {manualStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                  )}
                 </tr>
               ))}
               {openDocs.length === 0 && (
-                <tr><td colSpan={4} className="empty-state">No open bills for this client.</td></tr>
+                <tr><td colSpan={onSetStatus ? 5 : 4} className="empty-state">No open bills for this client.</td></tr>
               )}
             </tbody>
           </table>

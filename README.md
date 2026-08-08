@@ -831,16 +831,14 @@ Follow-up, and now DSO & Trends) shares this one component, this one
 change applies consistently everywhere without touching each screen
 individually.
 
-## Status folded into Actions, Due Date column, Period moved next to Status
+## Due Date column + Period moved next to Status
 
 No migration needed — just deploy.
 
-**Status is no longer its own always-visible dropdown** on Invoice/PI
-Follow-up — it's a read-only pill now, and "Set status" joined "Log an
-update"/"Manage reminder emails" as an Actions menu option, opening the
-same expand panel with one-click status buttons instead of a second
-dropdown sitting next to Actions. Every row now carries one dropdown, not
-two.
+**Status folding into Actions (below, historical) was reverted** — see
+"Status-setting reverted to a plain dropdown, and added to Receivables"
+further down for the current, working behavior. Status on Invoice/PI
+Follow-up is a direct, always-visible dropdown again.
 
 **Due Date column added**, between Amount Pending and Days Overdue, on
 both Invoice and PI Follow-up — computed from issued date + the firm's
@@ -856,16 +854,51 @@ Cash & Bank, Quotations, Credit/Debit Notes, and both Follow-up screens
 in one change. DSO & Trends keeps its own separate period row, since that
 screen has no Status filter for Period to follow.
 
+## Status-setting reverted to a plain dropdown, and added to Receivables
+
+No migration needed — just deploy.
+
+**The Actions-dropdown status picker (pill buttons in an expand panel) is
+reverted.** It wasn't reliably working, and rather than keep debugging
+something impossible to test live in this environment, Status is back to
+being its own direct, always-visible dropdown on Invoice/PI Follow-up —
+the same simple pattern that was already proven to work everywhere else
+in the app. "Set status" is removed from the Actions menu since there's
+no longer a separate picker for it to open.
+
+**Receivables can now set the same status too**, from the update-log
+drawer's Bills table — a new "Tag" column next to each open invoice/PI,
+same five values (Sent/Overdue/Paid/Invoiced/Completed). This isn't a
+separate synced copy of the status — Receivables and Invoice/PI Follow-up
+read the exact same `sales_invoices`/`proforma_invoices` rows, so setting
+it from either screen shows up on the other automatically the next time
+that screen loads. No sync mechanism needed or built, because none was
+needed — it was always meant to be the same underlying value.
+
+One expected side effect worth knowing, not a bug: once a document is
+tagged Paid/Invoiced/Completed, it drops out of the drawer's Bills list on
+its next refresh (that list only shows currently-pending items, and a
+resolved one is deliberately no longer pending). To undo a tag, use
+Invoice/PI Follow-up's own Status column, which still shows every
+document regardless of resolution state.
+
 ## Status
 
-- [x] **Status folded into Actions, Due Date column, Period repositioned
-      (Aug 2026):** Status on Invoice/PI Follow-up is now a read-only pill
-      with "Set status" moved into the Actions dropdown (one dropdown per
-      row instead of two), a Due Date column added between Amount Pending
-      and Days Overdue, and Period moved to sit right after Status in the
+- [x] **Status-setting reverted to a plain dropdown + added to Receivables
+      (Aug 2026):** the Actions-dropdown pill picker wasn't reliably
+      working, so Status on Invoice/PI Follow-up is back to a direct,
+      always-visible dropdown - the same proven pattern used everywhere
+      else. Receivables' update-log drawer now has the same status-setting
+      capability too (a "Tag" column on its Bills table) - both screens
+      read the same underlying rows, so setting it from either one shows
+      up on the other automatically, no sync needed. See "Status-setting
+      reverted to a plain dropdown, and added to Receivables" above.
+
+- [x] **Due Date column + Period repositioned (Aug 2026):** a Due Date
+      column added between Amount Pending and Days Overdue on both
+      Follow-up screens, and Period moved to sit right after Status in the
       shared `FilterBar` component - applying to every screen with a
-      Status filter at once. See "Status folded into Actions, Due Date
-      column, Period moved next to Status" above.
+      Status filter at once.
 
 - [x] **PI/Invoice double-counting fix, Cancel extended, DSO period filter,
       global period-selector redesign (Aug 2026):** fixed the real bug
