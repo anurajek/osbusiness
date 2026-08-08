@@ -17,7 +17,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const { firmId, firm } = useFirm()
   const isSales = type === 'sales'
   const baseStatus = isSales ? 'Sent' : 'Approved'
-  const statusOptions = isSales ? [baseStatus, ...ALL_STATUSES] : [baseStatus, ...ALL_STATUSES, 'Cancelled']
+  const statusOptions = [baseStatus, ...ALL_STATUSES, 'Cancelled']
   const partyLabel = isSales ? 'customer' : 'supplier'
   const docLabel = isSales ? 'invoice' : 'bill'
 
@@ -79,7 +79,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
 
     const { data: invoiceRows, error: invErr } = await supabase
       .from(table)
-      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount${isSales ? '' : ', is_cancelled'}`)
+      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
       .eq('firm_id', firmId)
       .order('issued_date', { ascending: false })
 
@@ -127,15 +127,16 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     setPreview(null)
   }
 
-  // Purchases-only - cancelling isn't "delete," it's "this bill is void,
-  // stop counting it toward what's owed" while keeping the record (and
-  // whatever payment history it has) intact and visible via the Status
-  // filter. See PayablesScreen.jsx, which excludes is_cancelled bills from
-  // every pending/amount-due calculation the same way it already excludes
-  // fully-paid ones.
+  // Cancelling isn't "delete," it's "this is void, stop counting it toward
+  // what's owed" while keeping the record (and whatever payment history it
+  // has) intact and visible via the Status filter. See lib/format.js's
+  // isResolved(), used consistently everywhere a pending total is computed
+  // (Receivables, Payables, Invoice/PI Follow-up) so a cancelled document
+  // never contributes anywhere, not just here.
   const handleToggleCancelled = async (row) => {
     const willCancel = !row.is_cancelled
-    if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what you owe this supplier, but stays on record.`)) return
+    const owedPhrase = isSales ? "what this customer owes you" : "what you owe this supplier"
+    if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward ${owedPhrase}, but stays on record.`)) return
     const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
     if (err) { alert(`Couldn't update that: ${err.message}`); return }
     load()
@@ -591,7 +592,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         {!fullyPaid && <option value="pay">Record payment</option>}
                         <option value="edit">Edit</option>
                         <option value="preview">Preview</option>
-                        {!isSales && <option value="cancel">{r.is_cancelled ? 'Reinstate bill' : 'Cancel bill'}</option>}
+                        <option value="cancel">{r.is_cancelled ? `Reinstate ${docLabel}` : `Cancel ${docLabel}`}</option>
                         {onNavigate && isSales && <option value="receivables">Receivables →</option>}
                         {onNavigate && !isSales && <option value="payables">Payables →</option>}
                         {onNavigate && isSales && <option value="invoice-followup">Invoice Follow-up →</option>}

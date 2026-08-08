@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, isResolved } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -52,8 +52,8 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
     const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
-      supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
-      supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, amount, paid_amount').eq('firm_id', firmId),
+      supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
+      supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
     ])
 
@@ -91,8 +91,9 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   }, [pis, range])
 
   const tableInvoices = useMemo(() => {
-    if (statusFilter === 'all') return invoicesInPeriod
-    return invoicesInPeriod.filter((i) => computeStatus(i, 'Sent') === statusFilter)
+    if (statusFilter === 'all') return invoicesInPeriod.filter((i) => !isResolved(i))
+    if (statusFilter === 'Paid') return invoicesInPeriod.filter((i) => !i.is_cancelled && Number(i.amount) - Number(i.paid_amount || 0) <= 0)
+    return invoicesInPeriod.filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') === statusFilter)
   }, [invoicesInPeriod, statusFilter])
 
   // Proforma Invoices don't carry the same Sent/Partial/Due today/Overdue
@@ -101,9 +102,17 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   // not a stored status), so they only participate in the general "All
   // open" and "Paid" views here - a granular status filter (Sent,
   // Overdue, etc.) is necessarily Invoice-only, and the UI says so.
+  //
+  // A PI cancelled, or manually tagged Paid/Invoiced/Completed, drops out
+  // of both views entirely here - "Invoiced" specifically means a real Tax
+  // Invoice now exists elsewhere for this same receivable, so it must stop
+  // contributing to Receivables' totals or it would be double-counted
+  // once that Tax Invoice is also imported. It's still fully visible and
+  // actionable on PI Follow-up, which has its own status filter for
+  // exactly this case - it just shouldn't keep counting here.
   const tablePis = useMemo(() => {
-    if (statusFilter === 'all') return pisInPeriod.filter((p) => Number(p.amount) - Number(p.paid_amount || 0) > 0)
-    if (statusFilter === 'Paid') return pisInPeriod.filter((p) => Number(p.amount) - Number(p.paid_amount || 0) <= 0)
+    if (statusFilter === 'all') return pisInPeriod.filter((p) => !isResolved(p))
+    if (statusFilter === 'Paid') return pisInPeriod.filter((p) => !p.is_cancelled && Number(p.amount) - Number(p.paid_amount || 0) <= 0)
     return []
   }, [pisInPeriod, statusFilter])
 
@@ -114,13 +123,11 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     if (customerFilter !== 'all') custList = custList.filter((c) => c.id === customerFilter)
 
     let result = custList.map((cust) => {
-      const custInvoices = tableInvoices.filter((i) => i.customer_id === cust.id)
-      // "All open" (the default) still needs to exclude Paid invoices by
-      // hand, since tableInvoices isn't scoped to any one status in that
-      // case. Any specific status already selected - including Paid - is
-      // already correctly scoped by tableInvoices above, so nothing extra
-      // to filter here.
-      const relevantInvoices = statusFilter === 'all' ? custInvoices.filter((i) => computeStatus(i, 'Sent') !== 'Paid') : custInvoices
+      // tableInvoices/tablePis are already correctly scoped for every
+      // status branch above (including "all"), so no extra filtering
+      // needed here - unlike the version before isResolved existed, which
+      // had to re-exclude Paid by hand specifically for the "all" case.
+      const relevantInvoices = tableInvoices.filter((i) => i.customer_id === cust.id)
       const relevantPis = tablePis.filter((p) => p.customer_id === cust.id)
 
       const invoiceAmount = isPaidView
@@ -153,9 +160,19 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   }, [customers, tableInvoices, tablePis, comms, customerFilter, sortBy, search, statusFilter])
 
   const totals = useMemo(() => {
-    const invoiced = invoicesInPeriod.reduce((s, i) => s + i.amount, 0) + pisInPeriod.reduce((s, p) => s + Number(p.amount), 0)
-    const collected = invoicesInPeriod.reduce((s, i) => s + i.paid_amount, 0) + pisInPeriod.reduce((s, p) => s + Number(p.paid_amount || 0), 0)
-    return { invoiced, collected, pending: invoiced - collected }
+    // Cancelled documents are void - excluded everywhere, same as
+    // Payables already treats a cancelled bill. Manually-resolved ones
+    // (Paid/Invoiced/Completed) still count toward what was genuinely
+    // invoiced and collected - those are historical facts - but drop out
+    // of "still pending" specifically, for the same double-counting
+    // reason explained above tableInvoices/tablePis.
+    const activeInvoices = invoicesInPeriod.filter((i) => !i.is_cancelled)
+    const activePis = pisInPeriod.filter((p) => !p.is_cancelled)
+    const invoiced = activeInvoices.reduce((s, i) => s + i.amount, 0) + activePis.reduce((s, p) => s + Number(p.amount), 0)
+    const collected = activeInvoices.reduce((s, i) => s + i.paid_amount, 0) + activePis.reduce((s, p) => s + Number(p.paid_amount || 0), 0)
+    const pending = activeInvoices.filter((i) => !isResolved(i)).reduce((s, i) => s + (i.amount - i.paid_amount), 0)
+      + activePis.filter((p) => !isResolved(p)).reduce((s, p) => s + (Number(p.amount) - Number(p.paid_amount || 0)), 0)
+    return { invoiced, collected, pending }
   }, [invoicesInPeriod, pisInPeriod])
 
   const addComm = async ({ channel, tag, note }) => {
@@ -329,12 +346,15 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       {selectedCustomer && (
         <CommDrawer
           customer={selectedCustomer}
-          docLabel="Invoice"
-          openDocs={invoices
-            .filter((i) => i.customer_id === selectedCustomer.id)
-            .map((i) => ({ ...i, liveStatus: computeStatus(i, 'Sent') }))
-            .filter((i) => i.liveStatus !== 'Paid')
-            .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: i.liveStatus }))}
+          docLabel="Document"
+          openDocs={[
+            ...invoices
+              .filter((i) => i.customer_id === selectedCustomer.id && !isResolved(i))
+              .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: computeStatus(i, 'Sent') })),
+            ...pis
+              .filter((p) => p.customer_id === selectedCustomer.id && !isResolved(p))
+              .map((p) => ({ id: p.id, number: p.pi_no, issued_date: p.issued_date, amountDue: p.amount - p.paid_amount, statusLabel: 'Proforma' })),
+          ]}
           comms={comms.filter((c) => c.customer_id === selectedCustomer.id)}
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}

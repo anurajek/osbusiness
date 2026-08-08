@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr } from '../lib/format'
+import { inr, getPeriodRange, isResolved } from '../lib/format'
+import { PeriodSelector } from '../components/FilterControls'
 import { SectionHeader, StatCard } from '../components/ui'
 
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
@@ -11,11 +12,22 @@ function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new 
 
 function last12Months() {
   const now = new Date()
+  return monthsInRange(new Date(now.getFullYear(), now.getMonth() - 11, 1), now)
+}
+
+function monthsInRange(from, to) {
   const months = []
-  for (let i = 11; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0)
-    months.push({ key: monthKey(start), label: monthLabel(start), start, end })
+  const cursor = new Date(from.getFullYear(), from.getMonth(), 1)
+  const end = new Date(to.getFullYear(), to.getMonth(), 1)
+  // A custom range spanning years could otherwise generate an unreasonably
+  // long chart - capped at 36 months (3 years), which comfortably covers
+  // any realistic "how has this trended" question.
+  let guard = 0
+  while (cursor <= end && guard < 36) {
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0)
+    months.push({ key: monthKey(cursor), label: monthLabel(cursor), start: new Date(cursor), end: monthEnd })
+    cursor.setMonth(cursor.getMonth() + 1)
+    guard += 1
   }
   return months
 }
@@ -27,6 +39,10 @@ export default function CollectionsTrendScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const [period, setPeriod] = useState('All time')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+
   useEffect(() => {
     if (!firmId) return
     let cancelled = false
@@ -35,12 +51,18 @@ export default function CollectionsTrendScreen() {
       setLoading(true)
       setError(null)
       const [{ data: invRows, error: invErr }, { data: txnRows, error: txnErr }] = await Promise.all([
-        supabase.from('sales_invoices').select('id, issued_date, amount, paid_amount').eq('firm_id', firmId),
+        supabase.from('sales_invoices').select('id, issued_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
         supabase.from('bank_transactions').select('related_sales_invoice_id, txn_date').eq('firm_id', firmId).not('related_sales_invoice_id', 'is', null),
       ])
       if (cancelled) return
       if (invErr || txnErr) { setError((invErr || txnErr).message); setLoading(false); return }
-      setInvoices(invRows ?? [])
+      // Cancelled invoices are void - excluded from every calculation on
+      // this screen, same as everywhere else isResolved()/is_cancelled is
+      // used. Manually-resolved ones (Paid/Invoiced/Completed) are kept
+      // here, deliberately, unlike Receivables' pending total - the trend
+      // below is about invoices genuinely *issued* each month, a
+      // historical fact regardless of how they were later resolved.
+      setInvoices((invRows ?? []).filter((i) => !i.is_cancelled))
       setTransactions(txnRows ?? [])
       setLoading(false)
     }
@@ -49,7 +71,8 @@ export default function CollectionsTrendScreen() {
     return () => { cancelled = true }
   }, [firmId])
 
-  const months = useMemo(() => last12Months(), [])
+  const range = getPeriodRange(period, customFrom, customTo)
+  const months = useMemo(() => (range ? monthsInRange(range.from, range.to) : last12Months()), [range])
 
   // The most recent bank transaction linked to each invoice, used as a
   // proxy for "the date it was actually paid." Only invoices that went
@@ -90,14 +113,17 @@ export default function CollectionsTrendScreen() {
     }
   }), [months, invoices, paidDateByInvoice])
 
-  // Standard textbook DSO - a balance-sheet snapshot, valid for right now
-  // (unlike the cohort trend above, this one genuinely can't be computed
-  // for past months without historical AR balances this app doesn't have).
+  // Standard textbook DSO - a balance-sheet snapshot, always "as of right
+  // now" regardless of the period selected above (unlike the cohort trend,
+  // this one genuinely can't be computed for a past date without
+  // historical AR balances this app doesn't have). Also excludes anything
+  // manually resolved (Paid/Invoiced/Completed), for the same
+  // double-counting reason as Receivables' "still pending" figure.
   const dso = useMemo(() => {
     const now = new Date()
     const start90 = new Date(now); start90.setDate(start90.getDate() - 90)
     const salesLast90 = invoices.filter((i) => new Date(i.issued_date) >= start90).reduce((s, i) => s + Number(i.amount), 0)
-    const totalAR = invoices.reduce((s, i) => s + Math.max(0, Number(i.amount) - Number(i.paid_amount || 0)), 0)
+    const totalAR = invoices.filter((i) => !isResolved(i)).reduce((s, i) => s + Math.max(0, Number(i.amount) - Number(i.paid_amount || 0)), 0)
     return {
       value: salesLast90 > 0 ? Math.round((totalAR / salesLast90) * 90 * 10) / 10 : null,
       totalAR, salesLast90,
@@ -120,9 +146,15 @@ export default function CollectionsTrendScreen() {
     <>
       <SectionHeader title="DSO & Collection Trends" note="how fast you're actually getting paid, and whether it's improving" />
 
+      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
+      <p className="login-footnote" style={{ marginTop: -6 }}>
+        This period controls which months the trend charts below cover. DSO (right) is always as of today — a
+        balance-sheet snapshot can't be shown "as of" a past period, for the same reason explained below.
+      </p>
+
       <div className="grid-3">
         <StatCard label="DSO (trailing 90 days)" value={dso.value != null ? `${dso.value} days` : '—'} sub="Outstanding AR ÷ sales in last 90 days × 90" />
-        <StatCard label="Avg days to collect (12-month average)" value={overallAvgDays != null ? `${overallAvgDays} days` : '—'} accent sub={`based on ${totalKnown} of ${totalFullyPaid} paid invoices with a recorded payment date`} />
+        <StatCard label={`Avg days to collect (${months.length}-month average)`} value={overallAvgDays != null ? `${overallAvgDays} days` : '—'} accent sub={`based on ${totalKnown} of ${totalFullyPaid} paid invoices with a recorded payment date`} />
         <StatCard label="Total outstanding AR" value={inr(dso.totalAR)} sub="every unpaid invoice, any age" />
       </div>
 
@@ -134,6 +166,7 @@ export default function CollectionsTrendScreen() {
           alternative computed from data that actually exists: for invoices <em>issued</em> in each month, how long
           they actually took to get paid, and what fraction has been collected so far. Only Sales Invoices count
           toward this — Proforma Invoices aren't recognized revenue, so mixing them in would misstate the numbers.
+          Cancelled invoices are excluded entirely.
         </p>
       </div>
 

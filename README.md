@@ -775,7 +775,77 @@ month's tooltip shows "X of Y paid invoices" so this is never hidden.
 Scoped to Sales Invoices only — Proforma Invoices aren't recognized
 revenue, so including them would misstate a financial metric.
 
+## Real bugs found and fixed: PI in the drawer, double-counting, missing Cancel; plus DSO period filter and a global period-selector redesign
+
+Run `migration_cancel_invoices_pi.sql` in Supabase's SQL Editor — additive,
+safe on the existing database.
+
+### The actual "PI not fetching" bug
+
+Confirmed directly from the screenshot: CLIMAXO's update-log drawer said
+"No open bills for this client" despite a genuine ₹97,940 pending PI. The
+cause — Receivables' drawer only ever built its Bills list from Sales
+Invoices, even after Receivables itself started combining both months ago.
+Fixed: the drawer now shows both, correctly.
+
+### The double-counting bug behind "PI not moving to Invoice"
+
+A real design gap, not what it first looked like. Marking a PI's manual
+status "Invoiced" was purely cosmetic — it didn't stop that PI's amount
+from still counting as pending. That's a genuine problem: once the real
+Tax Invoice for that same receivable gets imported too, the PI *and* the
+Invoice would both count toward "still pending," double-counting the same
+money owed. Fixed with a new shared rule
+(`isResolved()` in `lib/format.js`): a document stops counting toward any
+"still owed" figure the moment it's cancelled, fully paid by amount, *or*
+manually tagged Paid/Invoiced/Completed. Applied consistently everywhere a
+pending total exists — Receivables' stat cards and pending list, both
+Follow-up screens, and DSO's outstanding-AR figure. The document itself
+never disappears — it's still fully visible and taggable on its own
+Follow-up screen, which has its own status filter for exactly this.
+
+### Cancel, extended to Invoices and Proforma Invoices
+
+Was Purchase-Bills-only. Now available the same way (Actions → Cancel) on
+Sales Invoices and Proforma Invoices too — same void-not-delete behavior,
+same exclusion from every pending calculation via `isResolved()`.
+
+### DSO & Trends now has a period filter
+
+Controls which months the two trend charts cover (All time/Last month/
+Last quarter/Last year/Custom, same as everywhere else). The DSO stat card
+itself stays "as of today" regardless of the period selected — a
+balance-sheet snapshot can't meaningfully be shown "as of" a past period,
+for the same reason the whole trend section exists instead of retroactive
+DSO in the first place. The screen says this directly rather than leaving
+it to guess why DSO doesn't move when the period changes.
+
+### Period selector redesigned as a dropdown, everywhere at once
+
+Changed once, in the shared `PeriodSelector` component
+(`components/FilterControls.jsx`) — a row of pill buttons is now a single
+dropdown, matching the Actions/Export-as dropdown style used throughout
+the app. Because every screen with a period selector (Dashboard,
+Receivables, Payables, Sales, Purchases, Cash & Bank, Invoice/PI
+Follow-up, and now DSO & Trends) shares this one component, this one
+change applies consistently everywhere without touching each screen
+individually.
+
 ## Status
+
+- [x] **PI/Invoice double-counting fix, Cancel extended, DSO period filter,
+      global period-selector redesign (Aug 2026):** fixed the real bug
+      behind "PI not fetching in Receivables" (the update-drawer only ever
+      read Sales Invoices) and the real bug behind "PI not moving to
+      Invoice" (marking a PI "Invoiced" was cosmetic and didn't stop it
+      double-counting once the real Tax Invoice was also imported) via a
+      new shared `isResolved()` rule applied consistently everywhere a
+      pending total exists. Cancel extended from Purchase-Bills-only to
+      Sales Invoices and Proforma Invoices too. DSO & Trends got a period
+      filter. The shared `PeriodSelector` component was redesigned from
+      pill buttons to a dropdown, applying to every screen that uses it at
+      once. See "Real bugs found and fixed" above for the full detail on
+      each.
 
 - [x] **DSO & Collection Trends (Aug 2026):** new AR/AP tab - a real,
       correctly-computed current DSO snapshot, plus a 12-month cohort trend

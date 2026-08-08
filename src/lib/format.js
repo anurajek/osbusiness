@@ -93,3 +93,20 @@ export function statusForStorage(computed, isSales) {
   if (computed === "Partial" && !isSales) return "Approved";
   return isSales ? "Sent" : "Approved";
 }
+
+// A document (invoice/bill/PI) should stop counting toward "still owed"
+// totals for three different reasons, and all of them matter: the amount
+// is genuinely fully paid, it's been cancelled/voided, or someone has
+// manually tagged it Paid/Invoiced/Completed. That last one matters most
+// for Proforma Invoices specifically - "Invoiced" means a real Tax Invoice
+// now exists elsewhere for the same underlying receivable, so continuing
+// to count the PI's amount as pending would double-count it once that Tax
+// Invoice is also imported. Used everywhere a "still pending" figure is
+// computed, so all of them agree with each other.
+const RESOLVED_MANUAL_STATUSES = ["Paid", "Invoiced", "Completed"];
+
+export function isResolved(doc) {
+  if (doc.is_cancelled) return true;
+  if (doc.manual_status && RESOLVED_MANUAL_STATUSES.includes(doc.manual_status)) return true;
+  return Number(doc.amount) - Number(doc.paid_amount || 0) <= 0;
+}

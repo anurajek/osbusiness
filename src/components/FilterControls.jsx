@@ -4,16 +4,13 @@ export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last y
 
 export function PeriodSelector({ period, setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }) {
   return (
-    <div className="period-bar">
-      {PERIOD_OPTIONS.map((o) => (
-        <button
-          key={o}
-          className={`period-pill ${period === o ? 'period-pill--active' : ''}`}
-          onClick={() => setPeriod(o)}
-        >
-          {o}
-        </button>
-      ))}
+    <div className="period-bar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="filter-field" style={{ minWidth: 160 }}>
+        <label>Period</label>
+        <select className="select select--sm" value={period} onChange={(e) => setPeriod(e.target.value)}>
+          {PERIOD_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
       {period === 'Custom' && (
         <span className="period-custom">
           <input type="date" className="date-input" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />

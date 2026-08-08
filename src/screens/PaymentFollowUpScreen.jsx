@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved } from '../lib/format'
 import { PeriodSelector, FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -50,7 +50,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setError(null)
     const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }] = await Promise.all([
       supabase.from(table)
-        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, manual_status, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
+        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
@@ -86,21 +86,24 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     ? docs.filter((d) => { const dt = new Date(d.issued_date); return dt >= range.from && dt <= range.to })
     : docs
 
-  const totals = docsInPeriod.reduce((acc, d) => {
+  const activeDocsInPeriod = docsInPeriod.filter((d) => !d.is_cancelled)
+
+  const totals = activeDocsInPeriod.reduce((acc, d) => {
     acc.invoiced += Number(d.amount)
     acc.collected += Number(d.paid_amount || 0)
     return acc
   }, { invoiced: 0, collected: 0 })
-  totals.pending = totals.invoiced - totals.collected
+  totals.pending = activeDocsInPeriod.filter((d) => !isResolved(d)).reduce((s, d) => s + (Number(d.amount) - Number(d.paid_amount || 0)), 0)
 
-  const pending = docsInPeriod.filter((d) => Number(d.amount) - Number(d.paid_amount || 0) > 0)
+  const pending = activeDocsInPeriod.filter((d) => !isResolved(d))
 
   // "All" (the default) is the amount-based pending list, exactly as
   // before - most people never touch manual_status, so that stays the
   // common case. Picking a specific manual status searches the whole
   // period instead, since a document manually tagged "Paid" or
   // "Completed" may well have already dropped out of the pending set.
-  const baseRows = statusFilter === 'all' ? pending : docsInPeriod.filter((d) => d.manual_status === statusFilter)
+  // Cancelled documents never show in either - they're void, not a status.
+  const baseRows = statusFilter === 'all' ? pending : activeDocsInPeriod.filter((d) => d.manual_status === statusFilter)
 
   const filtered = baseRows
     .filter((r) => !search.trim() || customerName(r.customer_id).toLowerCase().includes(search.trim().toLowerCase()))
@@ -113,6 +116,19 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const handleSetManualStatus = async (row, value) => {
     const { error: err } = await supabase.from(table).update({ manual_status: value || null }).eq('id', row.id)
     if (err) { alert(`Couldn't update status: ${err.message}`); return }
+    load()
+  }
+
+  // Cancelling isn't delete - it's "this is void, stop counting it," while
+  // keeping the record on file. A cancelled document drops out of every
+  // pending/total calculation on this screen and on Receivables (see
+  // isResolved in lib/format.js), same as Payables already treats a
+  // cancelled bill.
+  const handleToggleCancelled = async (row) => {
+    const willCancel = !row.is_cancelled
+    if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what's owed, but stays on record.`)) return
+    const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
+    if (err) { alert(`Couldn't update that: ${err.message}`); return }
     load()
   }
 
@@ -220,6 +236,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'pause') handleTogglePause(row)
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
     else if (action === 'emails') openManageEmails(row)
+    else if (action === 'cancel') handleToggleCancelled(row)
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -331,6 +348,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
                           <option value="emails">Manage reminder emails</option>
+                          <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
                         </select>
                       </td>
                     </tr>
