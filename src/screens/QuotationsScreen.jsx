@@ -6,7 +6,7 @@ import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
-import { PeriodSelector, FilterBar, sortRows } from '../components/FilterControls'
+import { FilterBar, sortRows } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined', 'expired', 'converted']
@@ -345,13 +345,13 @@ export default function QuotationsScreen() {
         )}
       </div>
 
-      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: 'Search quote # or customer...' }}
         filters={[
           { label: 'Customer', value: customerFilter, onChange: setCustomerFilter, options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))] },
           { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: 'all', label: 'All' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))] },
         ]}
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{ value: sortBy, onChange: setSortBy, options: [
           { value: 'date-desc', label: 'Newest first' }, { value: 'date-asc', label: 'Oldest first' },
           { value: 'amount-desc', label: 'Amount: high to low' }, { value: 'amount-asc', label: 'Amount: low to high' },

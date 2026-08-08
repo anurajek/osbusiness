@@ -6,7 +6,7 @@ import { inr, getPeriodRange, toISODate } from '../lib/format'
 import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
-import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
+import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { EmptyRow, SortableTh } from '../components/ui'
 
 // type: 'credit' (sales side - issued to a customer) or 'debit' (purchase
@@ -336,12 +336,12 @@ export default function CreditDebitNoteScreen({ type }) {
         )}
       </div>
 
-      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: `Search note # or ${partyLabel}...` }}
         filters={[
           { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: 'all', label: 'All' }, { value: 'open', label: 'Open' }, { value: 'refunded', label: 'Refunded' }] },
         ]}
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
         exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />

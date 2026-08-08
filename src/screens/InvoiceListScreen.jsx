@@ -7,7 +7,7 @@ import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../li
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
-import { PeriodSelector, FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
+import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 
 // Full list of statuses a record can ever show as (computed live, not stored).
@@ -437,7 +437,6 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         )}
       </div>
 
-      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: isSales ? 'Search invoice # or customer...' : 'Search bill # or supplier...' }}
         filters={[
@@ -450,6 +449,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
             options: [{ value: 'all', label: 'All' }, ...statusOptions.map((s) => ({ value: s, label: s }))],
           },
         ]}
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{ value: sortBy, onChange: setSortBy, options: SORT_OPTIONS_DATE_AMOUNT }}
         exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: filtered.length === 0 }}
       />

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, isResolved } from '../lib/format'
-import { PeriodSelector, FilterBar } from '../components/FilterControls'
+import { FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
@@ -251,8 +251,6 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
   return (
     <>
-      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
-
       <div className="grid-3">
         <StatCard label="Invoiced in period" value={inr(totals.invoiced)} />
         <StatCard label="Collected in period" value={inr(totals.collected)} accent />
@@ -271,6 +269,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
             options: [{ value: 'all', label: 'All open' }, ...SALES_STATUSES.map((s) => ({ value: s, label: s }))],
           },
         ]}
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{
           value: sortBy, onChange: setSortBy,
           options: [

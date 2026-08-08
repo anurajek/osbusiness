@@ -42,7 +42,7 @@ export function SearchInput({ value, onChange, placeholder }) {
   )
 }
 
-export function FilterBar({ search, filters, sort, exportOptions }) {
+export function FilterBar({ search, filters, period, sort, exportOptions }) {
   return (
     <div className="filter-bar">
       {search && (
@@ -59,6 +59,21 @@ export function FilterBar({ search, filters, sort, exportOptions }) {
           </select>
         </div>
       ))}
+      {period && (
+        <div className="filter-field">
+          <label>Period</label>
+          <select className="select select--sm" value={period.value} onChange={(e) => period.onChange(e.target.value)}>
+            {PERIOD_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          {period.value === 'Custom' && (
+            <span className="period-custom" style={{ marginTop: 6 }}>
+              <input type="date" className="date-input" value={period.customFrom} onChange={(e) => period.setCustomFrom(e.target.value)} />
+              <span className="period-custom__to">to</span>
+              <input type="date" className="date-input" value={period.customTo} onChange={(e) => period.setCustomTo(e.target.value)} />
+            </span>
+          )}
+        </div>
+      )}
       {sort && (
         <div className="filter-field filter-field--sort">
           <label>Sort by</label>

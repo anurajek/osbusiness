@@ -831,7 +831,41 @@ Follow-up, and now DSO & Trends) shares this one component, this one
 change applies consistently everywhere without touching each screen
 individually.
 
+## Status folded into Actions, Due Date column, Period moved next to Status
+
+No migration needed — just deploy.
+
+**Status is no longer its own always-visible dropdown** on Invoice/PI
+Follow-up — it's a read-only pill now, and "Set status" joined "Log an
+update"/"Manage reminder emails" as an Actions menu option, opening the
+same expand panel with one-click status buttons instead of a second
+dropdown sitting next to Actions. Every row now carries one dropdown, not
+two.
+
+**Due Date column added**, between Amount Pending and Days Overdue, on
+both Invoice and PI Follow-up — computed from issued date + the firm's
+payment-due setting, same number that drives the Days Overdue column right
+next to it.
+
+**Period moved into the same row as Status, everywhere** — like the
+dropdown-style redesign a few updates back, this was fixed once in the
+shared `FilterBar` component (it now accepts an optional `period` prop,
+rendered right after the filter dropdowns) rather than per-screen, so it
+applies consistently across Receivables, Payables, Sales, Purchases,
+Cash & Bank, Quotations, Credit/Debit Notes, and both Follow-up screens
+in one change. DSO & Trends keeps its own separate period row, since that
+screen has no Status filter for Period to follow.
+
 ## Status
+
+- [x] **Status folded into Actions, Due Date column, Period repositioned
+      (Aug 2026):** Status on Invoice/PI Follow-up is now a read-only pill
+      with "Set status" moved into the Actions dropdown (one dropdown per
+      row instead of two), a Due Date column added between Amount Pending
+      and Days Overdue, and Period moved to sit right after Status in the
+      shared `FilterBar` component - applying to every screen with a
+      Status filter at once. See "Status folded into Actions, Due Date
+      column, Period moved next to Status" above.
 
 - [x] **PI/Invoice double-counting fix, Cancel extended, DSO period filter,
       global period-selector redesign (Aug 2026):** fixed the real bug

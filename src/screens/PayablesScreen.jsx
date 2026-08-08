@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus } from '../lib/format'
-import { PeriodSelector, FilterBar } from '../components/FilterControls'
+import { FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
@@ -190,8 +190,6 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
 
   return (
     <>
-      <PeriodSelector period={period} setPeriod={setPeriod} customFrom={customFrom} customTo={customTo} setCustomFrom={setCustomFrom} setCustomTo={setCustomTo} />
-
       <div className="grid-3">
         <StatCard label="Billed in period" value={inr(totals.billed)} />
         <StatCard label="Paid in period" value={inr(totals.paid)} accent />
@@ -210,6 +208,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
             options: [{ value: 'all', label: 'All open' }, ...PURCHASE_STATUSES.map((s) => ({ value: s, label: s }))],
           },
         ]}
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{
           value: sortBy, onChange: setSortBy,
           options: [
