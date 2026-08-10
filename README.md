@@ -1,4 +1,4 @@
-# Ledger OS
+# FinoPilo — Your Financial Co-Pilot
 
 Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, and cash & bank, built for firms managing multiple client books.
 
@@ -49,7 +49,7 @@ needed to start). This needs a one-time setup before it'll actually send:
 3. **Add the secret** — Supabase Dashboard → Edge Functions →
    **Manage secrets**, add:
    - `RESEND_API_KEY` = the key from step 1
-   - Optional: `INVITE_FROM_EMAIL` = `"Ledger OS <you@yourdomain.com>"` once
+   - Optional: `INVITE_FROM_EMAIL` = `"FinoPilo <you@yourdomain.com>"` once
      you've verified a domain in Resend — until then it falls back to
      Resend's shared `onboarding@resend.dev` sender, which works
      immediately but looks less official.
@@ -883,6 +883,19 @@ Invoice/PI Follow-up's own Status column, which still shows every
 document regardless of resolution state.
 
 ## Status
+
+- [x] **Rebranded from "Ledger OS" to "FinoPilo" (Aug 2026):** every
+      user-facing occurrence updated - sidebar, browser tab title, login/
+      signup screens (which also gained the "Your Financial Co-Pilot"
+      tagline, previously showing no brand at all), invite emails, payment
+      reminder emails, and this README. The General Ledger accounting
+      module (Chart of Accounts/Journal Entries) keeps the name "Ledger" -
+      that's a standard accounting term for that specific feature, not the
+      app's old brand name, and was left alone deliberately. Note: the
+      GitHub repo name and the Cloudflare deployment URL
+      (`osbusiness.anuraj1996anu.workers.dev`) are unaffected by this -
+      those are external to the codebase and need their own separate
+      rename on GitHub/Cloudflare if wanted.
 
 - [x] **Status-setting reverted to a plain dropdown + added to Receivables
       (Aug 2026):** the Actions-dropdown pill picker wasn't reliably

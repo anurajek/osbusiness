@@ -14,7 +14,7 @@
 //   2. In Supabase Dashboard → Edge Functions → Manage secrets, add:
 //        RESEND_API_KEY = <your key>
 //      Optionally also set:
-//        INVITE_FROM_EMAIL = "Ledger OS <you@yourdomain.com>"
+//        INVITE_FROM_EMAIL = "FinoPilo <you@yourdomain.com>"
 //        (defaults to Resend's shared onboarding@resend.dev sender, which
 //        works immediately but looks less official than your own domain)
 //   3. Deploy this function from Supabase Dashboard → Edge Functions →
@@ -27,7 +27,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM_EMAIL = Deno.env.get('INVITE_FROM_EMAIL') ?? 'Ledger OS <onboarding@resend.dev>'
+const FROM_EMAIL = Deno.env.get('INVITE_FROM_EMAIL') ?? 'FinoPilo <onboarding@resend.dev>'
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://osbusiness.anuraj1996anu.workers.dev'
 
 const corsHeaders = {
@@ -66,10 +66,10 @@ serve(async (req) => {
       body: JSON.stringify({
         from: FROM_EMAIL,
         to: email,
-        subject: `You've been invited to ${firmName} on Ledger OS`,
+        subject: `You've been invited to ${firmName} on FinoPilo`,
         html: `
           <p>Hi ${fullName || 'there'},</p>
-          <p>You've been invited to join <strong>${firmName}</strong> on Ledger OS.</p>
+          <p>You've been invited to join <strong>${firmName}</strong> on FinoPilo.</p>
           <p>Click below to accept and create your account:</p>
           <p><a href="${joinUrl}">${joinUrl}</a></p>
           <p style="color:#888;font-size:13px">This link is unique to you - please don't forward it.</p>
