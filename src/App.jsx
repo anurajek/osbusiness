@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth'
 import { FirmProvider, useFirm } from './context/FirmContext'
 import LoginScreen from './screens/LoginScreen'
 import SignupScreen from './screens/SignupScreen'
+import ResetPasswordScreen from './screens/ResetPasswordScreen'
 import AcceptInviteScreen from './screens/AcceptInviteScreen'
 import AppShell from './components/AppShell'
 import DashboardScreen from './screens/DashboardScreen'
@@ -81,7 +82,7 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
   )
 }
 
-function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut }) {
+function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword }) {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [arapTab, setArapTab] = useState('receivables')
 
@@ -96,12 +97,13 @@ function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreate
         onCreateFirm={onCreateFirm}
         initialError={initialError}
         onSignOut={onSignOut}
+        onChangePassword={onChangePassword}
       />
     </FirmProvider>
   )
 }
 
-function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut }) {
+function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword }) {
   const { permissions, firmId, role } = useFirm()
   const [navParams, setNavParams] = useState(null)
 
@@ -137,7 +139,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
       case 'arap': return <ARAPScreen tab={arapTab} onTabChange={setArapTab} navParams={navParams} clearNavParams={clearNavParams} onNavigate={goToModule} />
       case 'cashbank': return <CashBankScreen />
       case 'ledger': return <LedgerScreen />
-      case 'permissions': return <PermissionsScreen />
+      case 'permissions': return <PermissionsScreen onChangePassword={onChangePassword} />
       default: return null
     }
   }
@@ -150,7 +152,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 }
 
 export default function App() {
-  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, refreshMemberships, signOut } = useAuth()
+  const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, refreshMemberships, signOut, passwordRecovery, requestPasswordReset, completePasswordReset, changeOwnPassword } = useAuth()
   const [authMode, setAuthMode] = useState('login')
 
   if (loading) {
@@ -179,9 +181,17 @@ export default function App() {
     )
   }
 
+  // A password-reset link takes the same kind of priority as an invite
+  // link above - Supabase has already verified the recovery token by the
+  // time passwordRecovery flips true, so this always wins over normal
+  // login/dashboard routing until the person actually sets a new password.
+  if (passwordRecovery) {
+    return <ResetPasswordScreen onCompleteReset={completePasswordReset} />
+  }
+
   if (!session) {
     return authMode === 'login'
-      ? <LoginScreen onSignIn={signIn} authError={error} onSwitchToSignup={() => setAuthMode('signup')} />
+      ? <LoginScreen onSignIn={signIn} authError={error} onSwitchToSignup={() => setAuthMode('signup')} onRequestPasswordReset={requestPasswordReset} />
       : <SignupScreen onSignUp={signUpWithFirm} authError={error} onSwitchToLogin={() => setAuthMode('login')} />
   }
 
@@ -204,6 +214,7 @@ export default function App() {
       onCreateFirm={createFirmForSession}
       initialError={memberships.length === 0 ? error : null}
       onSignOut={signOut}
+      onChangePassword={changeOwnPassword}
     />
   )
 }

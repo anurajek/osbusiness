@@ -882,7 +882,34 @@ resolved one is deliberately no longer pending). To undo a tag, use
 Invoice/PI Follow-up's own Status column, which still shows every
 document regardless of resolution state.
 
+## Forgot password, change password, and a small cleanup on Sales/Purchases
+
+No migration needed — just deploy. Uses Supabase's own built-in auth email
+system for password resets, not the Resend-based functions used elsewhere
+— nothing to configure, it already works out of the box.
+
+**Forgot password** — "Forgot password?" link on the login screen, right
+next to the Password label. Sends a reset email via Supabase Auth; the
+link brings them back into the app on a dedicated "Set a new password"
+screen, which takes priority over normal login/dashboard routing the same
+way an invite link does.
+
+**Change password** — new "Your password" card at the top of Users &
+Permissions, for anyone already signed in to change their own password
+directly, no email round-trip needed.
+
+**Sales/Purchases cleanup** — the "Customers"/"Suppliers" heading above
+the add-party form is removed, and the "+ New customer"/"+ New supplier"
+button is now a plain compact "+ Add".
+
 ## Status
+
+- [x] **Forgot password, change password, Sales/Purchases cleanup (Aug
+      2026):** "Forgot password?" on login (Supabase's own auth email, no
+      new setup needed), a "Your password" change-password card on Users &
+      Permissions, and the Customers/Suppliers heading removed with the
+      add-new button simplified to "+ Add." See "Forgot password, change
+      password, and a small cleanup on Sales/Purchases" above.
 
 - [x] **Renamed "FinoPilo" to "FinoPilo Flow" (Aug 2026):** every
       user-facing occurrence updated the same way as the original Ledger

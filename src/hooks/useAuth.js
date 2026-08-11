@@ -22,6 +22,14 @@ export function useAuth() {
   // the no-firm dead-end for both. See signUpWithFirm below.
   const [provisioning, setProvisioning] = useState(false)
 
+  // True the moment someone lands here via a password-reset email link -
+  // Supabase's SDK detects the recovery token in the URL itself and fires
+  // this specific event, no manual URL parsing needed on our end. App.jsx
+  // uses this to show the "set a new password" screen instead of the
+  // normal login/dashboard routing, taking priority over everything else
+  // the same way the ?invite= link does.
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
+
   // Guards a race: right after signup, the auth-state-change listener
   // fires a membership check immediately (before the firm even exists
   // yet), while signup's own explicit check happens after the firm is
@@ -78,8 +86,9 @@ export function useAuth() {
       setLoading(false)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
       setSession(newSession)
       if (newSession?.user) {
         await linkPendingInvites(newSession.user)
@@ -103,6 +112,39 @@ export function useAuth() {
       return false
     }
     return true
+  }, [])
+
+  // Sends the "click here to reset your password" email - Supabase's own
+  // built-in mailer handles this one, not the Resend-based Edge Functions
+  // used for invites/reminders, so it's subject to Supabase's own sending
+  // limits rather than anything configured in this codebase.
+  const requestPasswordReset = useCallback(async (email) => {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    })
+    if (resetError) return { ok: false, error: resetError.message }
+    return { ok: true }
+  }, [])
+
+  // Completes a password reset - only valid while passwordRecovery is true
+  // (i.e. Supabase has already verified the recovery link and established
+  // a temporary session for it). Clears the recovery flag on success so
+  // App.jsx falls through to normal routing afterward.
+  const completePasswordReset = useCallback(async (newPassword) => {
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) return { ok: false, error: updateError.message }
+    setPasswordRecovery(false)
+    return { ok: true }
+  }, [])
+
+  // For an already-logged-in person changing their own password from
+  // Users & Permissions - same underlying call as completePasswordReset,
+  // kept as a separate function since the two are triggered from very
+  // different places and there's no recovery flag to clear here.
+  const changeOwnPassword = useCallback(async (newPassword) => {
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) return { ok: false, error: updateError.message }
+    return { ok: true }
   }, [])
 
   // Creates a brand new account, then one of two things: if this email
@@ -233,5 +275,5 @@ export function useAuth() {
     await supabase.auth.signOut()
   }, [])
 
-  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, inviteTeammate, refreshMemberships, signOut }
+  return { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, inviteTeammate, refreshMemberships, signOut, passwordRecovery, requestPasswordReset, completePasswordReset, changeOwnPassword }
 }

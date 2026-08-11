@@ -21,13 +21,18 @@ const ROLES = ['Accountant', 'Viewer']
 const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, import: true, permissions: true }
 const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, import: false, permissions: false }
 
-export default function PermissionsScreen() {
+export default function PermissionsScreen({ onChangePassword }) {
   const { firmId, role: myRole, firm, membershipId, refreshMemberships } = useFirm()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [savingId, setSavingId] = useState(null)
   const [removingId, setRemovingId] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  const [passwordError, setPasswordError] = useState(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
@@ -143,6 +148,22 @@ export default function PermissionsScreen() {
       alert(`Couldn't save that change: ${err.message}`)
       setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, permissions: member.permissions } : m)))
     }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordError(null)
+    setPasswordSuccess(false)
+    if (newPassword.length < 6) { setPasswordError('Use at least 6 characters.'); return }
+    if (newPassword !== confirmNewPassword) { setPasswordError("Those two passwords don't match."); return }
+
+    setPasswordSubmitting(true)
+    const result = await onChangePassword(newPassword)
+    setPasswordSubmitting(false)
+    if (!result.ok) { setPasswordError(result.error); return }
+    setPasswordSuccess(true)
+    setNewPassword('')
+    setConfirmNewPassword('')
   }
 
   const handleInvite = async (e) => {
@@ -268,6 +289,27 @@ export default function PermissionsScreen() {
   return (
     <>
       <SectionHeader title="Users & Permissions" note="who can see which module" />
+
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <h2>Your password</h2>
+        </div>
+        <form onSubmit={handleChangePassword} className="add-comm-form">
+          <div className="add-comm-row">
+            <input
+              className="text-input" type="password" autoComplete="new-password"
+              placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <input
+              className="text-input" type="password" autoComplete="new-password"
+              placeholder="Confirm new password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
+            />
+            <button className="btn-primary" disabled={passwordSubmitting}>{passwordSubmitting ? 'Saving…' : 'Change password'}</button>
+          </div>
+          {passwordError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{passwordError}</p>}
+          {passwordSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>Password updated.</p>}
+        </form>
+      </div>
 
       {isOwner && (
         <div className="card">

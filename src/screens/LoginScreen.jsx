@@ -1,10 +1,16 @@
 import { useState } from 'react'
 
-export default function LoginScreen({ onSignIn, authError, onSwitchToSignup }) {
+export default function LoginScreen({ onSignIn, authError, onSwitchToSignup, onRequestPasswordReset }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [localError, setLocalError] = useState(null)
+
+  const [showForgot, setShowForgot] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSubmitting, setResetSubmitting] = useState(false)
+  const [resetError, setResetError] = useState(null)
+  const [resetSent, setResetSent] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -18,6 +24,17 @@ export default function LoginScreen({ onSignIn, authError, onSwitchToSignup }) {
     setSubmitting(true)
     await onSignIn(email.trim(), password)
     setSubmitting(false)
+  }
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault()
+    setResetError(null)
+    if (!resetEmail.trim()) { setResetError('Enter your email.'); return }
+    setResetSubmitting(true)
+    const result = await onRequestPasswordReset(resetEmail.trim())
+    setResetSubmitting(false)
+    if (!result.ok) { setResetError(result.error); return }
+    setResetSent(true)
   }
 
   const errorToShow = localError || authError
@@ -43,62 +60,126 @@ export default function LoginScreen({ onSignIn, authError, onSwitchToSignup }) {
         <p className="text-[12.5px] mb-3" style={{ color: 'var(--brass)', fontStyle: 'italic' }}>
           Your Financial Co-Pilot
         </p>
-        <p className="text-[13px] leading-relaxed mb-6" style={{ color: 'var(--paper-dim)' }}>
-          Sign in to your firm's books.
-        </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>
-              Email
-            </label>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
-              style={{ background: 'var(--panel-alt)', border: '1px solid var(--rule)', color: 'var(--paper)' }}
-              placeholder="you@yourfirm.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
-              style={{ background: 'var(--panel-alt)', border: '1px solid var(--rule)', color: 'var(--paper)' }}
-              placeholder="••••••••"
-            />
-          </div>
-
-          {errorToShow && (
-            <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>
-              {errorToShow}
+        {showForgot ? (
+          <>
+            <p className="text-[13px] leading-relaxed mb-6" style={{ color: 'var(--paper-dim)' }}>
+              {resetSent
+                ? "If that email has an account, we've sent a link to reset the password."
+                : "Enter your account email and we'll send you a link to reset your password."}
             </p>
-          )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-1 rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60"
-            style={{ background: 'var(--brass)', color: 'var(--ink)' }}
-          >
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            {!resetSent && (
+              <form onSubmit={handleRequestReset} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                    style={{ background: 'var(--panel-alt)', border: '1px solid var(--rule)', color: 'var(--paper)' }}
+                    placeholder="you@yourfirm.com"
+                  />
+                </div>
 
-        <p className="login-footnote">
-          New here?{' '}
-          <button onClick={onSwitchToSignup} className="link-btn" style={{ padding: 0 }}>Create your firm</button>
-        </p>
+                {resetError && (
+                  <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{resetError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetSubmitting}
+                  className="mt-1 rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60"
+                  style={{ background: 'var(--brass)', color: 'var(--ink)' }}
+                >
+                  {resetSubmitting ? 'Sending…' : 'Send reset link'}
+                </button>
+              </form>
+            )}
+
+            <p className="login-footnote">
+              <button
+                onClick={() => { setShowForgot(false); setResetSent(false); setResetError(null) }}
+                className="link-btn" style={{ padding: 0 }}
+              >
+                ← Back to sign in
+              </button>
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[13px] leading-relaxed mb-6" style={{ color: 'var(--paper-dim)' }}>
+              Sign in to your firm's books.
+            </p>
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--paper-dim)' }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                  style={{ background: 'var(--panel-alt)', border: '1px solid var(--rule)', color: 'var(--paper)' }}
+                  placeholder="you@yourfirm.com"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] uppercase tracking-wide" style={{ color: 'var(--paper-dim)' }}>
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgot(true); setResetEmail(email) }}
+                    className="link-btn text-[11px]" style={{ padding: 0 }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2.5 text-sm outline-none"
+                  style={{ background: 'var(--panel-alt)', border: '1px solid var(--rule)', color: 'var(--paper)' }}
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {errorToShow && (
+                <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>
+                  {errorToShow}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="mt-1 rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60"
+                style={{ background: 'var(--brass)', color: 'var(--ink)' }}
+              >
+                {submitting ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+
+            <p className="login-footnote">
+              New here?{' '}
+              <button onClick={onSwitchToSignup} className="link-btn" style={{ padding: 0 }}>Create your firm</button>
+            </p>
+          </>
+        )}
       </div>
     </div>
   )
 }
+

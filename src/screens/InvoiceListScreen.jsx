@@ -415,10 +415,9 @@ export default function InvoiceListScreen({ type, onNavigate }) {
       />
 
       <div className="card">
-        <div className="section-header" style={{ marginBottom: showAddParty ? 12 : 0 }}>
-          <h2 style={{ textTransform: 'capitalize' }}>{partyLabel}s</h2>
+        <div className="section-header" style={{ marginBottom: showAddParty ? 12 : 0, justifyContent: 'flex-end' }}>
           <button className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setShowAddParty((v) => !v)}>
-            <Plus size={14} /> New {partyLabel}
+            <Plus size={14} /> Add
           </button>
         </div>
         {showAddParty && (
