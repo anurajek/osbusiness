@@ -1030,7 +1030,53 @@ to the Proforma Invoice it came from. Linking:
 - Tags the PI "Invoiced" as a courtesy, since that's exactly what linking
   means — this PI has now definitively become a real Tax Invoice.
 
+## Two real bugs: stray Cash & Bank entries, and Link to PI showing nothing
+
+No migration needed — just deploy.
+
+### Stray transaction left behind after fixing a wrong entry
+
+Confirmed the actual cause: Cash & Bank's "delete transaction" already had
+a correct reversal mechanism (it reduces the linked document's paid
+amount back down when you delete a transaction) — but it only ever knew
+about `related_sales_invoice_id` and `related_purchase_bill_id`. It had
+no idea `related_proforma_invoice_id` existed, since that column was
+added later for PI payments specifically. Deleting a PI-linked payment
+transaction correctly removed it from the account balance, but silently
+left the PI's `paid_amount` untouched — exactly the stray, out-of-sync
+entry described. Fixed: the delete flow now fetches and correctly
+reverses PI-linked transactions the same way it already did for
+Invoices/Bills.
+
+**The correct way to undo a wrong payment entry** is to delete it from
+Cash & Bank directly (now works correctly for PI too) — editing the bill
+or PI's own fields afterward doesn't touch the transaction that was
+already created, which is what led to the mismatch in the first place.
+
+### Link to PI showing nothing
+
+The actual bug: the picker only ever searched Proforma Invoices with an
+*exact* `customer_id` match to the invoice's own customer. If the PI
+export and the Invoice export ever produced two slightly different
+customer records for what's really the same company — extra whitespace,
+"Pvt Ltd" vs "Private Limited," a long name typed slightly differently
+between two CSV exports — the match would silently return nothing, with
+no indication why. Fixed: the picker now searches every open PI in the
+firm, with its own search box (by PI # or customer name) to narrow it
+down — slower to scan for a large firm, but it can never go silently
+empty because of a customer-record mismatch it has no way to detect.
+
 ## Status
+
+- [x] **Two real bugs fixed: stray Cash & Bank entries, Link to PI showing
+      nothing (Aug 2026):** deleting a PI-linked payment transaction never
+      reversed the PI's paid amount (the delete-with-reversal logic didn't
+      know `related_proforma_invoice_id` existed) - fixed. Link to PI only
+      ever matched an *exact* customer_id, silently showing nothing if the
+      PI and Invoice exports produced two slightly different customer
+      records for the same company - now searches every open PI in the
+      firm with its own search box instead. See "Two real bugs: stray Cash
+      & Bank entries, and Link to PI showing nothing" above.
 
 - [x] **Marking Paid records a real payment; PI-to-Invoice linking (Aug
       2026):** picking Paid/Partially Paid anywhere now opens a real

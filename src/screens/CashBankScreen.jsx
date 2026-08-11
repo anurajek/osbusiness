@@ -40,7 +40,7 @@ export default function CashBankScreen() {
     setError(null)
     const [{ data: accRows, error: accErr }, { data: txnRows, error: txnErr }] = await Promise.all([
       supabase.from('bank_accounts').select('id, name, account_mask, balance').eq('firm_id', firmId).order('name'),
-      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, related_sales_invoice_id, related_purchase_bill_id, related_credit_note_id, related_debit_note_id').eq('firm_id', firmId).order('txn_date', { ascending: false }),
+      supabase.from('bank_transactions').select('id, bank_account_id, txn_date, description, amount, related_sales_invoice_id, related_purchase_bill_id, related_proforma_invoice_id, related_credit_note_id, related_debit_note_id').eq('firm_id', firmId).order('txn_date', { ascending: false }),
     ])
     if (accErr || txnErr) {
       setError((accErr || txnErr).message)
@@ -119,12 +119,15 @@ export default function CashBankScreen() {
   // a negative, i.e. adding it back).
   const handleDeleteTransaction = async (txn) => {
     const linkedInvoice = txn.related_sales_invoice_id || txn.related_purchase_bill_id
+    const linkedPi = txn.related_proforma_invoice_id
     const linkedNote = txn.related_credit_note_id || txn.related_debit_note_id
     const warning = linkedInvoice
       ? ` This will also reduce the "already paid" amount back down on the ${txn.related_sales_invoice_id ? 'invoice' : 'bill'} it was recorded against.`
-      : linkedNote
-        ? ` This will also mark the ${txn.related_credit_note_id ? 'credit' : 'debit'} note it was recorded against as "Open" again.`
-        : ''
+      : linkedPi
+        ? ` This will also reduce the "already paid" amount back down on the Proforma Invoice it was recorded against.`
+        : linkedNote
+          ? ` This will also mark the ${txn.related_credit_note_id ? 'credit' : 'debit'} note it was recorded against as "Open" again.`
+          : ''
     if (!window.confirm(`Delete this transaction (${inr(Math.abs(txn.amount))} on ${accountName(txn.bank_account_id)})?${warning}`)) return
 
     setDeletingId(txn.id)
@@ -149,6 +152,18 @@ export default function CashBankScreen() {
       }
     }
 
+    // Proforma Invoices don't have a due_date column or the Sent/Partial/
+    // Due-today/Overdue status model - computeStatus() would fail on this
+    // table (see migration_pi_and_reminders.sql). Same simple status logic
+    // ImportScreen.jsx already uses when setting a PI's status.
+    if (linkedPi) {
+      const { data: pi } = await supabase.from('proforma_invoices').select('amount, paid_amount').eq('id', linkedPi).single()
+      if (pi) {
+        const newPaid = Math.max(0, Number(pi.paid_amount || 0) - Math.abs(txn.amount))
+        await supabase.from('proforma_invoices').update({ paid_amount: newPaid, status: newPaid >= pi.amount ? 'Paid' : 'Sent' }).eq('id', linkedPi)
+      }
+    }
+
     if (linkedNote) {
       const table = txn.related_credit_note_id ? 'credit_notes' : 'debit_notes'
       await supabase.from(table).update({ status: 'open', refunded_via_account_id: null, refunded_date: null }).eq('id', linkedNote)
@@ -160,7 +175,7 @@ export default function CashBankScreen() {
 
     await supabase.from('activity_log').insert({
       firm_id: firmId,
-      description: `Deleted a ${inr(Math.abs(txn.amount))} transaction on ${accountName(txn.bank_account_id)}${linkedInvoice || linkedNote ? ' and reversed the linked record' : ''}`,
+      description: `Deleted a ${inr(Math.abs(txn.amount))} transaction on ${accountName(txn.bank_account_id)}${linkedInvoice || linkedPi || linkedNote ? ' and reversed the linked record' : ''}`,
     })
 
     load()

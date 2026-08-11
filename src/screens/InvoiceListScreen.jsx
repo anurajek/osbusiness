@@ -68,6 +68,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const [linkingId, setLinkingId] = useState(null)
   const [availablePis, setAvailablePis] = useState([])
   const [selectedPiId, setSelectedPiId] = useState('')
+  const [linkSearch, setLinkSearch] = useState('')
   const [linkingBusy, setLinkingBusy] = useState(false)
   const [linkError, setLinkError] = useState(null)
 
@@ -418,15 +419,24 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   // any state, not just pending ones, since the point is finding the PI
   // that actually corresponds to this invoice, which could be fully paid,
   // tagged, or still open.
+  // Deliberately NOT filtered to an exact customer_id match - if the PI
+  // export and the Invoice export ever produced two slightly different
+  // customer records for what's really the same company (easy to happen
+  // with long names, extra whitespace, "Pvt Ltd" vs "Private Limited",
+  // etc.), an exact match would silently show nothing here with no
+  // indication why. Pulls every open PI for the firm instead, and the
+  // picker below has its own search box to narrow it down by PI # or
+  // customer name - slower to scan for a large firm, but never silently
+  // empty because of a customer-record mismatch it can't see.
   const openLinkForm = async (row) => {
     setLinkingId(row.id)
     setSelectedPiId('')
+    setLinkSearch('')
     setLinkError(null)
     setAvailablePis([])
     const { data, error: err } = await supabase.from('proforma_invoices')
-      .select('id, pi_no, issued_date, amount, paid_amount')
+      .select('id, pi_no, customer_id, issued_date, amount, paid_amount')
       .eq('firm_id', firmId)
-      .eq('customer_id', row[partyJoinKey])
       .eq('is_cancelled', false)
       .order('issued_date', { ascending: false })
     if (err) { setLinkError(err.message); return }
@@ -714,13 +724,24 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                     <tr>
                       <td colSpan={8} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
                         <div className="add-comm-row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            className="text-input" style={{ maxWidth: 220 }}
+                            placeholder="Search PI # or customer..." value={linkSearch}
+                            onChange={(e) => setLinkSearch(e.target.value)}
+                          />
                           <select className="select" value={selectedPiId} onChange={(e) => setSelectedPiId(e.target.value)}>
                             <option value="" disabled>Select the Proforma Invoice this became…</option>
-                            {availablePis.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.pi_no} · {toISODate(new Date(p.issued_date))} · {inr(p.amount)} ({inr(p.paid_amount)} paid)
-                              </option>
-                            ))}
+                            {availablePis
+                              .filter((p) => {
+                                if (!linkSearch.trim()) return true
+                                const q = linkSearch.trim().toLowerCase()
+                                return p.pi_no.toLowerCase().includes(q) || partyName(p.customer_id).toLowerCase().includes(q)
+                              })
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.pi_no} · {partyName(p.customer_id)} · {toISODate(new Date(p.issued_date))} · {inr(p.amount)} ({inr(p.paid_amount)} paid)
+                                </option>
+                              ))}
                           </select>
                           <button className="btn-primary" disabled={linkingBusy || availablePis.length === 0} onClick={() => handleLinkToPi(r)}>
                             {linkingBusy ? 'Linking…' : 'Link'}
@@ -729,7 +750,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         </div>
                         {availablePis.length === 0 && !linkError && (
                           <p className="login-footnote" style={{ marginTop: 6 }}>
-                            No Proforma Invoices found for {partyName(r[partyJoinKey])}.
+                            No open Proforma Invoices found for this firm.
                           </p>
                         )}
                         {Number(r.paid_amount || 0) > 0 && (
