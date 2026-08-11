@@ -33,7 +33,7 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, children
     <div className="app-shell">
       <aside className={`sidebar ${navOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar__brand">
-          <Landmark size={18} /> <span>FinoPilo</span>
+          <Landmark size={18} /> <span>FinoPilo Flow</span>
         </div>
         <nav className="sidebar__nav">
           {visibleModules.map((m) => {

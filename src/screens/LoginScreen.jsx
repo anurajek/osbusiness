@@ -38,7 +38,7 @@ export default function LoginScreen({ onSignIn, authError, onSwitchToSignup }) {
         </div>
 
         <h1 className="font-serif-display text-2xl font-semibold mb-1.5" style={{ color: 'var(--paper)' }}>
-          FinoPilo
+          FinoPilo Flow
         </h1>
         <p className="text-[12.5px] mb-3" style={{ color: 'var(--brass)', fontStyle: 'italic' }}>
           Your Financial Co-Pilot

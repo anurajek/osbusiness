@@ -18,7 +18,7 @@ import { daysSince, exactStageForDay, reminderEmailContent } from '../_shared/re
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM_EMAIL = Deno.env.get('INVITE_FROM_EMAIL') ?? 'FinoPilo <onboarding@resend.dev>'
+const FROM_EMAIL = Deno.env.get('INVITE_FROM_EMAIL') ?? 'FinoPilo Flow <onboarding@resend.dev>'
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
 

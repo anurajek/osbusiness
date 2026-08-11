@@ -39,7 +39,7 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
     <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--ink)' }}>
       <div className="card" style={{ width: '100%', maxWidth: 420, padding: 32, textAlign: 'left' }}>
         <p className="text-[12.5px] mb-1" style={{ color: 'var(--brass)', fontStyle: 'italic' }}>
-          FinoPilo — Your Financial Co-Pilot
+          FinoPilo Flow — Your Financial Co-Pilot
         </p>
         <h1 className="font-serif-display text-xl font-semibold mb-1.5" style={{ color: 'var(--paper)' }}>
           Set up your firm

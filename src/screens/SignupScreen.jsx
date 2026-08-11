@@ -51,7 +51,7 @@ export default function SignupScreen({ onSignUp, authError, onSwitchToLogin }) {
         </div>
 
         <p className="text-[12.5px] mb-1" style={{ color: 'var(--brass)', fontStyle: 'italic' }}>
-          FinoPilo — Your Financial Co-Pilot
+          FinoPilo Flow — Your Financial Co-Pilot
         </p>
         <h1 className="font-serif-display text-2xl font-semibold mb-1.5" style={{ color: 'var(--paper)' }}>
           Create your firm

@@ -1,4 +1,4 @@
-# FinoPilo — Your Financial Co-Pilot
+# FinoPilo Flow — Your Financial Co-Pilot
 
 Multi-tenant accounting CRM — cashflow forecasting, sales, purchases, AR/AP, and cash & bank, built for firms managing multiple client books.
 
@@ -49,7 +49,7 @@ needed to start). This needs a one-time setup before it'll actually send:
 3. **Add the secret** — Supabase Dashboard → Edge Functions →
    **Manage secrets**, add:
    - `RESEND_API_KEY` = the key from step 1
-   - Optional: `INVITE_FROM_EMAIL` = `"FinoPilo <you@yourdomain.com>"` once
+   - Optional: `INVITE_FROM_EMAIL` = `"FinoPilo Flow <you@yourdomain.com>"` once
      you've verified a domain in Resend — until then it falls back to
      Resend's shared `onboarding@resend.dev` sender, which works
      immediately but looks less official.
@@ -883,6 +883,20 @@ Invoice/PI Follow-up's own Status column, which still shows every
 document regardless of resolution state.
 
 ## Status
+
+- [x] **Renamed "FinoPilo" to "FinoPilo Flow" (Aug 2026):** every
+      user-facing occurrence updated the same way as the original Ledger
+      OS → FinoPilo rebrand - sidebar, browser tab title, login/signup
+      screens, invite emails, payment reminder emails, this README.
+      **Important**: the three Edge Functions
+      (`send-invite-email`/`send-payment-reminder`/
+      `send-payment-reminders-batch`) need to be manually redeployed on
+      Supabase for this to actually take effect in emails - that's exactly
+      what caused the previous rename (Ledger OS → FinoPilo) to not show
+      up in sent emails despite the code being correct. The main app
+      redeploys automatically via GitHub → Cloudflare; Edge Functions do
+      not, ever - each one needs its code pasted in and Deploy clicked by
+      hand on Supabase's dashboard every time it changes.
 
 - [x] **Rebranded from "Ledger OS" to "FinoPilo" (Aug 2026):** every
       user-facing occurrence updated - sidebar, browser tab title, login/
