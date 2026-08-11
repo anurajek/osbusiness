@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { X } from 'lucide-react'
 import { inr, toISODate } from '../lib/format'
 import { StatusPill } from './ui'
@@ -32,15 +32,56 @@ function relativeTime(dateStr) {
 // screens read the exact same sales_invoices/proforma_invoices rows,
 // setting it here shows up there automatically on next load - no separate
 // sync needed, it's the same underlying data either way.
-export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions }) {
+//
+// onRecordPayment/bankAccounts: optional - when provided, picking Paid or
+// Partially Paid from the Tag select opens a real payment-recording
+// mini-form (amount + account + date) right under that row instead of
+// just writing the tag, matching what Invoice/PI Follow-up's Status
+// column does - onSetStatus alone only ever wrote a text label with no
+// effect on Collected or Cash & Bank, which is the exact gap this closes.
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions, onRecordPayment, bankAccounts }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
+
+  const [payingDocId, setPayingDocId] = useState(null)
+  const [payTargetStatus, setPayTargetStatus] = useState(null)
+  const [payAmount, setPayAmount] = useState('')
+  const [payAccountId, setPayAccountId] = useState('')
+  const [payDate, setPayDate] = useState('')
+  const [payError, setPayError] = useState(null)
+  const [payingBusy, setPayingBusy] = useState(false)
 
   const submit = async () => {
     if (!text.trim()) return
     await onAddComm({ channel, tag, note: text.trim() })
     setText('')
+  }
+
+  const handleTagChange = (doc, value) => {
+    if ((value === 'Paid' || value === 'Partially Paid') && onRecordPayment) {
+      setPayingDocId(doc.id)
+      setPayTargetStatus(value)
+      setPayAmount(value === 'Paid' ? String(doc.amountDue.toFixed(2)) : '')
+      setPayAccountId(bankAccounts?.[0]?.id || '')
+      setPayDate(toISODate(new Date()))
+      setPayError(null)
+      return
+    }
+    onSetStatus(doc, value)
+  }
+
+  const handleSavePayment = async (doc) => {
+    setPayError(null)
+    const extra = parseFloat(payAmount)
+    if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
+    if (!payAccountId) { setPayError('Select which cash or bank account this landed in.'); return }
+    if (!payDate) { setPayError('Pick the date this payment was actually received.'); return }
+    setPayingBusy(true)
+    const result = await onRecordPayment(doc, { amount: extra, bankAccountId: payAccountId, date: payDate, status: payTargetStatus })
+    setPayingBusy(false)
+    if (!result.ok) { setPayError(result.error); return }
+    setPayingDocId(null)
   }
 
   return (
@@ -68,20 +109,44 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
             </thead>
             <tbody>
               {openDocs.map((d) => (
-                <tr key={d.id} className="ledger-row">
-                  <td className="mono">{d.number}</td>
-                  <td className="mono">{toISODate(new Date(d.issued_date))}</td>
-                  <td className="num mono">{inr(d.amountDue)}</td>
-                  <td><StatusPill status={d.statusLabel} /></td>
-                  {onSetStatus && (
-                    <td>
-                      <select className="select select--sm" value={d.manualStatus || ''} onChange={(e) => onSetStatus(d, e.target.value || null)}>
-                        <option value="">—</option>
-                        {manualStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
+                <Fragment key={d.id}>
+                  <tr className="ledger-row">
+                    <td className="mono">{d.number}</td>
+                    <td className="mono">{toISODate(new Date(d.issued_date))}</td>
+                    <td className="num mono">{inr(d.amountDue)}</td>
+                    <td><StatusPill status={d.statusLabel} /></td>
+                    {onSetStatus && (
+                      <td>
+                        <select className="select select--sm" value={d.manualStatus || ''} onChange={(e) => handleTagChange(d, e.target.value || null)}>
+                          <option value="">—</option>
+                          {manualStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </td>
+                    )}
+                  </tr>
+                  {payingDocId === d.id && (
+                    <tr>
+                      <td colSpan={onSetStatus ? 5 : 4} style={{ padding: 10, background: 'var(--panel-alt)' }}>
+                        <div className="login-footnote" style={{ margin: '0 0 6px', textTransform: 'uppercase', fontSize: 11 }}>
+                          Record payment — marking {payTargetStatus}
+                        </div>
+                        <div className="add-comm-row">
+                          <input className="text-input" type="number" step="0.01" placeholder="Amount received" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                          <select className="select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
+                            <option value="" disabled>Select account…</option>
+                            {(bankAccounts ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </select>
+                          <input className="text-input" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+                        </div>
+                        {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{payError}</p>}
+                        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                          <button className="btn-primary" disabled={payingBusy} onClick={() => handleSavePayment(d)}>{payingBusy ? 'Saving…' : 'Save payment'}</button>
+                          <button type="button" className="link-btn" onClick={() => { setPayingDocId(null); setPayError(null) }}>Cancel</button>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </tr>
+                </Fragment>
               ))}
               {openDocs.length === 0 && (
                 <tr><td colSpan={onSetStatus ? 5 : 4} className="empty-state">No open bills for this client.</td></tr>

@@ -23,6 +23,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [docs, setDocs] = useState([])
   const [customers, setCustomers] = useState([])
   const [comms, setComms] = useState([])
+  const [bankAccounts, setBankAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -43,25 +44,41 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [preview, setPreview] = useState(null)
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
 
+  // Payment-recording form, opened when the Status dropdown is set to Paid
+  // or Partially Paid - both mean "money actually arrived," so both need a
+  // real amount and a real bank account, not just a text tag. payTargetStatus
+  // tracks which of the two was picked, since that's what gets written to
+  // manual_status once the payment itself is successfully recorded.
+  const [payingRowId, setPayingRowId] = useState(null)
+  const [payTargetStatus, setPayTargetStatus] = useState(null)
+  const [payAmount, setPayAmount] = useState('')
+  const [payAccountId, setPayAccountId] = useState('')
+  const [payDate, setPayDate] = useState('')
+  const [payError, setPayError] = useState(null)
+  const [payingBusy, setPayingBusy] = useState(false)
+
   const load = useCallback(async () => {
     if (!firmId) return
     setLoading(true)
     setError(null)
-    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }] = await Promise.all([
+    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }] = await Promise.all([
       supabase.from(table)
         .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
     ])
-    if (docErr || custErr || commErr) { setError((docErr || custErr || commErr).message); setLoading(false); return }
+    if (docErr || custErr || commErr || acctErr) { setError((docErr || custErr || commErr || acctErr).message); setLoading(false); return }
     setDocs(docRows ?? [])
     setCustomers(custs ?? [])
     setComms(commRows ?? [])
+    setBankAccounts(acctRows ?? [])
     setLoading(false)
   }, [firmId, table, numberField])
 
   useEffect(() => { load() }, [load])
+
 
   // Arriving here from a click elsewhere (e.g. "Invoice Follow-up ->" in
   // Receivables' update drawer) pre-filters to that one customer. This
@@ -140,6 +157,22 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // other than Cancelled while a document is currently cancelled reinstates
   // it in the same update, rather than leaving it cancelled with a
   // confusing status tag layered on top.
+  // Opens the payment-recording form rather than writing a value directly -
+  // "Paid" and "Partially Paid" both mean money actually arrived, so both
+  // need a real amount and a real bank account, the same as Record Payment
+  // on Sales/Purchases, not just a text tag with no effect on Collected or
+  // Cash & Bank. Paid defaults the amount to the full outstanding balance;
+  // Partially Paid starts blank since there's no sensible default for it.
+  const openPayForStatus = (row, targetStatus) => {
+    setPayingRowId(row.id)
+    setPayTargetStatus(targetStatus)
+    setPayAmount(targetStatus === 'Paid' ? String((Number(row.amount) - Number(row.paid_amount || 0)).toFixed(2)) : '')
+    setPayAccountId(bankAccounts[0]?.id || '')
+    setPayDate(toISODate(new Date()))
+    setPayError(null)
+    setExpandedId(null)
+  }
+
   const handleStatusDropdownChange = async (row, value) => {
     if (value === 'Cancelled') {
       if (row.is_cancelled) return
@@ -149,10 +182,80 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       load()
       return
     }
+    if (value === 'Paid' || value === 'Partially Paid') {
+      openPayForStatus(row, value)
+      return
+    }
     const updates = { manual_status: value || null }
     if (row.is_cancelled) updates.is_cancelled = false
     const { error: err } = await supabase.from(table).update(updates).eq('id', row.id)
     if (err) { alert(`Couldn't update status: ${err.message}`); return }
+    load()
+  }
+
+  // The actual payment: a real bank_transactions row (so it shows up in
+  // Cash & Bank and contributes a real date to the DSO days-to-collect
+  // trend), the bank account balance updated to match, paid_amount bumped
+  // (added to whatever was already paid, not overwritten - covers more
+  // than one partial payment over time), and manual_status set to
+  // whichever of Paid/Partially Paid was picked. Same shape as
+  // InvoiceListScreen.jsx's Record Payment, just reachable from the
+  // Status dropdown here and PI-aware (related_proforma_invoice_id).
+  const handleRecordPaymentForStatus = async (row) => {
+    setPayError(null)
+    const extra = parseFloat(payAmount)
+    if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
+    if (!payAccountId) { setPayError('Select which cash or bank account this landed in.'); return }
+    if (!payDate) { setPayError('Pick the date this payment was actually received.'); return }
+
+    const account = bankAccounts.find((a) => a.id === payAccountId)
+    if (!account) { setPayError('That account could not be found - try reopening this form.'); return }
+
+    const newPaid = Math.min((Number(row.paid_amount) || 0) + extra, row.amount)
+
+    setPayingBusy(true)
+
+    const updates = { paid_amount: newPaid, manual_status: payTargetStatus }
+    if (row.is_cancelled) updates.is_cancelled = false
+    const { error: docErr } = await supabase.from(table).update(updates).eq('id', row.id)
+
+    let txnErr = null
+    let acctErr = null
+    if (!docErr) {
+      const txnResult = await supabase.from('bank_transactions').insert({
+        firm_id: firmId,
+        bank_account_id: payAccountId,
+        txn_date: payDate,
+        description: `Payment received — ${row[numberField]} (${customerName(row.customer_id)})`,
+        amount: extra,
+        reconciled: true,
+        related_sales_invoice_id: isPi ? null : row.id,
+        related_proforma_invoice_id: isPi ? row.id : null,
+      })
+      txnErr = txnResult.error
+
+      if (!txnErr) {
+        const acctResult = await supabase
+          .from('bank_accounts')
+          .update({ balance: Number(account.balance) + extra })
+          .eq('id', payAccountId)
+        acctErr = acctResult.error
+      }
+    }
+
+    setPayingBusy(false)
+
+    if (docErr) { setPayError(docErr.message); return }
+    if (txnErr || acctErr) {
+      setPayError(
+        `The status was updated, but recording the ${account.name} transaction failed: ${(txnErr || acctErr).message}. ` +
+        `Check Cash & Bank and add it manually if needed.`
+      )
+      load()
+      return
+    }
+
+    setPayingRowId(null)
     load()
   }
 
@@ -437,6 +540,39 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               <button className="link-btn" onClick={() => { setSendConfirmId(null); setExpandedId(null) }}>Cancel</button>
                             </div>
                           )}
+                        </td>
+                      </tr>
+                    )}
+                    {payingRowId === r.id && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
+                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
+                            Record payment — marking {payTargetStatus} on {r[numberField]}
+                          </div>
+                          <div className="add-comm-row">
+                            <input
+                              className="text-input" type="number" step="0.01" placeholder="Amount received"
+                              value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+                            />
+                            <select className="select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
+                              <option value="" disabled>Select account…</option>
+                              {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
+                            <input
+                              className="text-input" type="date"
+                              value={payDate} onChange={(e) => setPayDate(e.target.value)}
+                            />
+                          </div>
+                          {bankAccounts.length === 0 && (
+                            <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>No bank/cash accounts set up yet — add one in Cash & Bank first.</p>
+                          )}
+                          {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{payError}</p>}
+                          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                            <button className="btn-primary" disabled={payingBusy} onClick={() => handleRecordPaymentForStatus(r)}>
+                              {payingBusy ? 'Saving…' : 'Save payment'}
+                            </button>
+                            <button type="button" className="link-btn" onClick={() => { setPayingRowId(null); setPayError(null) }}>Cancel</button>
+                          </div>
                         </td>
                       </tr>
                     )}

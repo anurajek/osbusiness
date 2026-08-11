@@ -22,6 +22,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   const [invoices, setInvoices] = useState([])
   const [pis, setPis] = useState([])
   const [comms, setComms] = useState([])
+  const [bankAccounts, setBankAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -50,15 +51,16 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     setLoading(true)
     setError(null)
 
-    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }] = await Promise.all([
+    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
     ])
 
-    if (custErr || invErr || piErr || commErr) {
-      setError((custErr || invErr || piErr || commErr).message)
+    if (custErr || invErr || piErr || commErr || acctErr) {
+      setError((custErr || invErr || piErr || commErr || acctErr).message)
       setLoading(false)
       return
     }
@@ -66,6 +68,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     setInvoices(invRows ?? [])
     setPis(piRows ?? [])
     setComms(commRows ?? [])
+    setBankAccounts(acctRows ?? [])
     setLoading(false)
   }, [firmId])
 
@@ -200,6 +203,53 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     const { error: err } = await supabase.from(targetTable).update({ manual_status: value || null }).eq('id', doc.id)
     if (err) { alert(`Couldn't update status: ${err.message}`); return }
     await loadAll()
+  }
+
+  // Real payment recording from the drawer's inline mini-form - same shape
+  // as PaymentFollowUpScreen.jsx's version (a genuine bank_transactions
+  // row, the account balance updated, paid_amount bumped rather than
+  // overwritten), just PI-aware here via doc.docType since this same
+  // drawer's Bills list mixes Invoices and PIs together. Returns
+  // {ok, error} rather than throwing/alerting directly, since CommDrawer
+  // itself owns showing the error inline in its mini-form.
+  const handleRecordPaymentFromDrawer = async (doc, { amount, bankAccountId, date, status }) => {
+    const targetTable = doc.docType === 'pi' ? 'proforma_invoices' : 'sales_invoices'
+    const account = bankAccounts.find((a) => a.id === bankAccountId)
+    if (!account) return { ok: false, error: 'That account could not be found - try reopening this form.' }
+
+    const sourceRows = doc.docType === 'pi' ? pis : invoices
+    const sourceDoc = sourceRows.find((r) => r.id === doc.id)
+    const currentPaid = Number(sourceDoc?.paid_amount || 0)
+    const newPaid = Math.min(currentPaid + amount, Number(sourceDoc?.amount ?? doc.amountDue + currentPaid))
+
+    const { error: docErr } = await supabase.from(targetTable)
+      .update({ paid_amount: newPaid, manual_status: status, is_cancelled: false })
+      .eq('id', doc.id)
+    if (docErr) return { ok: false, error: docErr.message }
+
+    const { error: txnErr } = await supabase.from('bank_transactions').insert({
+      firm_id: firmId,
+      bank_account_id: bankAccountId,
+      txn_date: date,
+      description: `Payment received — ${doc.number} (${customers.find((c) => c.id === selectedCustomerId)?.name || ''})`,
+      amount,
+      reconciled: true,
+      related_sales_invoice_id: doc.docType === 'pi' ? null : doc.id,
+      related_proforma_invoice_id: doc.docType === 'pi' ? doc.id : null,
+    })
+    if (txnErr) {
+      await loadAll()
+      return { ok: false, error: `Status was updated, but recording the ${account.name} transaction failed: ${txnErr.message}. Check Cash & Bank and add it manually if needed.` }
+    }
+
+    const { error: acctErr } = await supabase.from('bank_accounts').update({ balance: Number(account.balance) + amount }).eq('id', bankAccountId)
+    if (acctErr) {
+      await loadAll()
+      return { ok: false, error: `Status was updated, but the ${account.name} balance couldn't be updated: ${acctErr.message}.` }
+    }
+
+    await loadAll()
+    return { ok: true }
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -386,6 +436,8 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
           onSetStatus={handleSetDocStatus}
+          onRecordPayment={handleRecordPaymentFromDrawer}
+          bankAccounts={bankAccounts}
           manualStatusOptions={[...MANUAL_STATUSES, 'Cancelled']}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },

@@ -990,7 +990,57 @@ truth — Invoice/PI Follow-up and Receivables both import it now instead
 of each keeping their own copy, so they can't drift out of sync with each
 other again.
 
+## Marking Paid now records a real payment, and PI-to-Invoice linking
+
+Run `migration_pi_payment_linking.sql` in Supabase's SQL Editor —
+additive, safe on the existing database.
+
+### The real gap this closes
+
+Marking something "Paid" via any status dropdown never actually touched
+`paid_amount` — it was a text tag with zero effect on Collected in
+period, Cash & Bank, or the DSO days-to-collect trend. Fixed properly:
+picking **Paid** or **Partially Paid** anywhere (Invoice/PI Follow-up's
+Status column, Receivables' drawer Tag column) now opens the same real
+payment-recording flow Sales/Purchases' "Record payment" already has —
+amount, which bank/cash account it landed in, and the date. On save: a
+genuine `bank_transactions` row is created, the account balance updates
+to match, `paid_amount` is bumped (added to whatever was already paid,
+not overwritten — covers more than one partial payment over time), and
+the status is set. Paid defaults the amount to the full outstanding
+balance; Partially Paid starts blank since there's no sensible default.
+
+### PI-to-Invoice linking, with automatic payment carry-over
+
+This tool still never auto-creates or auto-converts a PI into an Invoice
+— that's exactly the design decision from early on, and it hasn't
+changed. What's new: once you've imported the *real* Tax Invoice
+yourself, **Sales → Actions → Link to PI** lets you explicitly connect it
+to the Proforma Invoice it came from. Linking:
+
+- Copies the PI's `paid_amount` onto the invoice — but only if the
+  invoice doesn't already have its own payment recorded, so real data is
+  never silently overwritten. The screen says so directly if that's the
+  case.
+- **Re-points, not duplicates**, the PI's existing bank transaction to
+  the invoice instead. The cash was only ever received once — creating a
+  second transaction would double-count it in Cash & Bank. The original
+  transaction's real date carries over too, which is genuinely more
+  accurate for the DSO trend than the linking date would be.
+- Tags the PI "Invoiced" as a courtesy, since that's exactly what linking
+  means — this PI has now definitively become a real Tax Invoice.
+
 ## Status
+
+- [x] **Marking Paid records a real payment; PI-to-Invoice linking (Aug
+      2026):** picking Paid/Partially Paid anywhere now opens a real
+      payment-recording flow (amount, bank account, date) instead of
+      writing a decorative tag - a genuine `bank_transactions` row,
+      updated account balance, and `paid_amount` bumped correctly. New
+      "Link to PI" action on Sales carries a PI's payment over to the real
+      imported invoice automatically, re-pointing (never duplicating) the
+      existing transaction. See "Marking Paid now records a real payment,
+      and PI-to-Invoice linking" above for the full detail.
 
 - [x] **Real "All" default, Partially Paid, Cancelled routed correctly
       (Aug 2026):** Status filter default is now a genuine "All" (no more

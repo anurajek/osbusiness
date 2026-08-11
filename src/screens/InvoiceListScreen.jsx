@@ -61,6 +61,16 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const [payingBusy, setPayingBusy] = useState(false)
   const [payError, setPayError] = useState(null)
 
+  // Sales-only: an explicit "this invoice is the real Tax Invoice that PI
+  // became" link, created manually once the real invoice has been
+  // imported. Linking carries the PI's payment over automatically - see
+  // handleLinkToPi below.
+  const [linkingId, setLinkingId] = useState(null)
+  const [availablePis, setAvailablePis] = useState([])
+  const [selectedPiId, setSelectedPiId] = useState('')
+  const [linkingBusy, setLinkingBusy] = useState(false)
+  const [linkError, setLinkError] = useState(null)
+
   const partyTable = isSales ? 'customers' : 'suppliers'
   const table = isSales ? 'sales_invoices' : 'purchase_bills'
   const partyJoinKey = isSales ? 'customer_id' : 'supplier_id'
@@ -79,7 +89,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
 
     const { data: invoiceRows, error: invErr } = await supabase
       .from(table)
-      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
+      .select(`id, ${numberField}, ${partyJoinKey}, issued_date, due_date, amount, paid_amount, status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount${isSales ? ', linked_pi_id' : ''}`)
       .eq('firm_id', firmId)
       .order('issued_date', { ascending: false })
 
@@ -404,6 +414,70 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     load()
   }
 
+  // Sales-only: pulls this customer's non-cancelled PIs to pick from -
+  // any state, not just pending ones, since the point is finding the PI
+  // that actually corresponds to this invoice, which could be fully paid,
+  // tagged, or still open.
+  const openLinkForm = async (row) => {
+    setLinkingId(row.id)
+    setSelectedPiId('')
+    setLinkError(null)
+    setAvailablePis([])
+    const { data, error: err } = await supabase.from('proforma_invoices')
+      .select('id, pi_no, issued_date, amount, paid_amount')
+      .eq('firm_id', firmId)
+      .eq('customer_id', row[partyJoinKey])
+      .eq('is_cancelled', false)
+      .order('issued_date', { ascending: false })
+    if (err) { setLinkError(err.message); return }
+    setAvailablePis(data ?? [])
+  }
+
+  // Links this invoice to the PI it's the real conversion of, and carries
+  // the PI's payment over - only when the invoice doesn't already have its
+  // own payment recorded, so real data here is never silently overwritten.
+  // Re-points (not duplicates) the PI's existing bank transaction to the
+  // invoice instead, since the cash was only ever received once - and
+  // that transaction's original date becomes a real, correct data point
+  // for the DSO days-to-collect trend on this invoice going forward.
+  const handleLinkToPi = async (row) => {
+    if (!selectedPiId) { setLinkError('Pick a Proforma Invoice to link.'); return }
+    const pi = availablePis.find((p) => p.id === selectedPiId)
+    if (!pi) { setLinkError('That PI could not be found - try reopening this.'); return }
+
+    setLinkingBusy(true)
+    setLinkError(null)
+
+    const updates = { linked_pi_id: pi.id }
+    const carryingPayment = Number(row.paid_amount || 0) === 0 && Number(pi.paid_amount || 0) > 0
+    if (carryingPayment) updates.paid_amount = Math.min(Number(pi.paid_amount), Number(row.amount))
+
+    const { error: invErr } = await supabase.from('sales_invoices').update(updates).eq('id', row.id)
+    if (invErr) { setLinkingBusy(false); setLinkError(invErr.message); return }
+
+    if (carryingPayment) {
+      const { error: txnErr } = await supabase.from('bank_transactions')
+        .update({ related_sales_invoice_id: row.id, related_proforma_invoice_id: null })
+        .eq('related_proforma_invoice_id', pi.id)
+      if (txnErr) {
+        setLinkingBusy(false)
+        setLinkError(`Linked, but re-pointing the existing payment record failed: ${txnErr.message}. Check Cash & Bank.`)
+        load()
+        return
+      }
+    }
+
+    // Tags the PI "Invoiced" as a courtesy - that's exactly what linking
+    // means (this PI has now definitively been converted), overwriting
+    // whatever tag was there before since linking is a stronger, more
+    // specific signal than any manual tag set earlier.
+    await supabase.from('proforma_invoices').update({ manual_status: 'Invoiced' }).eq('id', pi.id)
+
+    setLinkingBusy(false)
+    setLinkingId(null)
+    load()
+  }
+
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
@@ -580,6 +654,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                           else if (action === 'edit') openEditForm(r)
                           else if (action === 'preview') handlePreviewPdf(r)
                           else if (action === 'cancel') handleToggleCancelled(r)
+                          else if (action === 'link-pi') openLinkForm(r)
                           else if (action === 'receivables') onNavigate?.('arap', 'receivables', { customerId: r[partyJoinKey] })
                           else if (action === 'payables') onNavigate?.('arap', 'payables', { supplierId: r[partyJoinKey] })
                           else if (action === 'invoice-followup') onNavigate?.('arap', 'invoice-followup', { customerId: r[partyJoinKey] })
@@ -591,6 +666,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         <option value="edit">Edit</option>
                         <option value="preview">Preview</option>
                         <option value="cancel">{r.is_cancelled ? `Reinstate ${docLabel}` : `Cancel ${docLabel}`}</option>
+                        {isSales && <option value="link-pi">{r.linked_pi_id ? 'Change linked PI…' : 'Link to PI…'}</option>}
                         {onNavigate && isSales && <option value="receivables">Receivables →</option>}
                         {onNavigate && !isSales && <option value="payables">Payables →</option>}
                         {onNavigate && isSales && <option value="invoice-followup">Invoice Follow-up →</option>}
@@ -631,6 +707,37 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                           </p>
                         )}
                         {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 6 }}>{payError}</p>}
+                      </td>
+                    </tr>
+                  )}
+                  {linkingId === r.id && (
+                    <tr>
+                      <td colSpan={8} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
+                        <div className="add-comm-row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select className="select" value={selectedPiId} onChange={(e) => setSelectedPiId(e.target.value)}>
+                            <option value="" disabled>Select the Proforma Invoice this became…</option>
+                            {availablePis.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.pi_no} · {toISODate(new Date(p.issued_date))} · {inr(p.amount)} ({inr(p.paid_amount)} paid)
+                              </option>
+                            ))}
+                          </select>
+                          <button className="btn-primary" disabled={linkingBusy || availablePis.length === 0} onClick={() => handleLinkToPi(r)}>
+                            {linkingBusy ? 'Linking…' : 'Link'}
+                          </button>
+                          <button className="link-btn" onClick={() => setLinkingId(null)}>Cancel</button>
+                        </div>
+                        {availablePis.length === 0 && !linkError && (
+                          <p className="login-footnote" style={{ marginTop: 6 }}>
+                            No Proforma Invoices found for {partyName(r[partyJoinKey])}.
+                          </p>
+                        )}
+                        {Number(r.paid_amount || 0) > 0 && (
+                          <p className="login-footnote" style={{ marginTop: 6 }}>
+                            This invoice already has a payment recorded ({inr(r.paid_amount)}) - linking won't overwrite it, so the PI's payment won't be carried over automatically. Record it manually if that's not what already happened here.
+                          </p>
+                        )}
+                        {linkError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 6 }}>{linkError}</p>}
                       </td>
                     </tr>
                   )}
