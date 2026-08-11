@@ -167,7 +167,17 @@ export default function PermissionsScreen() {
     }).select('invite_token').single()
     if (err) {
       setInviting(false)
-      setInviteError(err.message)
+      // This exact constraint (firm_members_firm_email_unique) means
+      // someone with this email is already on the team for this firm -
+      // either already active, or with an invite still pending. Worth
+      // saying that plainly rather than surfacing the raw database error,
+      // which doesn't tell a non-technical person anything actionable.
+      const alreadyMember = err.message?.includes('firm_members_firm_email_unique')
+      setInviteError(
+        alreadyMember
+          ? `${inviteEmail.trim()} is already on this firm's team (check the list below) - no need to invite them again.`
+          : err.message
+      )
       return
     }
 
