@@ -4,7 +4,7 @@ import { inr, toISODate } from '../lib/format'
 import { StatusPill } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
-const STATUS_TAGS = ['Promise to pay', 'Reminder sent', 'Awaiting response', 'Disputed', 'Partially paid', 'No response', 'Payment received']
+const STATUS_TAGS = ['Promise to pay', 'Reminder sent', 'Awaiting response', 'Disputed', 'Partially paid', 'Cancelled', 'No response', 'Payment received']
 
 function relativeTime(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime()

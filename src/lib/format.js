@@ -94,6 +94,16 @@ export function statusForStorage(computed, isSales) {
   return isSales ? "Sent" : "Approved";
 }
 
+// Single source of truth for the manual status vocabulary - both
+// PaymentFollowUpScreen and ReceivablesScreen import this rather than
+// each keeping their own copy, so adding a new value here (or the CHECK
+// constraint that limits what the database will actually accept - see
+// migration_partially_paid_status.sql) only has to happen once. Does NOT
+// include "Cancelled" - that's a real, separate mechanism (is_cancelled),
+// not a manual_status value; the screens that use this list add a
+// "Cancelled" option of their own, wired to that mechanism directly.
+export const MANUAL_STATUSES = ["Sent", "Overdue", "Partially Paid", "Paid", "Invoiced", "Completed"];
+
 // A document (invoice/bill/PI) should stop counting toward "still owed"
 // totals for three different reasons, and all of them matter: the amount
 // is genuinely fully paid, it's been cancelled/voided, or someone has
@@ -102,7 +112,10 @@ export function statusForStorage(computed, isSales) {
 // now exists elsewhere for the same underlying receivable, so continuing
 // to count the PI's amount as pending would double-count it once that Tax
 // Invoice is also imported. Used everywhere a "still pending" figure is
-// computed, so all of them agree with each other.
+// computed, so all of them agree with each other. "Partially Paid" is
+// deliberately NOT in this list - some of the amount is still genuinely
+// outstanding, so it should keep counting as pending exactly like the
+// plain amount-based check already does on its own.
 const RESOLVED_MANUAL_STATUSES = ["Paid", "Invoiced", "Completed"];
 
 export function isResolved(doc) {

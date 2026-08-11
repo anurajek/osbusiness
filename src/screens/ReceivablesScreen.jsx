@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus, isResolved } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, isResolved, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
-
-const MANUAL_STATUSES = ['Sent', 'Overdue', 'Paid', 'Invoiced', 'Completed']
 
 // "Paid" sits alongside the open statuses in the same dropdown now, rather
 // than living in a separate report - selecting it just changes what this
@@ -182,8 +180,23 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   // set when building openDocs below). Since Invoice/PI Follow-up reads
   // from these exact same tables, this shows up there automatically on
   // next load - no separate sync mechanism, it's the same data either way.
+  // "Cancelled" routes to the real is_cancelled toggle rather than writing
+  // manual_status - see lib/format.js's comment on MANUAL_STATUSES for why
+  // those stay two separate, non-overlapping mechanisms. Reinstating a
+  // cancelled document isn't handled here on purpose: this Bills list only
+  // ever shows currently-pending items (isResolved() already excludes
+  // cancelled ones), so there's never a cancelled document to un-cancel
+  // from this particular dropdown - that's what Invoice/PI Follow-up's own
+  // Status column is for.
   const handleSetDocStatus = async (doc, value) => {
     const targetTable = doc.docType === 'pi' ? 'proforma_invoices' : 'sales_invoices'
+    if (value === 'Cancelled') {
+      if (!window.confirm(`Cancel ${doc.number}? It'll stop counting toward what's owed, but stays on record.`)) return
+      const { error: err } = await supabase.from(targetTable).update({ is_cancelled: true }).eq('id', doc.id)
+      if (err) { alert(`Couldn't update that: ${err.message}`); return }
+      await loadAll()
+      return
+    }
     const { error: err } = await supabase.from(targetTable).update({ manual_status: value || null }).eq('id', doc.id)
     if (err) { alert(`Couldn't update status: ${err.message}`); return }
     await loadAll()
@@ -373,7 +386,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
           onSetStatus={handleSetDocStatus}
-          manualStatusOptions={MANUAL_STATUSES}
+          manualStatusOptions={[...MANUAL_STATUSES, 'Cancelled']}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
             { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },

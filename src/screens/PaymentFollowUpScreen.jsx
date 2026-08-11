@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange, isResolved } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -11,7 +11,6 @@ import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
-const MANUAL_STATUSES = ['Sent', 'Overdue', 'Paid', 'Invoiced', 'Completed']
 
 export default function PaymentFollowUpScreen({ docType, navParams, clearNavParams }) {
   const { firmId, firm } = useFirm()
@@ -97,13 +96,21 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const pending = activeDocsInPeriod.filter((d) => !isResolved(d))
 
-  // "All" (the default) is the amount-based pending list, exactly as
-  // before - most people never touch manual_status, so that stays the
-  // common case. Picking a specific manual status searches the whole
-  // period instead, since a document manually tagged "Paid" or
-  // "Completed" may well have already dropped out of the pending set.
-  // Cancelled documents never show in either - they're void, not a status.
-  const baseRows = statusFilter === 'all' ? pending : activeDocsInPeriod.filter((d) => d.manual_status === statusFilter)
+  // "All" now means what it says - every document in the period,
+  // cancelled and resolved ones included, using docsInPeriod directly
+  // rather than the cancelled-excluded activeDocsInPeriod. "Pending" is
+  // the old default behavior (amount-based, actionable, most common case)
+  // under its own explicit name rather than living inside "all." A
+  // specific manual status searches the whole active period, since a
+  // document tagged "Paid" or "Completed" may well have already dropped
+  // out of the pending set. "Cancelled" reads is_cancelled directly,
+  // not manual_status - see lib/format.js's comment on MANUAL_STATUSES
+  // for why those are kept as two different, non-overlapping mechanisms.
+  const baseRows =
+    statusFilter === 'all' ? docsInPeriod
+    : statusFilter === 'pending' ? pending
+    : statusFilter === 'Cancelled' ? docsInPeriod.filter((d) => d.is_cancelled)
+    : activeDocsInPeriod.filter((d) => d.manual_status === statusFilter)
 
   const filtered = baseRows
     .filter((r) => !search.trim() || customerName(r.customer_id).toLowerCase().includes(search.trim().toLowerCase()))
@@ -112,12 +119,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       if (sortBy === 'amount-desc') return (b.amount - b.paid_amount) - (a.amount - a.paid_amount)
       return new Date(b.issued_date) - new Date(a.issued_date)
     })
-
-  const handleSetManualStatus = async (row, value) => {
-    const { error: err } = await supabase.from(table).update({ manual_status: value || null }).eq('id', row.id)
-    if (err) { alert(`Couldn't update status: ${err.message}`); return }
-    load()
-  }
 
   // Cancelling isn't delete - it's "this is void, stop counting it," while
   // keeping the record on file. A cancelled document drops out of every
@@ -129,6 +130,29 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what's owed, but stays on record.`)) return
     const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
     if (err) { alert(`Couldn't update that: ${err.message}`); return }
+    load()
+  }
+
+  // The per-row Status dropdown covers both manual_status values and the
+  // real is_cancelled toggle in one control - this handles whichever was
+  // picked as a single, clean database update, rather than chaining two
+  // separate async calls that could race each other. Picking anything
+  // other than Cancelled while a document is currently cancelled reinstates
+  // it in the same update, rather than leaving it cancelled with a
+  // confusing status tag layered on top.
+  const handleStatusDropdownChange = async (row, value) => {
+    if (value === 'Cancelled') {
+      if (row.is_cancelled) return
+      if (!window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what's owed, but stays on record.`)) return
+      const { error: err } = await supabase.from(table).update({ is_cancelled: true }).eq('id', row.id)
+      if (err) { alert(`Couldn't update that: ${err.message}`); return }
+      load()
+      return
+    }
+    const updates = { manual_status: value || null }
+    if (row.is_cancelled) updates.is_cancelled = false
+    const { error: err } = await supabase.from(table).update(updates).eq('id', row.id)
+    if (err) { alert(`Couldn't update status: ${err.message}`); return }
     load()
   }
 
@@ -279,7 +303,12 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
         filters={[
           {
             label: 'Status', value: statusFilter, onChange: setStatusFilter,
-            options: [{ value: 'all', label: 'Pending (default)' }, ...MANUAL_STATUSES.map((s) => ({ value: s, label: s }))],
+            options: [
+              { value: 'all', label: 'All' },
+              { value: 'pending', label: 'Pending' },
+              ...MANUAL_STATUSES.map((s) => ({ value: s, label: s })),
+              { value: 'Cancelled', label: 'Cancelled' },
+            ],
           },
         ]}
         period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
@@ -293,7 +322,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
-          <h2>{statusFilter === 'all' ? `Pending ${docLabel.toLowerCase()}s` : `${statusFilter} ${docLabel.toLowerCase()}s`}</h2>
+          <h2>
+            {statusFilter === 'all' ? `All ${docLabel.toLowerCase()}s`
+              : statusFilter === 'pending' ? `Pending ${docLabel.toLowerCase()}s`
+              : `${statusFilter} ${docLabel.toLowerCase()}s`}
+          </h2>
           <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="table-scroll">
@@ -324,11 +357,12 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <td onClick={(e) => e.stopPropagation()}>
                         <select
                           className="select select--sm"
-                          value={r.manual_status || ''}
-                          onChange={(e) => handleSetManualStatus(r, e.target.value || null)}
+                          value={r.is_cancelled ? 'Cancelled' : (r.manual_status || '')}
+                          onChange={(e) => handleStatusDropdownChange(r, e.target.value || null)}
                         >
                           <option value="">—</option>
                           {MANUAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          <option value="Cancelled">Cancelled</option>
                         </select>
                       </td>
                       <td>

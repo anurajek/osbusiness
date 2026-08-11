@@ -943,7 +943,65 @@ block above it. For non-Owners (who don't see Firm details at all), a
 small standalone "Your password" card is kept — otherwise they'd have no
 way to change their password at all, since Firm details is Owner-only.
 
+## A real "All", Partially Paid, and Cancelled joining the status vocabulary
+
+Run `migration_partially_paid_status.sql` in Supabase's SQL Editor —
+additive, safe on the existing database.
+
+### Status filter (Invoice/PI Follow-up)
+
+"All" is now the default, and it means what it says — literally every
+document in the period, resolved and cancelled ones included. The old
+default behavior (the amount-based, actionable list) didn't disappear —
+it's "Pending" now, its own explicit option instead of hiding inside
+"all." No more "(default)" suffix anywhere in the label.
+
+### Partially Paid
+
+A genuine new manual status, alongside Sent/Overdue/Paid/Invoiced/
+Completed — available everywhere those are (the Status filter, the
+per-row Status column, and Receivables' update-log drawer). Deliberately
+does *not* remove a document from "still pending" totals — some of the
+amount is still genuinely outstanding, so it keeps counting exactly like
+the plain amount-based check already does on its own.
+
+### Cancelled — routed to the real mechanism, not a second one
+
+This one needed care rather than just adding a string to a list. This app
+already has a real "cancelled" concept (`is_cancelled`, from a few updates
+back) that correctly excludes a document from every total. Adding
+"Cancelled" as *another* manual_status value would have created two
+different, potentially conflicting ways to represent the same thing.
+Instead, "Cancelled" in every status dropdown (Invoice/PI Follow-up's
+Status column, Receivables' drawer Tag column) is wired to toggle
+`is_cancelled` directly — same confirmation prompt, same real effect, as
+the existing "Cancel invoice/PI/bill" action already had. Picking any
+other status while a document is currently cancelled reinstates it in the
+same update, rather than leaving it cancelled with a confusing tag
+layered on top. The Log an Update tag list also gained a plain
+"Cancelled" option, for noting what happened in a conversation — that one
+stays a descriptive note only, same as every other tag there, and doesn't
+touch `is_cancelled`.
+
+### One shared list, not two copies
+
+`MANUAL_STATUSES` moved into `lib/format.js` as the single source of
+truth — Invoice/PI Follow-up and Receivables both import it now instead
+of each keeping their own copy, so they can't drift out of sync with each
+other again.
+
 ## Status
+
+- [x] **Real "All" default, Partially Paid, Cancelled routed correctly
+      (Aug 2026):** Status filter default is now a genuine "All" (no more
+      misleading "(default)" label), with the old pending-list behavior
+      as its own explicit "Pending" option. Added "Partially Paid" as a
+      real manual status. "Cancelled" in every status dropdown routes to
+      the existing `is_cancelled` mechanism rather than creating a second,
+      conflicting way to represent the same thing. `MANUAL_STATUSES`
+      unified into one shared constant. See "A real 'All', Partially Paid,
+      and Cancelled joining the status vocabulary" above for the full
+      reasoning on each.
 
 - [x] **Multi-line CSV import merge, +Add repositioned, password change
       restructured (Aug 2026):** the real bug behind "duplicate" errors on
