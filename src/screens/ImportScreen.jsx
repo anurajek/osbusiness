@@ -108,6 +108,76 @@ function validateRow(raw, mapping, fields) {
   return { parsed, errors }
 }
 
+const SUMMABLE_ITEM_FIELDS = ['subtotal', 'discount_amount', 'cgst_amount', 'sgst_amount', 'igst_amount']
+
+// Some accounting exports (Zoho among them) put one CSV row per line item,
+// repeating the invoice/PI/bill number and its overall total on every row
+// for that document - a real, common export shape, not malformed data.
+// Without this, every row past the first for the same document number
+// looks like a duplicate and gets rejected. This groups already-validated
+// rows by their document number, and for any group with more than one row:
+// merges them into a single document using the shared invoice-level fields
+// (customer, number, date, amount, paid amount - these should be identical
+// across the group, and if they're not, that's a real data problem worth
+// surfacing rather than silently guessing which row is right) plus the
+// SUM of whichever tax/subtotal fields are present, and a combined
+// description. item_quantity/item_rate are dropped for a merged group -
+// summing a quantity or rate across different line items doesn't mean
+// anything, so the PDF falls back to showing the combined description
+// against the summed subtotal instead of a false single qty x rate line.
+function mergeLineItemGroups(rows, dedupeField, dedupeLabel) {
+  const groups = new Map()
+  const order = []
+  for (const r of rows) {
+    const normalized = r.errors.length === 0 ? String(r.parsed[dedupeField] ?? '').trim().toLowerCase() : ''
+    const key = normalized ? normalized : `__row_${r.rowNumber}`
+    if (!groups.has(key)) { groups.set(key, []); order.push(key) }
+    groups.get(key).push(r)
+  }
+
+  const result = []
+  for (const key of order) {
+    const group = groups.get(key)
+    if (group.length === 1 || group[0].errors.length > 0) { result.push(...group); continue }
+
+    const amounts = group.map((r) => Number(r.parsed.amount))
+    const consistent = amounts.every((a) => Math.abs(a - amounts[0]) < 0.01)
+    if (!consistent) {
+      const amountList = amounts.map((a) => `₹${a}`).join(', ')
+      for (const r of group) {
+        r.errors.push(`Multiple rows share ${dedupeLabel} "${r.parsed[dedupeField]}" but disagree on Amount (${amountList}) - fix the CSV so every line for this document has the same total, then re-import`)
+      }
+      result.push(...group)
+      continue
+    }
+
+    const first = group[0]
+    const combinedDescription = group
+      .map((r) => r.parsed.item_description)
+      .filter(Boolean)
+      .join('; ')
+    const summed = {}
+    for (const f of SUMMABLE_ITEM_FIELDS) {
+      const present = group.some((r) => r.parsed[f] != null)
+      summed[f] = present ? group.reduce((s, r) => s + (Number(r.parsed[f]) || 0), 0) : null
+    }
+
+    result.push({
+      ...first,
+      rowNumber: group.map((r) => r.rowNumber).join('-'),
+      mergedRowCount: group.length,
+      parsed: {
+        ...first.parsed,
+        item_description: combinedDescription || first.parsed.item_description,
+        item_quantity: null,
+        item_rate: null,
+        ...summed,
+      },
+    })
+  }
+  return result
+}
+
 export default function ImportScreen() {
   const { firmId } = useFirm()
   const [target, setTarget] = useState('customers')
@@ -191,20 +261,32 @@ export default function ImportScreen() {
     const existingKeys = new Set((existingRows ?? []).map((r) => String(r[def.dedupeColumn] ?? '').trim().toLowerCase()))
     const seenInFile = new Set()
 
-    const rows = rawRows.map((raw, i) => {
+    let rows = rawRows.map((raw, i) => {
       const { parsed, errors } = validateRow(raw, mapping, def.fields)
-      if (errors.length === 0) {
-        const dedupeValue = parsed[def.dedupeField]
+      return { rowNumber: i + 2, raw, parsed, errors } // +2: header row + 1-index
+    })
+
+    // Doc-kind imports only (customers/suppliers never have this) - merge
+    // rows that share a document number into one document before running
+    // the duplicate check below, so a multi-line-item export doesn't look
+    // like the same invoice imported several times over.
+    if (def.kind === 'doc') {
+      rows = mergeLineItemGroups(rows, def.dedupeField, def.dedupeLabel)
+    }
+
+    rows = rows.map((r) => {
+      if (r.errors.length === 0) {
+        const dedupeValue = r.parsed[def.dedupeField]
         const normalized = dedupeValue ? String(dedupeValue).trim().toLowerCase() : ''
         if (normalized && existingKeys.has(normalized)) {
-          errors.push(`Duplicate — ${def.dedupeLabel} "${dedupeValue}" already exists in your books`)
+          r.errors.push(`Duplicate — ${def.dedupeLabel} "${dedupeValue}" already exists in your books`)
         } else if (normalized && seenInFile.has(normalized)) {
-          errors.push(`Duplicate — "${dedupeValue}" appears more than once in this file`)
+          r.errors.push(`Duplicate — "${dedupeValue}" appears more than once in this file`)
         } else if (normalized) {
           seenInFile.add(normalized)
         }
       }
-      return { rowNumber: i + 2, raw, parsed, errors } // +2: header row + 1-index
+      return r
     })
     setValidated(rows)
     setCheckingDuplicates(false)
@@ -411,6 +493,11 @@ export default function ImportScreen() {
                         {r.errors.length === 0
                           ? <span className="pill pill--ok">Ready</span>
                           : <span className="pill pill--bad" title={r.errors.join('; ')}>{r.errors[0]}</span>}
+                        {r.mergedRowCount > 1 && (
+                          <span className="pill pill--neutral" style={{ marginLeft: 6 }} title={`Rows ${r.rowNumber} in the CSV share this document number - combined into one document with the summed total.`}>
+                            Merged from {r.mergedRowCount} lines
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

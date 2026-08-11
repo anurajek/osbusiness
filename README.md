@@ -902,7 +902,60 @@ directly, no email round-trip needed.
 the add-party form is removed, and the "+ New customer"/"+ New supplier"
 button is now a plain compact "+ Add".
 
+## Multi-line CSV import merge, +Add repositioned again, password change restructured
+
+No migration needed — just deploy.
+
+### The real bug behind those "duplicate" errors
+
+Confirmed from your screenshot: DESMA International's two rows weren't a
+duplicate import — they were two line items of the *same* invoice
+(EST/225/26-27), which is exactly how Zoho's export puts one CSV row per
+line item, repeating the invoice number and total on each one. The import
+had no way to tell "same invoice, different line" apart from "actual
+duplicate," so it rejected the second row outright.
+
+**Fixed properly**, not worked around: rows sharing the same Invoice #/PI
+#/Bill # are now merged into one document before any duplicate check
+runs. The merge uses the shared invoice-level total (validated to actually
+match across every row for that document — if it doesn't, that's a real
+data problem and now says so explicitly, rather than silently picking one
+number), sums whatever subtotal/discount/CGST/SGST/IGST fields are
+present, and combines the item descriptions into one field. Quantity and
+rate are dropped specifically for merged rows — summing a quantity or a
+rate across different line items doesn't mean anything real, so the PDF
+falls back to showing the combined description against the correct total
+rather than a fabricated single line. The preview table shows a "Merged
+from N lines" tag on any row this happened to, so it's never invisible.
+
+### +Add moved again — now on the right
+
+Same `addAction` prop on the shared `FilterBar`, just repositioned to
+render last instead of first, putting it on the right side of the row as
+asked.
+
+### Password change restructured to match Firm details
+
+For Owners: "Your password" is no longer its own card — "+ Password
+Change" now sits in Firm details' header corner, stacked under "Edit,"
+opening the same form inline within that one card instead of a separate
+block above it. For non-Owners (who don't see Firm details at all), a
+small standalone "Your password" card is kept — otherwise they'd have no
+way to change their password at all, since Firm details is Owner-only.
+
 ## Status
+
+- [x] **Multi-line CSV import merge, +Add repositioned, password change
+      restructured (Aug 2026):** the real bug behind "duplicate" errors on
+      multi-line-item invoices/PIs (Zoho-style exports with one CSV row
+      per line item) - now correctly merged into one document with a
+      validated, summed total, instead of rejecting every row past the
+      first. "+Add" moved from the left to the right side of the filter
+      row. "Your password" restructured to live inside Firm details'
+      header for Owners (matching that card's Edit-link pattern exactly),
+      with a standalone fallback kept for non-Owners. See "Multi-line CSV
+      import merge, +Add repositioned again, password change restructured"
+      above.
 
 - [x] **Change-password card collapsed, +Add moved into the filter row
       (Aug 2026):** "Your password" on Users & Permissions now matches

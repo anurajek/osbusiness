@@ -45,14 +45,6 @@ export function SearchInput({ value, onChange, placeholder }) {
 export function FilterBar({ addAction, search, filters, period, sort, exportOptions }) {
   return (
     <div className="filter-bar">
-      {addAction && (
-        <div className="filter-field" style={{ justifyContent: 'flex-end' }}>
-          <label>&nbsp;</label>
-          <button type="button" className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} onClick={addAction.onClick}>
-            <Plus size={14} /> {addAction.label ?? 'Add'}
-          </button>
-        </div>
-      )}
       {search && (
         <div className="filter-field filter-field--search">
           <label>Search</label>
@@ -109,6 +101,14 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
             <option value="pdf">PDF</option>
             <option value="word">Word</option>
           </select>
+        </div>
+      )}
+      {addAction && (
+        <div className="filter-field" style={{ justifyContent: 'flex-end' }}>
+          <label>&nbsp;</label>
+          <button type="button" className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} onClick={addAction.onClick}>
+            <Plus size={14} /> {addAction.label ?? 'Add'}
+          </button>
         </div>
       )}
     </div>
