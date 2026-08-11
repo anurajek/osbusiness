@@ -33,6 +33,7 @@ export default function PermissionsScreen({ onChangePassword }) {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
   const [passwordError, setPasswordError] = useState(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [editingPassword, setEditingPassword] = useState(false)
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
@@ -164,6 +165,7 @@ export default function PermissionsScreen({ onChangePassword }) {
     setPasswordSuccess(true)
     setNewPassword('')
     setConfirmNewPassword('')
+    setEditingPassword(false)
   }
 
   const handleInvite = async (e) => {
@@ -291,24 +293,30 @@ export default function PermissionsScreen({ onChangePassword }) {
       <SectionHeader title="Users & Permissions" note="who can see which module" />
 
       <div className="card">
-        <div className="section-header" style={{ marginBottom: 8 }}>
+        <div className="section-header" style={{ marginBottom: editingPassword ? 8 : 0 }}>
           <h2>Your password</h2>
+          {!editingPassword && (
+            <button type="button" className="link-btn" onClick={() => { setEditingPassword(true); setPasswordSuccess(false) }}>Edit</button>
+          )}
         </div>
-        <form onSubmit={handleChangePassword} className="add-comm-form">
-          <div className="add-comm-row">
-            <input
-              className="text-input" type="password" autoComplete="new-password"
-              placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <input
-              className="text-input" type="password" autoComplete="new-password"
-              placeholder="Confirm new password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
-            />
-            <button className="btn-primary" disabled={passwordSubmitting}>{passwordSubmitting ? 'Saving…' : 'Change password'}</button>
-          </div>
-          {passwordError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{passwordError}</p>}
-          {passwordSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>Password updated.</p>}
-        </form>
+        {editingPassword && (
+          <form onSubmit={handleChangePassword} className="add-comm-form">
+            <div className="add-comm-row">
+              <input
+                className="text-input" type="password" autoComplete="new-password"
+                placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <input
+                className="text-input" type="password" autoComplete="new-password"
+                placeholder="Confirm new password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
+              />
+              <button className="btn-primary" disabled={passwordSubmitting}>{passwordSubmitting ? 'Saving…' : 'Change password'}</button>
+              <button type="button" className="link-btn" onClick={() => { setEditingPassword(false); setPasswordError(null) }}>Cancel</button>
+            </div>
+            {passwordError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{passwordError}</p>}
+          </form>
+        )}
+        {passwordSuccess && !editingPassword && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>Password updated.</p>}
       </div>
 
       {isOwner && (

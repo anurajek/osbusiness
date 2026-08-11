@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react'
+import { Search, X, Plus } from 'lucide-react'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
@@ -42,9 +42,17 @@ export function SearchInput({ value, onChange, placeholder }) {
   )
 }
 
-export function FilterBar({ search, filters, period, sort, exportOptions }) {
+export function FilterBar({ addAction, search, filters, period, sort, exportOptions }) {
   return (
     <div className="filter-bar">
+      {addAction && (
+        <div className="filter-field" style={{ justifyContent: 'flex-end' }}>
+          <label>&nbsp;</label>
+          <button type="button" className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} onClick={addAction.onClick}>
+            <Plus size={14} /> {addAction.label ?? 'Add'}
+          </button>
+        </div>
+      )}
       {search && (
         <div className="filter-field filter-field--search">
           <label>Search</label>

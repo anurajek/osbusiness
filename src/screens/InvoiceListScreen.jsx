@@ -414,13 +414,8 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         note={isSales ? 'what your customers owe you, invoice by invoice' : 'what you owe your suppliers, bill by bill'}
       />
 
-      <div className="card">
-        <div className="section-header" style={{ marginBottom: showAddParty ? 12 : 0, justifyContent: 'flex-end' }}>
-          <button className="link-btn" style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setShowAddParty((v) => !v)}>
-            <Plus size={14} /> Add
-          </button>
-        </div>
-        {showAddParty && (
+      {showAddParty && (
+        <div className="card">
           <form onSubmit={handleAddParty} className="add-comm-form">
             <div className="add-comm-row">
               <input className="text-input" placeholder="Name" value={newPartyName} onChange={(e) => setNewPartyName(e.target.value)} />
@@ -431,12 +426,16 @@ export default function InvoiceListScreen({ type, onNavigate }) {
               <input className="text-input" placeholder="Address (optional - shown on invoice/bill PDFs)" value={newPartyAddress} onChange={(e) => setNewPartyAddress(e.target.value)} />
             </div>
             {addPartyError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addPartyError}</p>}
-            <button className="btn-primary" disabled={addingParty}>{addingParty ? 'Adding…' : `Add ${partyLabel}`}</button>
+            <div className="add-comm-row">
+              <button className="btn-primary" disabled={addingParty}>{addingParty ? 'Adding…' : `Add ${partyLabel}`}</button>
+              <button type="button" className="link-btn" onClick={() => setShowAddParty(false)}>Cancel</button>
+            </div>
           </form>
-        )}
-      </div>
+        </div>
+      )}
 
       <FilterBar
+        addAction={{ label: `Add ${partyLabel}`, onClick: () => setShowAddParty((v) => !v) }}
         search={{ value: search, onChange: setSearch, placeholder: isSales ? 'Search invoice # or customer...' : 'Search bill # or supplier...' }}
         filters={[
           {

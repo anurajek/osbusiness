@@ -904,6 +904,16 @@ button is now a plain compact "+ Add".
 
 ## Status
 
+- [x] **Change-password card collapsed, +Add moved into the filter row
+      (Aug 2026):** "Your password" on Users & Permissions now matches
+      Firm details exactly - collapsed by default, an "Edit" link reveals
+      the form, same as everywhere else that pattern is used. The
+      Customers/Suppliers "+ Add" button moved out of its own separate
+      card and into the filter row itself, to the left of Search - also
+      fixed once in the shared `FilterBar` component via a new optional
+      `addAction` prop, so any future screen that needs the same pattern
+      gets it for free.
+
 - [x] **Forgot password, change password, Sales/Purchases cleanup (Aug
       2026):** "Forgot password?" on login (Supabase's own auth email, no
       new setup needed), a "Your password" change-password card on Users &
