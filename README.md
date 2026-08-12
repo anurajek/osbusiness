@@ -1166,7 +1166,58 @@ only ship the fix and the tool to find them.
 3. For your DESMA example specifically: delete the "Payment received —
    EST/225/26-27" transaction, keep "Payment received — GF/26-27/0218."
 
+## A second, different duplicate-payment mechanism, also closed
+
+No migration needed for the code fix — just deploy. There's a cleanup
+step for existing data, described below.
+
+### What actually happened this time
+
+A genuinely different bug from last update's fix, not the same one
+recurring. This PI already had ₹47,200 carried over automatically during
+Move to Invoice. The "payment already received" checkbox then recorded
+whatever was typed into it as a brand new transaction — even though it
+was the same ₹47,200 already accounted for by the carry-over. The
+invoice's own `paid_amount` was correctly capped at the real total, but
+the bank transaction itself wasn't, so ₹94,400 landed in the bank account
+for money that was only ever ₹47,200.
+
+**Fixed at the actual point of failure**: the new-payment transaction now
+always uses the real *remaining* amount after the carry-over, capped the
+same way `paid_amount` already was — not the raw number typed into the
+box. Concretely: if the carry-over already covers the full invoice, that
+box now correctly records nothing further, no matter what's entered into
+it. The form's wording was also rewritten to say plainly that the
+checkbox is only for money *beyond* what's already shown carrying over,
+and the amount/account/date fields no longer even appear once a PI is
+already fully paid, since there's nothing left to record at that point.
+
+### Cleaning up what already exists
+
+`find_duplicate_payments.sql` was rewritten to be more general — the
+previous version only caught duplicates split across a PI-side and an
+invoice-side transaction (last update's bug shape). This one instead
+finds any invoice or PI where its linked transactions simply sum to more
+than the document's own amount, which catches this new shape too (both
+transactions ending up correctly linked to the invoice, just still two of
+them). Run it, then in Cash & Bank, delete one of the two matching
+transactions for each result it returns — for L D THE POWER SOLUTIONS
+specifically, delete either the "EST/230/26-27" or "GF/26-27/0228" entry
+(both ₹47,200) and keep the other.
+
 ## Status
+
+- [x] **Second duplicate-payment mechanism found and closed (Aug 2026):** a
+      genuinely different bug from the previous fix - "payment already
+      received" in Move to Invoice recorded the raw typed amount as a new
+      transaction even when the carry-over already covered it, since only
+      `paid_amount` was capped, not the transaction itself. Now the new
+      transaction always uses the real remaining amount after the
+      carry-over - checking the box when nothing is actually owed beyond
+      it correctly records nothing. `find_duplicate_payments.sql`
+      rewritten to catch this shape too (any doc whose transactions sum
+      past its own amount, not just one specific FK pattern). See "A
+      second, different duplicate-payment mechanism, also closed" above.
 
 - [x] **Duplicate payment mechanism blocked at the source (Aug 2026):**
       confirmed the real cause of duplicate Cash & Bank entries -

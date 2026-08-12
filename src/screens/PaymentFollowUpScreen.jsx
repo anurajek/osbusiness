@@ -230,6 +230,16 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
     const carriedPaid = Number(row.paid_amount || 0)
     const totalPaid = Math.min(carriedPaid + newPayment, row.amount)
+    // The real amount to record as a new transaction - capped by what's
+    // actually left to pay after the carry-over, not the raw number typed
+    // into the box. This is the actual fix: if the carried-over amount
+    // already covers the full invoice (exactly what happened here -
+    // ₹47,200 carried over, then ₹47,200 typed into "payment received"
+    // thinking it needed re-entering), this correctly comes out to 0 -
+    // nothing new gets recorded, instead of a second real transaction for
+    // money that was never actually received twice.
+    const actualNewAmount = Math.max(0, totalPaid - carriedPaid)
+
     const { data: newInvoice, error: insertErr } = await supabase.from('sales_invoices').insert({
       firm_id: firmId,
       customer_id: row.customer_id,
@@ -255,14 +265,14 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       }
     }
 
-    if (newPayment > 0) {
+    if (actualNewAmount > 0) {
       const account = bankAccounts.find((a) => a.id === convertPayAccountId)
       const { error: txnErr } = await supabase.from('bank_transactions').insert({
         firm_id: firmId,
         bank_account_id: convertPayAccountId,
         txn_date: convertPayDate,
         description: `Payment received — ${convertInvoiceNo.trim()} (${customerName(row.customer_id)})`,
-        amount: newPayment,
+        amount: actualNewAmount,
         reconciled: true,
         related_sales_invoice_id: newInvoice.id,
       })
@@ -273,7 +283,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
         return
       }
       if (account) {
-        const { error: acctErr } = await supabase.from('bank_accounts').update({ balance: Number(account.balance) + newPayment }).eq('id', convertPayAccountId)
+        const { error: acctErr } = await supabase.from('bank_accounts').update({ balance: Number(account.balance) + actualNewAmount }).eq('id', convertPayAccountId)
         if (acctErr) {
           setConvertingBusy(false)
           setConvertError(`Invoice ${convertInvoiceNo.trim()} was created and the payment recorded, but the ${account.name} balance couldn't be updated: ${acctErr.message}.`)
@@ -763,30 +773,45 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           </div>
                           <p className="login-footnote" style={{ marginTop: 6 }}>
                             {Number(r.paid_amount) > 0
-                              ? `Amount (${inr(r.amount)}) and what's already paid (${inr(r.paid_amount)}) carry over automatically — that part is never entered twice.`
+                              ? `Amount (${inr(r.amount)}) and what's already paid on this PI (${inr(r.paid_amount)}) carry over automatically — that part is already handled, don't re-enter it below.`
                               : `Amount (${inr(r.amount)}) carries over automatically.`}
                           </p>
 
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: '13px', color: 'var(--paper)' }}>
-                            <input type="checkbox" checked={convertPaymentReceived} onChange={(e) => setConvertPaymentReceived(e.target.checked)} />
-                            Payment already received for this invoice (beyond what's shown above)
-                          </label>
+                          {Number(r.paid_amount) >= Number(r.amount) ? (
+                            <p className="login-footnote" style={{ marginTop: 10 }}>
+                              This PI is already fully paid — that carries over automatically, so there's nothing further to record here.
+                            </p>
+                          ) : (
+                            <>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: '13px', color: 'var(--paper)' }}>
+                                <input type="checkbox" checked={convertPaymentReceived} onChange={(e) => setConvertPaymentReceived(e.target.checked)} />
+                                {Number(r.paid_amount) > 0
+                                  ? `More money came in on top of the ${inr(r.paid_amount)} above`
+                                  : 'Payment already received for this invoice'}
+                              </label>
+                              {Number(r.paid_amount) > 0 && (
+                                <p className="login-footnote" style={{ marginTop: 2 }}>
+                                  Only check this for a genuinely additional amount — the {inr(r.paid_amount)} already carries over on its own.
+                                </p>
+                              )}
 
-                          {convertPaymentReceived && (
-                            <div className="add-comm-row" style={{ marginTop: 8 }}>
-                              <input
-                                className="text-input" type="number" step="0.01" placeholder="Amount received"
-                                value={convertPayAmount} onChange={(e) => setConvertPayAmount(e.target.value)}
-                              />
-                              <select className="select" value={convertPayAccountId} onChange={(e) => setConvertPayAccountId(e.target.value)}>
-                                <option value="" disabled>Select account…</option>
-                                {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                              </select>
-                              <input
-                                className="text-input" type="date"
-                                value={convertPayDate} onChange={(e) => setConvertPayDate(e.target.value)}
-                              />
-                            </div>
+                              {convertPaymentReceived && (
+                                <div className="add-comm-row" style={{ marginTop: 8 }}>
+                                  <input
+                                    className="text-input" type="number" step="0.01" placeholder="Amount received"
+                                    value={convertPayAmount} onChange={(e) => setConvertPayAmount(e.target.value)}
+                                  />
+                                  <select className="select" value={convertPayAccountId} onChange={(e) => setConvertPayAccountId(e.target.value)}>
+                                    <option value="" disabled>Select account…</option>
+                                    {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                  </select>
+                                  <input
+                                    className="text-input" type="date"
+                                    value={convertPayDate} onChange={(e) => setConvertPayDate(e.target.value)}
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                           {convertPaymentReceived && bankAccounts.length === 0 && (
                             <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>No bank/cash accounts set up yet — add one in Cash & Bank first.</p>
