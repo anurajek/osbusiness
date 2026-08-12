@@ -62,11 +62,18 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // auto-generates those, it's just one step instead of a separate CSV
   // import + Link to PI). Whatever the PI's paid_amount already is gets
   // carried over untouched, and any bank_transaction tied to the PI is
-  // re-pointed to the new invoice rather than duplicated - no new payment
-  // is ever created here, only carried forward.
+  // re-pointed to the new invoice rather than duplicated. Optionally, a
+  // genuinely new payment can be recorded in this same step (separate
+  // from whatever was already carried over) - a real question, not an
+  // automatic assumption, since whether payment happened before or after
+  // the real invoice existed varies case to case.
   const [convertingRowId, setConvertingRowId] = useState(null)
   const [convertInvoiceNo, setConvertInvoiceNo] = useState('')
   const [convertDate, setConvertDate] = useState('')
+  const [convertPaymentReceived, setConvertPaymentReceived] = useState(false)
+  const [convertPayAmount, setConvertPayAmount] = useState('')
+  const [convertPayAccountId, setConvertPayAccountId] = useState('')
+  const [convertPayDate, setConvertPayDate] = useState('')
   const [convertError, setConvertError] = useState(null)
   const [convertingBusy, setConvertingBusy] = useState(false)
 
@@ -74,21 +81,37 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (!firmId) return
     setLoading(true)
     setError(null)
-    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }] = await Promise.all([
+    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }, { data: linkedRows, error: linkedErr }] = await Promise.all([
       supabase.from(table)
         .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
+      // Once a PI is linked to an invoice (Move to Invoice / Link to PI),
+      // the PI's own paid_amount is a one-time snapshot from that moment -
+      // nothing updates it again when the invoice is later paid, since
+      // they're two separate rows. Rather than trying to keep them in
+      // sync on every possible payment-recording code path (fragile, easy
+      // to miss one), this reads the linked invoice's CURRENT paid_amount
+      // fresh every load and uses it in place of the PI's own frozen
+      // value below - self-healing, and it fixes an already-drifted PI
+      // immediately with no backfill needed.
+      isPi ? supabase.from('sales_invoices').select('paid_amount, linked_pi_id').eq('firm_id', firmId).not('linked_pi_id', 'is', null) : Promise.resolve({ data: [], error: null }),
     ])
-    if (docErr || custErr || commErr || acctErr) { setError((docErr || custErr || commErr || acctErr).message); setLoading(false); return }
-    setDocs(docRows ?? [])
+    if (docErr || custErr || commErr || acctErr || linkedErr) { setError((docErr || custErr || commErr || acctErr || linkedErr).message); setLoading(false); return }
+
+    const paidByLinkedPiId = new Map((linkedRows ?? []).map((inv) => [inv.linked_pi_id, Number(inv.paid_amount)]))
+    const effectiveDocs = (docRows ?? []).map((d) =>
+      paidByLinkedPiId.has(d.id) ? { ...d, paid_amount: paidByLinkedPiId.get(d.id), linkedToInvoice: true } : d
+    )
+
+    setDocs(effectiveDocs)
     setCustomers(custs ?? [])
     setComms(commRows ?? [])
     setBankAccounts(acctRows ?? [])
     setLoading(false)
-  }, [firmId, table, numberField])
+  }, [firmId, table, numberField, isPi])
 
   useEffect(() => { load() }, [load])
 
@@ -167,6 +190,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setConvertingRowId(row.id)
     setConvertInvoiceNo('')
     setConvertDate(toISODate(new Date()))
+    setConvertPaymentReceived(false)
+    setConvertPayAmount('')
+    setConvertPayAccountId(bankAccounts[0]?.id || '')
+    setConvertPayDate(toISODate(new Date()))
     setConvertError(null)
     setExpandedId(null)
     setPayingRowId(null)
@@ -174,27 +201,38 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   // Creates the real sales_invoices row from this PI - customer and amount
   // come straight from the PI, invoice number and date are what you type
-  // (this tool still never invents a real invoice number). paid_amount is
-  // carried over exactly as-is from the PI, never re-entered, and any
-  // bank_transaction already linked to the PI is re-pointed to the new
-  // invoice rather than duplicated - the cash was only ever received
-  // once, so there is exactly one transaction for it either way.
+  // (this tool still never invents a real invoice number). Whatever the PI
+  // already had paid carries over as-is, and any bank_transaction already
+  // tied to the PI is re-pointed to the new invoice rather than duplicated
+  // - the cash was only ever received once. Separately, "payment already
+  // received" is an actual question here, not an automatic assumption -
+  // if checked, that amount is recorded as a genuinely new payment (its
+  // own new bank_transaction), on top of whatever was carried over, since
+  // it's real money that hasn't been recorded anywhere yet.
   const handleConvertToInvoice = async (row) => {
     setConvertError(null)
     if (!convertInvoiceNo.trim()) { setConvertError('Enter the real invoice number.'); return }
     if (!convertDate) { setConvertError('Pick the invoice date.'); return }
+    let newPayment = 0
+    if (convertPaymentReceived) {
+      newPayment = parseFloat(convertPayAmount)
+      if (!newPayment || newPayment <= 0) { setConvertError('Enter a valid amount received.'); return }
+      if (!convertPayAccountId) { setConvertError('Select which cash or bank account this landed in.'); return }
+      if (!convertPayDate) { setConvertError('Pick the date this payment was actually received.'); return }
+    }
 
     setConvertingBusy(true)
 
     const carriedPaid = Number(row.paid_amount || 0)
+    const totalPaid = Math.min(carriedPaid + newPayment, row.amount)
     const { data: newInvoice, error: insertErr } = await supabase.from('sales_invoices').insert({
       firm_id: firmId,
       customer_id: row.customer_id,
       invoice_no: convertInvoiceNo.trim(),
       issued_date: convertDate,
       amount: row.amount,
-      paid_amount: carriedPaid,
-      status: carriedPaid >= row.amount ? 'Paid' : 'Sent',
+      paid_amount: totalPaid,
+      status: totalPaid >= row.amount ? 'Paid' : 'Sent',
       linked_pi_id: row.id,
     }).select('id').single()
 
@@ -209,6 +247,34 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
         setConvertError(`Invoice ${convertInvoiceNo.trim()} was created, but re-pointing the existing payment record failed: ${txnErr.message}. Check Cash & Bank.`)
         load()
         return
+      }
+    }
+
+    if (newPayment > 0) {
+      const account = bankAccounts.find((a) => a.id === convertPayAccountId)
+      const { error: txnErr } = await supabase.from('bank_transactions').insert({
+        firm_id: firmId,
+        bank_account_id: convertPayAccountId,
+        txn_date: convertPayDate,
+        description: `Payment received — ${convertInvoiceNo.trim()} (${customerName(row.customer_id)})`,
+        amount: newPayment,
+        reconciled: true,
+        related_sales_invoice_id: newInvoice.id,
+      })
+      if (txnErr) {
+        setConvertingBusy(false)
+        setConvertError(`Invoice ${convertInvoiceNo.trim()} was created, but recording the new payment failed: ${txnErr.message}. Check Cash & Bank.`)
+        load()
+        return
+      }
+      if (account) {
+        const { error: acctErr } = await supabase.from('bank_accounts').update({ balance: Number(account.balance) + newPayment }).eq('id', convertPayAccountId)
+        if (acctErr) {
+          setConvertingBusy(false)
+          setConvertError(`Invoice ${convertInvoiceNo.trim()} was created and the payment recorded, but the ${account.name} balance couldn't be updated: ${acctErr.message}.`)
+          load()
+          return
+        }
       }
     }
 
@@ -535,7 +601,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <td>{customerName(r.customer_id)}</td>
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
-                      <td className="num mono">{inr(r.amount - r.paid_amount)}</td>
+                      <td className="num mono">
+                        {inr(r.amount - r.paid_amount)}
+                        {r.linkedToInvoice && <span title="This PI is linked to a Sales Invoice - the amount shown here follows that invoice's current payment status, not a separately-tracked figure on the PI itself." style={{ marginLeft: 4, color: 'var(--paper-dim)', cursor: 'help' }}>ⓘ</span>}
+                      </td>
                       <td className="mono">{toISODate(dueDate)}</td>
                       <td className="num mono" style={{ color: overdue > 0 ? 'var(--brick)' : 'inherit' }}>{overdue > 0 ? overdue : '—'}</td>
                       <td onClick={(e) => e.stopPropagation()}>
@@ -675,8 +744,36 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                             />
                           </div>
                           <p className="login-footnote" style={{ marginTop: 6 }}>
-                            Amount ({inr(r.amount)}) and paid so far ({inr(r.paid_amount)}) carry over automatically — no new payment is created, and nothing gets entered twice.
+                            {Number(r.paid_amount) > 0
+                              ? `Amount (${inr(r.amount)}) and what's already paid (${inr(r.paid_amount)}) carry over automatically — that part is never entered twice.`
+                              : `Amount (${inr(r.amount)}) carries over automatically.`}
                           </p>
+
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: '13px', color: 'var(--paper)' }}>
+                            <input type="checkbox" checked={convertPaymentReceived} onChange={(e) => setConvertPaymentReceived(e.target.checked)} />
+                            Payment already received for this invoice (beyond what's shown above)
+                          </label>
+
+                          {convertPaymentReceived && (
+                            <div className="add-comm-row" style={{ marginTop: 8 }}>
+                              <input
+                                className="text-input" type="number" step="0.01" placeholder="Amount received"
+                                value={convertPayAmount} onChange={(e) => setConvertPayAmount(e.target.value)}
+                              />
+                              <select className="select" value={convertPayAccountId} onChange={(e) => setConvertPayAccountId(e.target.value)}>
+                                <option value="" disabled>Select account…</option>
+                                {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                              </select>
+                              <input
+                                className="text-input" type="date"
+                                value={convertPayDate} onChange={(e) => setConvertPayDate(e.target.value)}
+                              />
+                            </div>
+                          )}
+                          {convertPaymentReceived && bankAccounts.length === 0 && (
+                            <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>No bank/cash accounts set up yet — add one in Cash & Bank first.</p>
+                          )}
+
                           {convertError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{convertError}</p>}
                           <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                             <button className="btn-primary" disabled={convertingBusy} onClick={() => handleConvertToInvoice(r)}>

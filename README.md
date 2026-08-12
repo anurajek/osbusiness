@@ -1084,7 +1084,58 @@ automatically once the invoice exists. Link to PI itself is untouched and
 still there on Sales, for when the invoice already exists in your books
 and just needs connecting after the fact.
 
+## PI pending amount self-heals after its invoice is paid, and a real payment question in Move to Invoice
+
+No migration needed — just deploy.
+
+### The real cause of the stale PI pending amount
+
+Confirmed exactly what happened: once a PI is linked to an invoice
+(Move to Invoice or Link to PI), they become two separate database rows.
+Recording a payment on the invoice afterward only ever updated the
+invoice's own `paid_amount` — the PI's `paid_amount` was a one-time
+snapshot from the moment it was linked, and nothing was written to
+update it again. E-BEAMS INFO TECH's PI correctly showed "Invoiced," but
+its Amount Pending column kept showing the full ₹41,300 forever, even
+after the real invoice was fully paid.
+
+**Fixed as self-healing, not a one-time correction.** PI Follow-up now
+reads the linked invoice's *current* paid amount fresh on every load and
+uses it in place of the PI's own frozen value — for the pending amount
+shown, and for every calculation built on it (Still pending, whether it
+counts as resolved). This wasn't a write-time sync added to the payment
+flow (which would only prevent it going forward and still leave your
+existing E-BEAMS PI wrong) — it reads live from the source of truth every
+time, so an already-drifted PI corrects itself immediately with no manual
+fix needed, and it can't drift again no matter which screen a future
+payment gets recorded on. A small ⓘ next to the amount marks a PI that's
+tracking a linked invoice this way, so it's clear where the number is
+coming from.
+
+### Move to Invoice now asks about payment directly
+
+Previously the only way to record a payment on a just-created invoice was
+a separate trip to Invoice Follow-up afterward — exactly the two-step
+workflow described. Move to Invoice now has its own "Payment already
+received for this invoice" question, right in the same form. Checking it
+reveals amount/account/date, recorded as a genuinely new payment (its own
+bank transaction) — kept clearly separate from whatever was already
+carried over from the PI, so the two amounts are never confused or added
+together in an untraceable way.
+
 ## Status
+
+- [x] **PI pending amount self-heals; Move to Invoice asks about payment
+      directly (Aug 2026):** confirmed the real cause of a linked PI's
+      Amount Pending staying stale forever after its invoice was paid -
+      the two rows just never synced. Fixed as self-healing (reads the
+      linked invoice's live paid amount every load, not a one-time
+      correction), which also immediately fixes any PI already drifted,
+      not just future ones. Move to Invoice gained its own "Payment
+      already received" question, so a new payment can be recorded in the
+      same step instead of a separate trip afterward. See "PI pending
+      amount self-heals after its invoice is paid, and a real payment
+      question in Move to Invoice" above.
 
 - [x] **Move to Invoice (Aug 2026):** PI Follow-up → Actions → "Move to
       Invoice…" - a faster path to what Link to PI already did, creating
