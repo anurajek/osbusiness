@@ -97,14 +97,15 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       // fresh every load and uses it in place of the PI's own frozen
       // value below - self-healing, and it fixes an already-drifted PI
       // immediately with no backfill needed.
-      isPi ? supabase.from('sales_invoices').select('paid_amount, linked_pi_id').eq('firm_id', firmId).not('linked_pi_id', 'is', null) : Promise.resolve({ data: [], error: null }),
+      isPi ? supabase.from('sales_invoices').select('id, invoice_no, paid_amount, linked_pi_id').eq('firm_id', firmId).not('linked_pi_id', 'is', null) : Promise.resolve({ data: [], error: null }),
     ])
     if (docErr || custErr || commErr || acctErr || linkedErr) { setError((docErr || custErr || commErr || acctErr || linkedErr).message); setLoading(false); return }
 
-    const paidByLinkedPiId = new Map((linkedRows ?? []).map((inv) => [inv.linked_pi_id, Number(inv.paid_amount)]))
-    const effectiveDocs = (docRows ?? []).map((d) =>
-      paidByLinkedPiId.has(d.id) ? { ...d, paid_amount: paidByLinkedPiId.get(d.id), linkedToInvoice: true } : d
-    )
+    const linkedInvoiceByPiId = new Map((linkedRows ?? []).map((inv) => [inv.linked_pi_id, inv]))
+    const effectiveDocs = (docRows ?? []).map((d) => {
+      const linked = linkedInvoiceByPiId.get(d.id)
+      return linked ? { ...d, paid_amount: Number(linked.paid_amount), linkedToInvoice: true, linkedInvoiceId: linked.id, linkedInvoiceNo: linked.invoice_no } : d
+    })
 
     setDocs(effectiveDocs)
     setCustomers(custs ?? [])
@@ -187,6 +188,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   }
 
   const openConvertForm = (row) => {
+    if (row.linkedToInvoice) {
+      alert(`${row[numberField]} is already linked to Invoice ${row.linkedInvoiceNo}. Moving it again would create a second invoice for the same PI - manage this from Invoice Follow-up instead.`)
+      return
+    }
     setConvertingRowId(row.id)
     setConvertInvoiceNo('')
     setConvertDate(toISODate(new Date()))
@@ -325,6 +330,19 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       return
     }
     if (value === 'Paid' || value === 'Partially Paid') {
+      // The actual mechanism behind duplicate Cash & Bank entries: once a
+      // PI is linked to an invoice, its own paid_amount is already just a
+      // live reflection of that invoice (see the self-healing logic in
+      // load() above). Recording a *new* payment here anyway would create
+      // a second, completely independent transaction for money that's
+      // already accounted for on the invoice side - exactly what created
+      // the duplicate EST/225 + GF/26-27/0218 entries. Blocked outright
+      // rather than just discouraged, since this is real money being
+      // double-counted, not a cosmetic mistake.
+      if (row.linkedToInvoice) {
+        alert(`${row[numberField]} is linked to Invoice ${row.linkedInvoiceNo} - record or manage payments there instead (Invoice Follow-up), not here. This avoids the same payment ever being entered twice.`)
+        return
+      }
       openPayForStatus(row, value)
       return
     }
@@ -637,7 +655,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
                           <option value="emails">Manage reminder emails</option>
-                          {isPi && <option value="convert">Move to Invoice…</option>}
+                          {isPi && <option value="convert">{r.linkedToInvoice ? `Already → ${r.linkedInvoiceNo}` : 'Move to Invoice…'}</option>}
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
                         </select>
                       </td>

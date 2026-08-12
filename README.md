@@ -1123,7 +1123,64 @@ bank transaction) — kept clearly separate from whatever was already
 carried over from the PI, so the two amounts are never confused or added
 together in an untraceable way.
 
+## The actual duplicate-payment mechanism, blocked at the source
+
+No migration needed for the code fix — just deploy. There's a cleanup
+step for existing data, described below.
+
+### What was actually happening
+
+Confirmed exactly from the DESMA example: recording a payment on a PI
+*after* it was already linked to an invoice created a completely
+independent second transaction — the PI side had no idea the invoice
+existed, so nothing stopped it. The self-healing fix from last update
+only corrected what gets *displayed* as a PI's pending amount; it never
+stopped someone from creating a genuinely new, separate transaction on
+the PI side of an already-linked pair. That's the real mechanism behind
+the duplicate ₹88,500 entries.
+
+**Fixed at the source, not with another display trick.** Trying to mark
+a linked PI Paid/Partially Paid is now blocked outright, with a message
+pointing to the actual linked invoice to use instead — this is where real
+money would get double-counted, so it's a hard stop, not a suggestion.
+Trying to "Move to Invoice" a PI that's already linked is blocked the
+same way, since that would create a second invoice for the same PI. The
+Actions dropdown also now shows "Already → GF/26-27/0218" directly on an
+already-linked PI, so which ones are linked is visible before you even
+try.
+
+### Cleaning up the duplicates that already exist
+
+This part needs your hand, since I can't reach into your live database —
+only ship the fix and the tool to find them.
+
+1. Run `find_duplicate_payments.sql` in Supabase's SQL Editor. It's
+   read-only — it finds every PI-linked-invoice pair where *both* sides
+   ended up with their own transaction (exactly your DESMA case), without
+   deleting anything.
+2. For each row it returns, go to **Cash & Bank** and delete the
+   transaction whose description mentions the **PI number** (not the
+   invoice number) — that's the stray one. Deleting through the UI matters
+   here, not a raw SQL delete: it's what correctly reverses the account
+   balance by the right amount, the same fix from a couple of updates ago.
+3. For your DESMA example specifically: delete the "Payment received —
+   EST/225/26-27" transaction, keep "Payment received — GF/26-27/0218."
+
 ## Status
+
+- [x] **Duplicate payment mechanism blocked at the source (Aug 2026):**
+      confirmed the real cause of duplicate Cash & Bank entries -
+      recording a payment on a PI *after* it was already linked to an
+      invoice created a fully independent second transaction, since the
+      PI side had no idea the link existed. Now blocked outright (not
+      just displayed differently) - marking a linked PI Paid/Partially
+      Paid, or moving it to invoice a second time, is stopped with a
+      message pointing to the real linked invoice. Includes
+      `find_duplicate_payments.sql`, a read-only query to find every
+      existing duplicate pair for manual cleanup via Cash & Bank's
+      delete (which correctly reverses the balance). See "The actual
+      duplicate-payment mechanism, blocked at the source" above for the
+      full cleanup walkthrough.
 
 - [x] **PI pending amount self-heals; Move to Invoice asks about payment
       directly (Aug 2026):** confirmed the real cause of a linked PI's
