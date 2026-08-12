@@ -1066,7 +1066,34 @@ firm, with its own search box (by PI # or customer name) to narrow it
 down — slower to scan for a large firm, but it can never go silently
 empty because of a customer-record mismatch it has no way to detect.
 
+## Move to Invoice — a more direct alternative to Link to PI
+
+No migration needed — just deploy.
+
+A faster path to the same result "Link to PI" already gave you: **PI
+Follow-up → Actions → Move to Invoice…**, right from the PI's own row,
+instead of importing the invoice via CSV first and then finding it to
+link separately. You type the real invoice number and date (this tool
+still never invents one) — customer and amount come straight from the
+PI, and whatever's already been paid carries over exactly as-is. No new
+payment is created and nothing gets entered twice: any bank transaction
+already linked to the PI is re-pointed to the new invoice, the same
+re-point-not-duplicate approach Link to PI uses, for the same reason —
+the cash was only ever received once. The PI gets tagged "Invoiced"
+automatically once the invoice exists. Link to PI itself is untouched and
+still there on Sales, for when the invoice already exists in your books
+and just needs connecting after the fact.
+
 ## Status
+
+- [x] **Move to Invoice (Aug 2026):** PI Follow-up → Actions → "Move to
+      Invoice…" - a faster path to what Link to PI already did, creating
+      the real sales_invoices record directly from the PI's row instead of
+      needing a separate CSV import first. Type the real invoice number
+      and date; amount and paid-so-far carry over automatically, with the
+      same re-point-not-duplicate transaction handling Link to PI uses.
+      See "Move to Invoice — a more direct alternative to Link to PI"
+      above.
 
 - [x] **Two real bugs fixed: stray Cash & Bank entries, Link to PI showing
       nothing (Aug 2026):** deleting a PI-linked payment transaction never

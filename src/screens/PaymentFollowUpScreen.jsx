@@ -57,6 +57,19 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [payError, setPayError] = useState(null)
   const [payingBusy, setPayingBusy] = useState(false)
 
+  // PI-only: creates the real sales_invoices record directly from this PI
+  // (you type the actual invoice number/date - this tool still never
+  // auto-generates those, it's just one step instead of a separate CSV
+  // import + Link to PI). Whatever the PI's paid_amount already is gets
+  // carried over untouched, and any bank_transaction tied to the PI is
+  // re-pointed to the new invoice rather than duplicated - no new payment
+  // is ever created here, only carried forward.
+  const [convertingRowId, setConvertingRowId] = useState(null)
+  const [convertInvoiceNo, setConvertInvoiceNo] = useState('')
+  const [convertDate, setConvertDate] = useState('')
+  const [convertError, setConvertError] = useState(null)
+  const [convertingBusy, setConvertingBusy] = useState(false)
+
   const load = useCallback(async () => {
     if (!firmId) return
     setLoading(true)
@@ -150,6 +163,68 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     load()
   }
 
+  const openConvertForm = (row) => {
+    setConvertingRowId(row.id)
+    setConvertInvoiceNo('')
+    setConvertDate(toISODate(new Date()))
+    setConvertError(null)
+    setExpandedId(null)
+    setPayingRowId(null)
+  }
+
+  // Creates the real sales_invoices row from this PI - customer and amount
+  // come straight from the PI, invoice number and date are what you type
+  // (this tool still never invents a real invoice number). paid_amount is
+  // carried over exactly as-is from the PI, never re-entered, and any
+  // bank_transaction already linked to the PI is re-pointed to the new
+  // invoice rather than duplicated - the cash was only ever received
+  // once, so there is exactly one transaction for it either way.
+  const handleConvertToInvoice = async (row) => {
+    setConvertError(null)
+    if (!convertInvoiceNo.trim()) { setConvertError('Enter the real invoice number.'); return }
+    if (!convertDate) { setConvertError('Pick the invoice date.'); return }
+
+    setConvertingBusy(true)
+
+    const carriedPaid = Number(row.paid_amount || 0)
+    const { data: newInvoice, error: insertErr } = await supabase.from('sales_invoices').insert({
+      firm_id: firmId,
+      customer_id: row.customer_id,
+      invoice_no: convertInvoiceNo.trim(),
+      issued_date: convertDate,
+      amount: row.amount,
+      paid_amount: carriedPaid,
+      status: carriedPaid >= row.amount ? 'Paid' : 'Sent',
+      linked_pi_id: row.id,
+    }).select('id').single()
+
+    if (insertErr) { setConvertingBusy(false); setConvertError(insertErr.message); return }
+
+    if (carriedPaid > 0) {
+      const { error: txnErr } = await supabase.from('bank_transactions')
+        .update({ related_sales_invoice_id: newInvoice.id, related_proforma_invoice_id: null })
+        .eq('related_proforma_invoice_id', row.id)
+      if (txnErr) {
+        setConvertingBusy(false)
+        setConvertError(`Invoice ${convertInvoiceNo.trim()} was created, but re-pointing the existing payment record failed: ${txnErr.message}. Check Cash & Bank.`)
+        load()
+        return
+      }
+    }
+
+    const { error: piErr } = await supabase.from(table).update({ manual_status: 'Invoiced' }).eq('id', row.id)
+    if (piErr) {
+      setConvertingBusy(false)
+      setConvertError(`Invoice ${convertInvoiceNo.trim()} was created and the payment carried over, but this PI couldn't be tagged "Invoiced": ${piErr.message}.`)
+      load()
+      return
+    }
+
+    setConvertingBusy(false)
+    setConvertingRowId(null)
+    load()
+  }
+
   // The per-row Status dropdown covers both manual_status values and the
   // real is_cancelled toggle in one control - this handles whichever was
   // picked as a single, clean database update, rather than chaining two
@@ -171,6 +246,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setPayDate(toISODate(new Date()))
     setPayError(null)
     setExpandedId(null)
+    setConvertingRowId(null)
   }
 
   const handleStatusDropdownChange = async (row, value) => {
@@ -273,6 +349,8 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (expandedId === row.id && sendConfirmId === null) { setExpandedId(null); return }
     setExpandedId(row.id)
     setSendConfirmId(null)
+    setPayingRowId(null)
+    setConvertingRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -283,6 +361,8 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const openSendConfirm = (row) => {
     setExpandedId(row.id)
     setSendConfirmId(row.id)
+    setPayingRowId(null)
+    setConvertingRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -364,6 +444,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
     else if (action === 'emails') openManageEmails(row)
     else if (action === 'cancel') handleToggleCancelled(row)
+    else if (action === 'convert') openConvertForm(row)
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -487,6 +568,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
                           <option value="emails">Manage reminder emails</option>
+                          {isPi && <option value="convert">Move to Invoice…</option>}
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
                         </select>
                       </td>
@@ -572,6 +654,35 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               {payingBusy ? 'Saving…' : 'Save payment'}
                             </button>
                             <button type="button" className="link-btn" onClick={() => { setPayingRowId(null); setPayError(null) }}>Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {convertingRowId === r.id && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
+                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
+                            Move {r[numberField]} to a Sales Invoice
+                          </div>
+                          <div className="add-comm-row">
+                            <input
+                              className="text-input" placeholder="Real invoice number"
+                              value={convertInvoiceNo} onChange={(e) => setConvertInvoiceNo(e.target.value)}
+                            />
+                            <input
+                              className="text-input" type="date"
+                              value={convertDate} onChange={(e) => setConvertDate(e.target.value)}
+                            />
+                          </div>
+                          <p className="login-footnote" style={{ marginTop: 6 }}>
+                            Amount ({inr(r.amount)}) and paid so far ({inr(r.paid_amount)}) carry over automatically — no new payment is created, and nothing gets entered twice.
+                          </p>
+                          {convertError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{convertError}</p>}
+                          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                            <button className="btn-primary" disabled={convertingBusy} onClick={() => handleConvertToInvoice(r)}>
+                              {convertingBusy ? 'Creating…' : 'Create invoice'}
+                            </button>
+                            <button type="button" className="link-btn" onClick={() => { setConvertingRowId(null); setConvertError(null) }}>Cancel</button>
                           </div>
                         </td>
                       </tr>
