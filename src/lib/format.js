@@ -118,6 +118,18 @@ export const MANUAL_STATUSES = ["Sent", "Overdue", "Partially Paid", "Paid", "In
 // plain amount-based check already does on its own.
 const RESOLVED_MANUAL_STATUSES = ["Paid", "Invoiced", "Completed"];
 
+// The amount genuinely still owed on a document - 0 for a cancelled one,
+// regardless of its amount/paid_amount fields, since cancelled means void:
+// nothing is actually pending on it anymore. Used everywhere an "Amount
+// Pending"/"Balance"/"Amount Due" column is shown, so a cancelled document
+// never displays a confusing non-zero figure just because its raw fields
+// were never changed by cancelling it (which is deliberate - cancelling
+// doesn't rewrite payment history, it just means nothing is owed).
+export function balanceDue(doc) {
+  if (doc.is_cancelled) return 0;
+  return Number(doc.amount) - Number(doc.paid_amount || 0);
+}
+
 export function isResolved(doc) {
   if (doc.is_cancelled) return true;
   if (doc.manual_status && RESOLVED_MANUAL_STATUSES.includes(doc.manual_status)) return true;

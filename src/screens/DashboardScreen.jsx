@@ -98,8 +98,8 @@ export default function DashboardScreen({ onNavigate }) {
         { data: bankTxns, error: txnErr },
       ] = await Promise.all([
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
-        supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
-        supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status').eq('firm_id', firmId),
+        supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+        supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
         supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
       ])
@@ -108,8 +108,8 @@ export default function DashboardScreen({ onNavigate }) {
       const err = accErr || invErr || billErr || actErr || txnErr
       if (err) { setError(err.message); setLoading(false); return }
 
-      const openInvoices = (invoices ?? []).filter((i) => computeStatus(i, 'Sent') !== 'Paid')
-      const openBills = (bills ?? []).filter((b) => computeStatus(b, 'Approved') !== 'Paid')
+      const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
+      const openBills = (bills ?? []).filter((b) => !b.is_cancelled && computeStatus(b, 'Approved') !== 'Paid')
       const totalCash = (accounts ?? []).reduce((s, a) => s + a.balance, 0)
       const totalAR = openInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
       const totalAP = openBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)

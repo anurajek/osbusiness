@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
+import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage, balanceDue } from '../lib/format'
 import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -184,7 +184,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         r.due_date || '',
         r.amount.toFixed(2),
         r.paid_amount.toFixed(2),
-        (r.amount - r.paid_amount).toFixed(2),
+        balanceDue(r).toFixed(2),
         liveStatus(r),
       ])
     )
@@ -205,7 +205,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         r.issued_date,
         inr(r.amount),
         inr(r.paid_amount),
-        inr(r.amount - r.paid_amount),
+        inr(balanceDue(r)),
         liveStatus(r),
       ]),
     })
@@ -226,7 +226,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         r.issued_date,
         inr(r.amount),
         inr(r.paid_amount),
-        inr(r.amount - r.paid_amount),
+        inr(balanceDue(r)),
         liveStatus(r),
       ]),
     })
@@ -652,7 +652,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                     <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
                     <td className="num mono">{inr(r.amount)}</td>
                     <td className="num mono">{inr(r.paid_amount)}</td>
-                    <td className={`num mono ${r.amount - r.paid_amount > 0 ? 'amt-neg' : ''}`}>{inr(r.amount - r.paid_amount)}</td>
+                    <td className={`num mono ${balanceDue(r) > 0 ? 'amt-neg' : ''}`}>{inr(balanceDue(r))}</td>
                     <td><StatusPill status={status} /></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <select
@@ -672,7 +672,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         }}
                       >
                         <option value="" disabled>Actions…</option>
-                        {!fullyPaid && <option value="pay">Record payment</option>}
+                        {!fullyPaid && !r.is_cancelled && <option value="pay">Record payment</option>}
                         <option value="edit">Edit</option>
                         <option value="preview">Preview</option>
                         <option value="cancel">{r.is_cancelled ? `Reinstate ${docLabel}` : `Cancel ${docLabel}`}</option>
@@ -689,7 +689,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                       <td colSpan={8} style={{ padding: '10px', background: 'var(--panel-alt)' }}>
                         <div className="add-comm-row" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                           <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
-                            {inr(r.amount - r.paid_amount)} still due
+                            {inr(balanceDue(r))} still due
                           </span>
                           <input
                             type="number" min="0" step="0.01" className="text-input pay-amount-input"

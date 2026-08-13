@@ -1205,7 +1205,44 @@ transactions for each result it returns — for L D THE POWER SOLUTIONS
 specifically, delete either the "EST/230/26-27" or "GF/26-27/0228" entry
 (both ₹47,200) and keep the other.
 
+## Cancelled documents now show ₹0 owed everywhere, not just in totals
+
+No migration needed — just deploy.
+
+Cancelling a document was already correctly excluded from every
+aggregate total (Receivables, Payables, DSO) — that part worked. What
+didn't: the per-row "Amount Pending"/"Balance" figure on a cancelled
+document's own row kept showing its full original amount, since
+cancelling deliberately never rewrites `amount`/`paid_amount` (it's a
+status change, not an edit to payment history) — so the raw subtraction
+still produced a real number, just a misleading one for something that's
+void.
+
+Added a single shared `balanceDue()` helper (`lib/format.js`) — 0 for a
+cancelled document, the normal amount-minus-paid otherwise — and used it
+everywhere a per-document amount is actually displayed: Invoice/PI
+Follow-up's Amount Pending column (and its Days Overdue, which now
+correctly shows "—" for a cancelled document too, since being "overdue"
+doesn't mean anything for something void), Sales/Purchases' Balance
+column and every export (CSV/PDF/Word) for both screens, and the
+Dashboard's AR/AP aging chart, which had the exact same gap and was
+fetching `is_cancelled` from neither table at all. Also removed "Record
+payment" as an available action on an already-cancelled document, since
+recording a payment against something void doesn't make sense either.
+
 ## Status
+
+- [x] **Cancelled documents show ₹0 owed everywhere (Aug 2026):** a
+      cancelled document was already correctly excluded from every
+      aggregate total, but its own row's Amount Pending/Balance still
+      showed the full original amount, since cancelling deliberately
+      never rewrites the underlying amount/paid_amount fields. New shared
+      `balanceDue()` helper used consistently across Invoice/PI Follow-up,
+      Sales/Purchases (table + all exports), and the Dashboard's aging
+      chart (which had the same gap, fetching `is_cancelled` nowhere).
+      "Record payment" also removed as an option on an already-cancelled
+      document. See "Cancelled documents now show ₹0 owed everywhere, not
+      just in totals" above.
 
 - [x] **Second duplicate-payment mechanism found and closed (Aug 2026):** a
       genuinely different bug from the previous fix - "payment already

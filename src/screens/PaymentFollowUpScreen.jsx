@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange, isResolved, MANUAL_STATUSES } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved, balanceDue, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -553,7 +553,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const exportRows = filtered.map((r) => [
     customerName(r.customer_id), r[numberField], r.issued_date,
-    inr(r.amount - r.paid_amount), daysOverdue(r.issued_date), r.manual_status || '—',
+    inr(balanceDue(r)), daysOverdue(r.issued_date), r.manual_status || '—',
     r.last_reminder_sent_date ? `${STAGE_LABEL[r.last_reminder_stage] || r.last_reminder_stage} on ${r.last_reminder_sent_date}` : 'Never',
     r.reminders_paused ? 'Paused' : 'Active',
   ])
@@ -630,11 +630,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
                       <td className="num mono">
-                        {inr(r.amount - r.paid_amount)}
+                        {inr(balanceDue(r))}
                         {r.linkedToInvoice && <span title="This PI is linked to a Sales Invoice - the amount shown here follows that invoice's current payment status, not a separately-tracked figure on the PI itself." style={{ marginLeft: 4, color: 'var(--paper-dim)', cursor: 'help' }}>ⓘ</span>}
                       </td>
                       <td className="mono">{toISODate(dueDate)}</td>
-                      <td className="num mono" style={{ color: overdue > 0 ? 'var(--brick)' : 'inherit' }}>{overdue > 0 ? overdue : '—'}</td>
+                      <td className="num mono" style={{ color: overdue > 0 && !r.is_cancelled ? 'var(--brick)' : 'inherit' }}>{overdue > 0 && !r.is_cancelled ? overdue : '—'}</td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <select
                           className="select select--sm"
