@@ -1317,7 +1317,20 @@ tallest cell in that row - a name wrapping to three lines now correctly
 gets a three-line-tall row, and nothing after it gets pushed into that
 space.
 
+## Password Change moved to the bottom of Firm details
+
+No migration needed — just deploy.
+
+"+ Password Change" no longer sits stacked under "Edit" in the top-right
+corner — it's now at the bottom-right of the card instead, right above
+where its form expands when clicked. "Edit" (for firm details) stays
+where it was.
+
 ## Status
+
+- [x] **Password Change moved to bottom of Firm details (Aug 2026):**
+      "+ Password Change" repositioned from the top-right corner (stacked
+      under Edit) to the bottom-right, right above its own form.
 
 - [x] **Two real PDF bugs fixed: corrupted amounts, overlapping rows (Aug
       2026):** confirmed jsPDF's built-in fonts have no glyph for ₹ at

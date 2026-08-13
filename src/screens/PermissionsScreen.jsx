@@ -323,16 +323,11 @@ export default function PermissionsScreen({ onChangePassword }) {
 
       {isOwner && (
         <div className="card">
-          <div className="section-header" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
+          <div className="section-header" style={{ marginBottom: 8 }}>
             <h2>Firm details</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              {!editingFirm && (
-                <button type="button" className="link-btn" onClick={startEditingFirm}>Edit</button>
-              )}
-              {!editingPassword && (
-                <button type="button" className="link-btn" onClick={() => { setEditingPassword(true); setPasswordSuccess(false) }}>+ Password Change</button>
-              )}
-            </div>
+            {!editingFirm && (
+              <button type="button" className="link-btn" onClick={startEditingFirm}>Edit</button>
+            )}
           </div>
 
           {editingFirm ? (
@@ -399,6 +394,11 @@ export default function PermissionsScreen({ onChangePassword }) {
             </div>
           )}
 
+          {!editingPassword && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--rule)' }}>
+              <button type="button" className="link-btn" onClick={() => { setEditingPassword(true); setPasswordSuccess(false) }}>+ Password Change</button>
+            </div>
+          )}
           {editingPassword && (
             <form onSubmit={handleChangePassword} className="add-comm-form" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--rule)' }}>
               <div className="add-comm-row">
