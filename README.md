@@ -1278,7 +1278,55 @@ tables. Times New Roman isn't monospace, so tabular alignment in the app
 itself is very slightly less crisp now — a deliberate tradeoff for full
 visual consistency, not an oversight.
 
+## Two real PDF bugs: corrupted amounts, overlapping rows
+
+No migration needed — just deploy.
+
+### The amounts weren't misaligned, they were corrupted
+
+The actual cause, confirmed directly: jsPDF's built-in fonts (`helvetica`,
+`times`, `courier` — all 14 of the PDF spec's "standard" fonts) use a
+legacy encoding fixed in the 1990s, long before the Rupee sign existed as
+a Unicode character (it wasn't proposed until 2010). None of jsPDF's
+built-in fonts can render ₹ at all — this was never about which font was
+chosen, and switching away from Times New Roman wouldn't have fixed it
+either. Passing the real ₹ character through corrupted it and the digits
+around it into the garbled text in the screenshot.
+
+**Fixed by using "Rs." instead of ₹ specifically inside generated PDFs** —
+plain ASCII, so it renders correctly regardless of font. The real ₹
+symbol is untouched everywhere else (the app itself, CSV exports, Word
+exports), since all of those have genuine Unicode font support and never
+had this problem. Applied in two places: `buildDocumentPdf` (invoices/
+bills/PIs/notes) now formats its own amounts this way directly, and
+`buildListPdf` (every "export as PDF" list) sanitizes any ₹ it receives
+right before drawing — list PDFs receive already-formatted text from
+whichever screen exported them, so fixing it at the one place they all
+funnel through was more reliable than editing every screen that builds an
+export.
+
+### Rows overlapping on longer customer/supplier names
+
+The real cause: every row in a list-export PDF had a fixed height,
+regardless of how much text actually needed to fit. A long name wrapping
+to two or three lines still only got the space for one, so the next row
+started drawing on top of it — exactly what "SKILLMOUNT EDUCATION PRIVATE
+LIMITED" showed. Fixed: each row now measures how many lines every one of
+its cells actually needs before drawing anything, and sizes itself to the
+tallest cell in that row - a name wrapping to three lines now correctly
+gets a three-line-tall row, and nothing after it gets pushed into that
+space.
+
 ## Status
+
+- [x] **Two real PDF bugs fixed: corrupted amounts, overlapping rows (Aug
+      2026):** confirmed jsPDF's built-in fonts have no glyph for ₹ at
+      all - not a font-choice issue, "Rs." used instead specifically
+      inside PDFs (real ₹ untouched everywhere else). Also fixed rows
+      overlapping when a long customer/supplier name wrapped to multiple
+      lines - each row now measures and sizes itself to its actual
+      content instead of a fixed height. See "Two real PDF bugs:
+      corrupted amounts, overlapping rows" above.
 
 - [x] **Times New Roman everywhere (Aug 2026):** the app (body/headings/
       numbers, replacing Inter/Lora/IBM Plex Mono), PDF exports (jsPDF's

@@ -1,5 +1,17 @@
 import { jsPDF } from 'jspdf'
-import { inr, toISODate } from './format'
+import { toISODate } from './format'
+
+// jsPDF's built-in standard fonts (helvetica/times/courier - all 14 of the
+// PDF spec's "standard" fonts) use a legacy 1990s character encoding that
+// has no glyph for the Rupee sign at all - it wasn't even proposed to
+// Unicode until 2010, decades after that encoding was fixed. This isn't
+// something any particular font choice fixes; none of jsPDF's built-in
+// fonts can render ₹, so passing the real character through corrupts the
+// text around it. "Rs." is plain ASCII, so it renders correctly
+// regardless of font. Scoped to this file deliberately - the real ₹
+// symbol is correct and should stay everywhere else (the app itself, CSV,
+// Word), since those all have real Unicode font support.
+const inrPdf = (n) => 'Rs. ' + Math.abs(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
 // jsPDF is a static import, deliberately, even though it costs main-bundle
 // size - a dynamic import() here means "click Export PDF" and the actual
@@ -173,19 +185,19 @@ async function buildDocumentPdf({ firm, party, doc }) {
     pdf.setTextColor(30)
     pdf.text(doc.itemDescription || '—', colDesc, y + 14, { maxWidth: colQty - colDesc - 20 })
     pdf.text(doc.itemQuantity != null ? String(doc.itemQuantity) : '', colQty, y + 14, { align: 'right' })
-    pdf.text(doc.itemRate != null ? inr(doc.itemRate) : '', colRate, y + 14, { align: 'right' })
-    pdf.text(inr(lineAmount), colAmt, y + 14, { align: 'right' })
+    pdf.text(doc.itemRate != null ? inrPdf(doc.itemRate) : '', colRate, y + 14, { align: 'right' })
+    pdf.text(inrPdf(lineAmount), colAmt, y + 14, { align: 'right' })
     y += 24
     pdf.setDrawColor(230)
     pdf.line(margin, y, pageWidth - margin, y)
     y += 16
 
-    const taxRows = [['Sub Total', inr(doc.subtotal ?? lineAmount), false]]
-    if (doc.discountAmount) taxRows.push(['Discount', `(-)${inr(doc.discountAmount)}`, false])
-    if (doc.cgstAmount != null) taxRows.push([`CGST${doc.cgstRate != null ? ` (${doc.cgstRate}%)` : ''}`, inr(doc.cgstAmount), false])
-    if (doc.sgstAmount != null) taxRows.push([`SGST${doc.sgstRate != null ? ` (${doc.sgstRate}%)` : ''}`, inr(doc.sgstAmount), false])
-    if (doc.igstAmount != null) taxRows.push([`IGST${doc.igstRate != null ? ` (${doc.igstRate}%)` : ''}`, inr(doc.igstAmount), false])
-    taxRows.push(['Total', inr(doc.amount), true])
+    const taxRows = [['Sub Total', inrPdf(doc.subtotal ?? lineAmount), false]]
+    if (doc.discountAmount) taxRows.push(['Discount', `(-)${inrPdf(doc.discountAmount)}`, false])
+    if (doc.cgstAmount != null) taxRows.push([`CGST${doc.cgstRate != null ? ` (${doc.cgstRate}%)` : ''}`, inrPdf(doc.cgstAmount), false])
+    if (doc.sgstAmount != null) taxRows.push([`SGST${doc.sgstRate != null ? ` (${doc.sgstRate}%)` : ''}`, inrPdf(doc.sgstAmount), false])
+    if (doc.igstAmount != null) taxRows.push([`IGST${doc.igstRate != null ? ` (${doc.igstRate}%)` : ''}`, inrPdf(doc.igstAmount), false])
+    taxRows.push(['Total', inrPdf(doc.amount), true])
 
     for (const [label, value, bold] of taxRows) {
       pdf.setFont('times', bold ? 'bold' : 'normal')
@@ -211,7 +223,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
     pdf.setFontSize(10)
     pdf.setTextColor(30)
     pdf.text(doc.isSales ? 'Goods / services rendered' : 'Goods / services received', margin + 10, y + 18)
-    pdf.text(inr(doc.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
+    pdf.text(inrPdf(doc.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
     y += 28
     pdf.setDrawColor(230)
     pdf.line(margin, y, pageWidth - margin, y)
@@ -220,8 +232,8 @@ async function buildDocumentPdf({ firm, party, doc }) {
 
   const balance = (Number(doc.amount) || 0) - (Number(doc.paid_amount) || 0)
   const summaryRows = [
-    ['Paid', inr(doc.paid_amount || 0)],
-    ['Balance Due', inr(balance)],
+    ['Paid', inrPdf(doc.paid_amount || 0)],
+    ['Balance Due', inrPdf(balance)],
   ]
   for (const [label, value] of summaryRows) {
     pdf.setFont('times', label === 'Balance Due' ? 'bold' : 'normal')
@@ -315,8 +327,8 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
     const rowH = Math.max(20, descLines.length * 12 + 6)
     pdf.text(descLines, colDesc, y + 14)
     pdf.text(String(item.quantity ?? ''), colQty, y + 14, { align: 'right' })
-    pdf.text(inr(item.unit_price), colRate, y + 14, { align: 'right' })
-    pdf.text(inr(amount), colAmt, y + 14, { align: 'right' })
+    pdf.text(inrPdf(item.unit_price), colRate, y + 14, { align: 'right' })
+    pdf.text(inrPdf(amount), colAmt, y + 14, { align: 'right' })
     y += rowH
     pdf.setDrawColor(235)
     pdf.line(margin, y, pageWidth - margin, y)
@@ -332,7 +344,7 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   pdf.setFontSize(11)
   pdf.setTextColor(20)
   pdf.text('Total', colRate, y, { align: 'right' })
-  pdf.text(inr(total), colAmt, y, { align: 'right' })
+  pdf.text(inrPdf(total), colAmt, y, { align: 'right' })
 
   y += 20
   pdf.setFont('times', 'bold')
@@ -404,7 +416,7 @@ async function buildNotePdf({ firm, party, note }) {
   const reasonWidth = pageWidth - margin * 2 - 140
   const reasonLines = pdf.splitTextToSize(note.reason || '—', reasonWidth)
   pdf.text(reasonLines, margin + 10, y + 18)
-  pdf.text(inr(note.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
+  pdf.text(inrPdf(note.amount), pageWidth - margin - 10, y + 18, { align: 'right' })
   y += Math.max(30, reasonLines.length * 12 + 16)
 
   y += 12
@@ -440,9 +452,11 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 40
-  const rowH = 20
+  const minRowH = 20
+  const lineH = 11
   const headerH = 24
   const colWidth = (pageWidth - margin * 2) / columns.length
+  const cellWidth = colWidth - 16
   let y = margin
 
   const drawPageHeader = () => {
@@ -469,13 +483,13 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
     columns.forEach((col, i) => {
       const colX = margin + i * colWidth
       const x = col.align === 'right' ? colX + colWidth - 8 : colX + 8
-      pdf.text(col.label, x, y + 16, { align: col.align === 'right' ? 'right' : 'left', maxWidth: colWidth - 16 })
+      pdf.text(col.label, x, y + 16, { align: col.align === 'right' ? 'right' : 'left', maxWidth: cellWidth })
     })
     y += headerH
   }
 
-  const ensureSpace = () => {
-    if (y + rowH > pageHeight - margin) {
+  const ensureSpace = (neededH) => {
+    if (y + neededH > pageHeight - margin) {
       pdf.addPage()
       y = margin
       drawPageHeader()
@@ -490,18 +504,38 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
   pdf.setFontSize(9)
   pdf.setTextColor(30)
   rows.forEach((row, rowIndex) => {
-    ensureSpace()
+    // Pre-compute how many lines each cell actually needs before drawing
+    // or advancing y - this is the real fix for rows overlapping when a
+    // long customer name wraps to two or three lines. Previously the row
+    // height was a fixed 20pt regardless of how much text a cell actually
+    // needed, so the next row started drawing before a wrapped cell had
+    // finished, visually merging the two.
+    // List-export rows arrive as already-formatted strings built by
+    // whichever screen called downloadListPdf (Receivables, Payables,
+    // Sales, Cash & Bank, and many more) - most of them using the app's
+    // normal inr() formatter with the real ₹ symbol, since that's correct
+    // everywhere except here. Sanitized here too, at the point of
+    // measuring/drawing, rather than chasing down every screen that
+    // builds a rows array, since this is the one place all of them funnel
+    // through anyway.
+    const cellLines = columns.map((col, i) => {
+      const text = row[i] != null ? String(row[i]).replace(/₹/g, 'Rs. ') : ''
+      return pdf.splitTextToSize(text, cellWidth)
+    })
+    const maxLines = Math.max(1, ...cellLines.map((lines) => lines.length))
+    const thisRowH = Math.max(minRowH, maxLines * lineH + 9)
+
+    ensureSpace(thisRowH)
     if (rowIndex % 2 === 1) {
       pdf.setFillColor(250, 250, 250)
-      pdf.rect(margin, y, pageWidth - margin * 2, rowH, 'F')
+      pdf.rect(margin, y, pageWidth - margin * 2, thisRowH, 'F')
     }
     columns.forEach((col, i) => {
       const colX = margin + i * colWidth
       const x = col.align === 'right' ? colX + colWidth - 8 : colX + 8
-      const text = row[i] != null ? String(row[i]) : ''
-      pdf.text(text, x, y + 14, { align: col.align === 'right' ? 'right' : 'left', maxWidth: colWidth - 16 })
+      pdf.text(cellLines[i], x, y + 14, { align: col.align === 'right' ? 'right' : 'left' })
     })
-    y += rowH
+    y += thisRowH
   })
 
   if (rows.length === 0) {
