@@ -1230,7 +1230,26 @@ fetching `is_cancelled` from neither table at all. Also removed "Record
 payment" as an available action on an already-cancelled document, since
 recording a payment against something void doesn't make sense either.
 
+## Email field added to the quick Add customer/supplier form
+
+No migration needed — just deploy.
+
+A real gap, confirmed directly: `customers`/`suppliers` have always had an
+email column, and CSV import already lets you map one in — but the quick
+"Add customer"/"Add supplier" form on Sales/Purchases never exposed the
+field at all, so anyone added that way had no email on file. That
+mattered beyond just contact info — it's exactly what reminder emails
+fall back to when no dedicated reminder address is set for that customer.
+Added, matching the same field CSV import already supports.
+
 ## Status
+
+- [x] **Email field added to quick Add customer/supplier (Aug 2026):** a
+      real gap - the email column always existed and CSV import already
+      supported it, but the quick-add form on Sales/Purchases never
+      exposed the field, so anyone added that way had no email on file
+      (which matters directly for the reminder-email fallback). Added,
+      matching what import already had.
 
 - [x] **Cancelled documents show ₹0 owed everywhere (Aug 2026):** a
       cancelled document was already correctly excluded from every

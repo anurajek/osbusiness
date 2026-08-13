@@ -38,6 +38,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const [showAddParty, setShowAddParty] = useState(false)
   const [newPartyName, setNewPartyName] = useState('')
   const [newPartyGstin, setNewPartyGstin] = useState('')
+  const [newPartyEmail, setNewPartyEmail] = useState('')
   const [newPartyContact, setNewPartyContact] = useState('')
   const [newPartyAddress, setNewPartyAddress] = useState('')
   const [addingParty, setAddingParty] = useState(false)
@@ -241,12 +242,13 @@ export default function InvoiceListScreen({ type, onNavigate }) {
       firm_id: firmId,
       name: newPartyName.trim(),
       gstin: newPartyGstin.trim() || null,
+      email: newPartyEmail.trim() || null,
       contact: newPartyContact.trim() || null,
       address: newPartyAddress.trim() || null,
     })
     setAddingParty(false)
     if (err) { setAddPartyError(err.message); return }
-    setNewPartyName(''); setNewPartyGstin(''); setNewPartyContact(''); setNewPartyAddress('')
+    setNewPartyName(''); setNewPartyGstin(''); setNewPartyEmail(''); setNewPartyContact(''); setNewPartyAddress('')
     setShowAddParty(false)
     load()
   }
@@ -504,6 +506,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
             <div className="add-comm-row">
               <input className="text-input" placeholder="Name" value={newPartyName} onChange={(e) => setNewPartyName(e.target.value)} />
               <input className="text-input" placeholder="GSTIN (optional)" value={newPartyGstin} onChange={(e) => setNewPartyGstin(e.target.value)} />
+              <input className="text-input" type="email" placeholder="Email (optional)" value={newPartyEmail} onChange={(e) => setNewPartyEmail(e.target.value)} />
               <input className="text-input" placeholder="Contact (optional)" value={newPartyContact} onChange={(e) => setNewPartyContact(e.target.value)} />
             </div>
             <div className="add-comm-row">
