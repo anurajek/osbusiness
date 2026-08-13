@@ -47,27 +47,23 @@ export function reminderEmailContent(
   const overdueDays = daysSinceIssued - graceDays
   const greeting = `Hi ${customerName || 'there'},`
 
+  let subject: string
+  let body: string
+
   if (stage === 'gentle') {
-    return {
-      subject: `${docLabel} ${docNumber} from ${firmName}`,
-      html: `<p>${greeting}</p><p>Just a friendly note that ${docLabel.toLowerCase()} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is on its way to being due. No action needed yet - this is just a heads up.</p><p>Thanks,<br>${firmName}</p>`,
-    }
+    subject = `${docLabel} ${docNumber} from ${firmName}`
+    body = `<p>${greeting}</p><p>Just a friendly note that ${docLabel.toLowerCase()} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is on its way to being due. No action needed yet - this is just a heads up.</p><p>Thanks,<br>${firmName}</p>`
+  } else if (stage === 'reminder') {
+    subject = `Reminder: ${docLabel} ${docNumber} due soon`
+    body = `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is due tomorrow. Please arrange payment at your earliest convenience.</p><p>Thanks,<br>${firmName}</p>`
+  } else if (stage === 'due') {
+    subject = `${docLabel} ${docNumber} is due today`
+    body = `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is due today. If payment has already been made, please disregard this note.</p><p>Thanks,<br>${firmName}</p>`
+  } else {
+    // 'overdue'
+    subject = `Overdue: ${docLabel} ${docNumber} (${overdueDays} day${overdueDays === 1 ? '' : 's'})`
+    body = `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is now <strong>${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue</strong>. Please arrange payment as soon as possible, or let us know if there's anything holding it up.</p><p>Thanks,<br>${firmName}</p>`
   }
-  if (stage === 'reminder') {
-    return {
-      subject: `Reminder: ${docLabel} ${docNumber} due soon`,
-      html: `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is due tomorrow. Please arrange payment at your earliest convenience.</p><p>Thanks,<br>${firmName}</p>`,
-    }
-  }
-  if (stage === 'due') {
-    return {
-      subject: `${docLabel} ${docNumber} is due today`,
-      html: `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is due today. If payment has already been made, please disregard this note.</p><p>Thanks,<br>${firmName}</p>`,
-    }
-  }
-  // 'overdue'
-  return {
-    subject: `Overdue: ${docLabel} ${docNumber} (${overdueDays} day${overdueDays === 1 ? '' : 's'})`,
-    html: `<p>${greeting}</p><p>${docLabel} <strong>${docNumber}</strong> for <strong>${amountDue}</strong> is now <strong>${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue</strong>. Please arrange payment as soon as possible, or let us know if there's anything holding it up.</p><p>Thanks,<br>${firmName}</p>`,
-  }
+
+  return { subject, html: `<div style="font-family: 'Times New Roman', Times, serif;">${body}</div>` }
 }

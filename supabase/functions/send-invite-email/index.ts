@@ -68,11 +68,13 @@ serve(async (req) => {
         to: email,
         subject: `You've been invited to ${firmName} on FinoPilo Flow`,
         html: `
+          <div style="font-family: 'Times New Roman', Times, serif;">
           <p>Hi ${fullName || 'there'},</p>
           <p>You've been invited to join <strong>${firmName}</strong> on FinoPilo Flow.</p>
           <p>Click below to accept and create your account:</p>
           <p><a href="${joinUrl}">${joinUrl}</a></p>
           <p style="color:#888;font-size:13px">This link is unique to you - please don't forward it.</p>
+          </div>
         `,
       }),
     })

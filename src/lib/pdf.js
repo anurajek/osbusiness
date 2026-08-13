@@ -18,10 +18,10 @@ import { inr, toISODate } from './format'
 // different from what actually gets downloaded.
 
 function renderHeader(pdf, { firm, pageWidth, margin, y }) {
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(16)
   pdf.text(firm.name || 'Your Firm', pageWidth - margin, y + 14, { align: 'right' })
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   let hy = y + 30
@@ -64,12 +64,12 @@ async function renderLogo(pdf, { firm, margin, y }) {
 }
 
 function renderPartyBlock(pdf, { party, label, margin, y }) {
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(10)
   pdf.setTextColor(20)
   pdf.text(label, margin, y)
   y += 14
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(10)
   pdf.setTextColor(30)
   pdf.text(party?.name || '—', margin, y)
@@ -92,11 +92,11 @@ function renderFooter(pdf, { firm, pageWidth, margin }) {
   const footerY = pdf.internal.pageSize.getHeight() - 90
   pdf.setDrawColor(220)
   pdf.line(margin, footerY, pageWidth - margin, footerY)
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text('Payment Instructions', margin, footerY + 16)
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(110)
   pdf.text(firm.bank_details, margin, footerY + 30, { maxWidth: pageWidth - margin * 2 })
@@ -122,14 +122,14 @@ async function buildDocumentPdf({ firm, party, doc }) {
 
   // --- Title + number/dates ---
   pdf.setTextColor(20)
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(20)
   pdf.text(doc.docTypeLabel || (doc.isSales ? 'INVOICE' : 'BILL'), margin, y)
   pdf.setFontSize(11)
   pdf.text(doc.number || '—', pageWidth - margin, y, { align: 'right' })
   y += 22
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text(`Issued: ${doc.issued_date ? toISODate(new Date(doc.issued_date)) : '—'}`, pageWidth - margin, y, { align: 'right' })
@@ -156,7 +156,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
     pdf.setDrawColor(220)
     pdf.setFillColor(245, 245, 245)
     pdf.rect(margin, y, pageWidth - margin * 2, 22, 'F')
-    pdf.setFont('helvetica', 'bold')
+    pdf.setFont('times', 'bold')
     pdf.setFontSize(9)
     pdf.setTextColor(90)
     pdf.text('Items & Description', colDesc, y + 15)
@@ -168,7 +168,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
     const lineAmount = doc.itemQuantity != null && doc.itemRate != null
       ? Number(doc.itemQuantity) * Number(doc.itemRate)
       : (doc.subtotal != null ? Number(doc.subtotal) : Number(doc.amount))
-    pdf.setFont('helvetica', 'normal')
+    pdf.setFont('times', 'normal')
     pdf.setFontSize(9.5)
     pdf.setTextColor(30)
     pdf.text(doc.itemDescription || '—', colDesc, y + 14, { maxWidth: colQty - colDesc - 20 })
@@ -188,7 +188,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
     taxRows.push(['Total', inr(doc.amount), true])
 
     for (const [label, value, bold] of taxRows) {
-      pdf.setFont('helvetica', bold ? 'bold' : 'normal')
+      pdf.setFont('times', bold ? 'bold' : 'normal')
       pdf.setFontSize(bold ? 11 : 9.5)
       pdf.setTextColor(bold ? 20 : 90)
       pdf.text(label, colRate, y, { align: 'left' })
@@ -200,14 +200,14 @@ async function buildDocumentPdf({ firm, party, doc }) {
     pdf.setDrawColor(220)
     pdf.setFillColor(245, 245, 245)
     pdf.rect(margin, y, pageWidth - margin * 2, 26, 'F')
-    pdf.setFont('helvetica', 'bold')
+    pdf.setFont('times', 'bold')
     pdf.setFontSize(9)
     pdf.setTextColor(90)
     pdf.text('Description', margin + 10, y + 17)
     pdf.text('Amount', pageWidth - margin - 10, y + 17, { align: 'right' })
     y += 26
 
-    pdf.setFont('helvetica', 'normal')
+    pdf.setFont('times', 'normal')
     pdf.setFontSize(10)
     pdf.setTextColor(30)
     pdf.text(doc.isSales ? 'Goods / services rendered' : 'Goods / services received', margin + 10, y + 18)
@@ -224,7 +224,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
     ['Balance Due', inr(balance)],
   ]
   for (const [label, value] of summaryRows) {
-    pdf.setFont('helvetica', label === 'Balance Due' ? 'bold' : 'normal')
+    pdf.setFont('times', label === 'Balance Due' ? 'bold' : 'normal')
     pdf.setFontSize(10)
     pdf.setTextColor(label === 'Balance Due' ? 20 : 90)
     pdf.text(label, pageWidth - margin - 140, y, { align: 'left' })
@@ -233,7 +233,7 @@ async function buildDocumentPdf({ firm, party, doc }) {
   }
 
   y += 10
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(doc.status === 'Paid' ? 30 : 150, doc.status === 'Paid' ? 130 : 40, doc.status === 'Paid' ? 90 : 40)
   pdf.text(`Status: ${doc.status}`, margin, y)
@@ -267,14 +267,14 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   let y = renderHeader(pdf, { firm, pageWidth, margin, y: margin })
 
   pdf.setTextColor(20)
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(20)
   pdf.text('QUOTATION', margin, y)
   pdf.setFontSize(11)
   pdf.text(quote.number || '—', pageWidth - margin, y, { align: 'right' })
   y += 22
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text(`Issued: ${quote.issued_date ? toISODate(new Date(quote.issued_date)) : '—'}`, pageWidth - margin, y, { align: 'right' })
@@ -294,7 +294,7 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   pdf.setDrawColor(220)
   pdf.setFillColor(245, 245, 245)
   pdf.rect(margin, y, pageWidth - margin * 2, 22, 'F')
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text('Description', colDesc, y + 15)
@@ -303,7 +303,7 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   pdf.text('Amount', colAmt, y + 15, { align: 'right' })
   y += 22
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9.5)
   pdf.setTextColor(30)
   let total = 0
@@ -328,14 +328,14 @@ async function buildQuotePdf({ firm, party, quote, lineItems }) {
   }
 
   y += 18
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor(20)
   pdf.text('Total', colRate, y, { align: 'right' })
   pdf.text(inr(total), colAmt, y, { align: 'right' })
 
   y += 20
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text(`Status: ${quote.status}`, margin, y)
@@ -367,14 +367,14 @@ async function buildNotePdf({ firm, party, note }) {
   let y = renderHeader(pdf, { firm, pageWidth, margin, y: margin })
 
   pdf.setTextColor(20)
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(20)
   pdf.text(note.isCreditNote ? 'CREDIT NOTE' : 'DEBIT NOTE', margin, y)
   pdf.setFontSize(11)
   pdf.text(note.number || '—', pageWidth - margin, y, { align: 'right' })
   y += 22
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text(`Issued: ${note.issued_date ? toISODate(new Date(note.issued_date)) : '—'}`, pageWidth - margin, y, { align: 'right' })
@@ -391,14 +391,14 @@ async function buildNotePdf({ firm, party, note }) {
   pdf.setDrawColor(220)
   pdf.setFillColor(245, 245, 245)
   pdf.rect(margin, y, pageWidth - margin * 2, 26, 'F')
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(90)
   pdf.text('Reason', margin + 10, y + 17)
   pdf.text('Amount', pageWidth - margin - 10, y + 17, { align: 'right' })
   y += 26
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(10)
   pdf.setTextColor(30)
   const reasonWidth = pageWidth - margin * 2 - 140
@@ -408,7 +408,7 @@ async function buildNotePdf({ firm, party, note }) {
   y += Math.max(30, reasonLines.length * 12 + 16)
 
   y += 12
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont('times', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(note.status === 'refunded' ? 30 : 150, note.status === 'refunded' ? 130 : 40, note.status === 'refunded' ? 90 : 40)
   pdf.text(`Status: ${note.status === 'refunded' ? 'Refunded' : 'Open'}`, margin, y)
@@ -446,11 +446,11 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
   let y = margin
 
   const drawPageHeader = () => {
-    pdf.setFont('helvetica', 'bold')
+    pdf.setFont('times', 'bold')
     pdf.setFontSize(14)
     pdf.setTextColor(20)
     pdf.text(firm?.name || 'Report', margin, y)
-    pdf.setFont('helvetica', 'normal')
+    pdf.setFont('times', 'normal')
     pdf.setFontSize(10)
     pdf.setTextColor(90)
     pdf.text(title, pageWidth - margin, y, { align: 'right' })
@@ -463,7 +463,7 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
   const drawColumnHeaders = () => {
     pdf.setFillColor(245, 245, 245)
     pdf.rect(margin, y, pageWidth - margin * 2, headerH, 'F')
-    pdf.setFont('helvetica', 'bold')
+    pdf.setFont('times', 'bold')
     pdf.setFontSize(9)
     pdf.setTextColor(90)
     columns.forEach((col, i) => {
@@ -486,7 +486,7 @@ function buildListPdf({ title, firm, columns, rows, orientation = 'landscape' })
   drawPageHeader()
   drawColumnHeaders()
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont('times', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(30)
   rows.forEach((row, rowIndex) => {

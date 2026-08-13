@@ -41,6 +41,11 @@ export async function downloadListDocx({ title, firm, columns, rows, filename })
   }
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: { run: { font: 'Times New Roman' } },
+      },
+    },
     sections: [{
       children: [
         new Paragraph({ children: [new TextRun({ text: firm?.name || 'Report', bold: true, size: 32 })] }),

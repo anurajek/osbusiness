@@ -1242,7 +1242,52 @@ mattered beyond just contact info — it's exactly what reminder emails
 fall back to when no dedicated reminder address is set for that customer.
 Added, matching the same field CSV import already supports.
 
+## Times New Roman, everywhere
+
+**Requires redeploying the Edge Functions** for the email part to take
+effect — see below. The app and export documents update the moment this
+zip is deployed.
+
+Changed on every surface that renders text:
+
+- **The app itself** — every font (`Inter` for body text, `Lora` for
+  headings, `IBM Plex Mono` for numbers/dates/GSTIN) replaced with Times
+  New Roman in the one shared stylesheet (`index.css`). The Google Fonts
+  import for those three fonts is removed entirely, since nothing loads
+  them anymore — Times New Roman is a system font, not a webfont, so nothing
+  needs to be fetched for it to render.
+- **PDF exports** (invoices, bills, PIs, and every list export) — jsPDF's
+  built-in `times` font (real Times-Roman, one of the standard 14 PDF
+  fonts) replaces `helvetica` everywhere it was set, no font embedding
+  needed.
+- **Word exports** — set once as the document-wide default font rather
+  than repeated per line of text, so every list export in Word uses it
+  automatically.
+- **Invite and payment reminder emails** — wrapped in a Times New Roman
+  `font-family` style, matching everywhere else. **These three Edge
+  Functions need to be manually redeployed on Supabase**
+  (`send-invite-email`, `send-payment-reminder`,
+  `send-payment-reminders-batch` — the last two share the updated
+  `_shared/reminderLogic.ts`) for this specific part to actually go out in
+  real emails, the same redeploy step that's needed for any Edge Function
+  change.
+
+One honest tradeoff worth knowing: numbers and dates previously used a
+monospace font specifically so columns of figures lined up cleanly in
+tables. Times New Roman isn't monospace, so tabular alignment in the app
+itself is very slightly less crisp now — a deliberate tradeoff for full
+visual consistency, not an oversight.
+
 ## Status
+
+- [x] **Times New Roman everywhere (Aug 2026):** the app (body/headings/
+      numbers, replacing Inter/Lora/IBM Plex Mono), PDF exports (jsPDF's
+      built-in `times` font), Word exports (set as the document-wide
+      default), and invite/reminder emails all switched to Times New
+      Roman. The email part needs `send-invite-email`,
+      `send-payment-reminder`, and `send-payment-reminders-batch`
+      manually redeployed on Supabase to take effect. See "Times New
+      Roman, everywhere" above.
 
 - [x] **Email field added to quick Add customer/supplier (Aug 2026):** a
       real gap - the email column always existed and CSV import already
