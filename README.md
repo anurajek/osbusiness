@@ -1326,7 +1326,42 @@ corner — it's now at the bottom-right of the card instead, right above
 where its form expands when clicked. "Edit" (for firm details) stays
 where it was.
 
+## Mobile alignment fixes for AR/AP
+
+No migration needed — just deploy. Found by reviewing the actual CSS
+directly (there's no way for me to open a real phone), not a guess — two
+concrete missing rules, both worst on AR/AP specifically since it has more
+tabs and more filter fields than any other screen in the app.
+
+**The 5-tab row had no overflow handling at all.** Receivables / Payables
+/ Invoice Follow-up / PI Follow-up / DSO & Trends, some with long labels,
+in a plain `display: flex` row with nothing to catch overflow on a narrow
+screen — it would run off the right edge with no way to reach the later
+tabs. Now scrolls horizontally on mobile, the same pattern already used
+for wide tables, so tabs keep their real size instead of getting squished
+illegibly.
+
+**Only the Search field went full-width on mobile — every other filter
+field stayed at a fixed minimum width.** AR/AP screens carry the most
+filter fields of any screen (up to seven at once: Search, Customer,
+Status, Period, Sort, Export, +Add), so this specific gap hit them
+hardest — fields wrapped unevenly, sometimes two per row, sometimes one,
+depending on exact label lengths. Every filter field now goes full-width
+and stacks one per row on mobile, matching what Search already did.
+
+Worth confirming directly on your phone once deployed, since this is
+based on reading the CSS rather than an actual device test.
+
 ## Status
+
+- [x] **Mobile alignment fixes for AR/AP (Aug 2026):** the 5-tab row
+      (Receivables/Payables/Invoice Follow-up/PI Follow-up/DSO & Trends)
+      had no overflow handling and would run off-screen on a phone - now
+      scrolls horizontally. Filter fields other than Search stayed at a
+      fixed min-width and wrapped unevenly on narrow screens, hitting
+      AR/AP hardest since it has the most filter fields of any screen -
+      every filter field now goes full-width and stacks on mobile. See
+      "Mobile alignment fixes for AR/AP" above.
 
 - [x] **Password Change moved to bottom of Firm details (Aug 2026):**
       "+ Password Change" repositioned from the top-right corner (stacked

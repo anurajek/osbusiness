@@ -216,7 +216,25 @@ body {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .drawer { width: 100%; }
   .period-custom { width: 100%; margin-left: 0; margin-top: 4px; }
-  .filter-field--search { min-width: 0; width: 100%; }
+
+  /* Every filter field (Status, Period, Sort, Export, Customer/Supplier,
+     +Add) goes full-width and stacks one per row, not just Search - AR/AP
+     screens carry the most filter fields of any screen (up to 7 at once:
+     Search, Customer, Status, Period, Sort, Export, +Add), so leaving
+     them at a fixed min-width wrapped unevenly and looked broken there
+     specifically, even though other screens with fewer fields mostly
+     got away with it. */
+  .filter-field { min-width: 0; width: 100%; }
+  .filter-field--sort { margin-left: 0; }
+
+  /* AR/AP's tab row (Receivables/Payables/Invoice Follow-up/PI Follow-up/
+     DSO & Trends - 5 tabs, some with long labels) had no overflow
+     handling at all and would run off the right edge of the screen on
+     any phone. Scrolls horizontally instead, same pattern as wide
+     tables below - tabs keep their real size rather than getting
+     squished illegibly. */
+  .tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .tab { flex-shrink: 0; }
 
   /* Wide tables scroll horizontally instead of squishing illegibly or
      breaking the page layout - the table keeps a real minimum width so
