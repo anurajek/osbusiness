@@ -1398,6 +1398,51 @@ the linked bank transaction rather than cleaning it up. Remove the
 payment from Cash & Bank first (which correctly reverses the account
 balance), and delete becomes available.
 
+## Totals row, manual PI add, Expected Date, and a packaging fix
+
+Run `migration_expected_payment_date.sql` in Supabase's SQL Editor —
+additive, safe on the existing database.
+
+### Totals, in the table and every export
+
+Invoice/PI Follow-up and Sales/Purchases all get a Total row now, at the
+bottom of the table and in CSV/PDF/Word exports alike — Amount Pending on
+Follow-up; Amount, Paid, and Balance on Sales/Purchases. Only appears when
+there's something to sum.
+
+### PIs can be added manually now, same as invoices
+
+PI Follow-up → "+ New Proforma Invoice", next to the record count.
+Deliberately simpler than Sales' invoice form — PIs don't have a stored
+due date (it's always computed from issued date + grace days for
+display) and use their own simple status, not the fuller Sent/Overdue/
+Due-today model invoices use.
+
+### Last Reminder replaced with Expected Date
+
+An editable date field, directly in the table — for recording when a
+customer/supplier actually said they'd pay, separate from the calculated
+due date. Always optional: blank by default, freely set or cleared at any
+time, no requirement to fill it in.
+
+### Days Overdue stops once nothing is actually owed
+
+Previously kept counting based purely on the due date, even for something
+already fully paid — an invoice settled 10 days late would go on showing
+"10 overdue" indefinitely. Now shows "—" the moment the balance reaches
+zero, the same treatment already given to cancelled documents.
+
+### A packaging mistake, found and fixed
+
+Unrelated to the feature work, but real: `.gitignore` has been silently
+missing from every zip delivered in this project. My own zip command
+excluded `.git` using a pattern that also happened to match `.gitignore`
+itself, stripping it every time without evidence of the mistake — it only
+ever mattered when the working directory needed to be rebuilt from a
+delivered zip rather than continuing from the original checkout, which
+hadn't happened before now. Restored, and the zip command that produces
+every future delivery is corrected so this can't recur.
+
 ## Status
 
 - [x] **Real cause of the Import Undo bug found and fixed; Owner-only

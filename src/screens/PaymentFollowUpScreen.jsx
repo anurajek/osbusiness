@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
+import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, MANUAL_STATUSES } from '../lib/format'
@@ -77,13 +78,29 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [convertError, setConvertError] = useState(null)
   const [convertingBusy, setConvertingBusy] = useState(false)
 
+  // PI-only manual add, matching what Sales already has for invoices -
+  // PIs have always been CSV-import-only until now. Deliberately simpler
+  // than the Sales form: PIs don't have a stored due_date column (it's
+  // always computed from issued_date + graceDays for display, see
+  // dueDate below), and use their own simple Sent/Paid status rather than
+  // the full Sent/Overdue/Due-today/Partial model computeStatus() handles
+  // for invoices/bills.
+  const [showAddPi, setShowAddPi] = useState(false)
+  const [newPiCustomerId, setNewPiCustomerId] = useState('')
+  const [newPiNumber, setNewPiNumber] = useState('')
+  const [newPiIssuedDate, setNewPiIssuedDate] = useState(() => toISODate(new Date()))
+  const [newPiAmount, setNewPiAmount] = useState('')
+  const [newPiPaid, setNewPiPaid] = useState('0')
+  const [addPiError, setAddPiError] = useState(null)
+  const [addingPi, setAddingPi] = useState(false)
+
   const load = useCallback(async () => {
     if (!firmId) return
     setLoading(true)
     setError(null)
     const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }, { data: linkedRows, error: linkedErr }] = await Promise.all([
       supabase.from(table)
-        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
+        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, expected_payment_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
@@ -207,6 +224,42 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (!window.confirm(`Permanently delete ${row[numberField]}? This can't be undone.`)) return
     const { error: err } = await supabase.from(table).delete().eq('id', row.id)
     if (err) { alert(`Couldn't delete that: ${err.message}`); return }
+    load()
+  }
+
+  // PI-only manual add - see the state comment above for why this is
+  // simpler than Sales' invoice form (no due_date, no computeStatus).
+  // Expected Date is always optional and freely editable - a blank value
+  // clears it back to null, same as any other optional field.
+  const handleSetExpectedDate = async (row, value) => {
+    const { error: err } = await supabase.from(table).update({ expected_payment_date: value || null }).eq('id', row.id)
+    if (err) { alert(`Couldn't update that: ${err.message}`); return }
+    load()
+  }
+
+  const handleAddPi = async (e) => {
+    e.preventDefault()
+    setAddPiError(null)
+    if (!newPiCustomerId) { setAddPiError('Select a customer.'); return }
+    if (!newPiNumber.trim()) { setAddPiError('Enter a PI number.'); return }
+    const amountNum = parseFloat(newPiAmount)
+    if (!amountNum || amountNum <= 0) { setAddPiError('Enter a valid amount.'); return }
+    const paidNum = parseFloat(newPiPaid) || 0
+
+    setAddingPi(true)
+    const { error: err } = await supabase.from('proforma_invoices').insert({
+      firm_id: firmId,
+      customer_id: newPiCustomerId,
+      pi_no: newPiNumber.trim(),
+      issued_date: newPiIssuedDate,
+      amount: amountNum,
+      paid_amount: paidNum,
+      status: paidNum >= amountNum ? 'Paid' : 'Sent',
+    })
+    setAddingPi(false)
+    if (err) { setAddPiError(err.message); return }
+    setNewPiCustomerId(''); setNewPiNumber(''); setNewPiIssuedDate(toISODate(new Date())); setNewPiAmount(''); setNewPiPaid('0')
+    setShowAddPi(false)
     load()
   }
 
@@ -575,17 +628,24 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
 
-  const exportRows = filtered.map((r) => [
-    customerName(r.customer_id), r[numberField], r.issued_date,
-    inr(balanceDue(r)), daysOverdue(r.issued_date), r.manual_status || '—',
-    r.last_reminder_sent_date ? `${STAGE_LABEL[r.last_reminder_stage] || r.last_reminder_stage} on ${r.last_reminder_sent_date}` : 'Never',
-    r.reminders_paused ? 'Paused' : 'Active',
-  ])
-  const exportColumns = ['Customer', docLabel + ' #', 'Issued', 'Amount Pending', 'Days Overdue', 'Status', 'Last Reminder', 'Reminders']
+  const exportRows = filtered.map((r) => {
+    const overdue = daysOverdue(r.issued_date)
+    return [
+      customerName(r.customer_id), r[numberField], r.issued_date,
+      inr(balanceDue(r)),
+      overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? overdue : '—',
+      r.is_cancelled ? 'Cancelled' : (r.manual_status || '—'),
+      r.expected_payment_date || '—',
+    ]
+  })
+  const exportColumns = ['Customer', docLabel + ' #', 'Issued', 'Amount Pending', 'Days Overdue', 'Status', 'Expected Date']
+  const exportRowsWithTotal = filtered.length > 0
+    ? [...exportRows, ['Total', '', '', inr(filtered.reduce((sum, r) => sum + balanceDue(r), 0)), '', '', '']]
+    : exportRows
 
-  const handleExportCsv = () => downloadCsv(`${docType}-followup`, exportColumns, exportRows)
-  const handleExportPdf = () => downloadListPdf({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRows })
-  const handleExportWord = () => downloadListDocx({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRows })
+  const handleExportCsv = () => downloadCsv(`${docType}-followup`, exportColumns, exportRowsWithTotal)
+  const handleExportPdf = () => downloadListPdf({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRowsWithTotal })
+  const handleExportWord = () => downloadListDocx({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRowsWithTotal })
 
   if (loading) return <div className="empty-state">Loading…</div>
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
@@ -623,21 +683,62 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       />
 
       <div className="card">
-        <div className="section-header" style={{ marginBottom: 8 }}>
+        <div className="section-header" style={{ marginBottom: showAddPi ? 12 : 8 }}>
           <h2>
             {statusFilter === 'all' ? `All ${docLabel.toLowerCase()}s`
               : statusFilter === 'pending' ? `Pending ${docLabel.toLowerCase()}s`
               : `${statusFilter} ${docLabel.toLowerCase()}s`}
           </h2>
-          <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="section-header__note">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+            {isPi && (
+              <button
+                className="link-btn"
+                style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setShowAddPi((v) => !v)}
+              >
+                <Plus size={14} /> New Proforma Invoice
+              </button>
+            )}
+          </div>
         </div>
+        {isPi && showAddPi && (
+          <form onSubmit={handleAddPi} className="add-comm-form" style={{ marginBottom: 16 }}>
+            <div className="add-comm-row">
+              <select className="select select--sm" value={newPiCustomerId} onChange={(e) => setNewPiCustomerId(e.target.value)}>
+                <option value="" disabled>Select customer…</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <input
+                className="text-input" placeholder="PI number" value={newPiNumber}
+                onChange={(e) => setNewPiNumber(e.target.value)}
+              />
+              <input type="date" className="text-input" value={newPiIssuedDate} onChange={(e) => setNewPiIssuedDate(e.target.value)} />
+            </div>
+            <div className="add-comm-row">
+              <input
+                type="number" min="0" step="0.01" className="text-input" placeholder="Amount"
+                value={newPiAmount} onChange={(e) => setNewPiAmount(e.target.value)}
+              />
+              <input
+                type="number" min="0" step="0.01" className="text-input" placeholder="Already paid (optional)"
+                value={newPiPaid} onChange={(e) => setNewPiPaid(e.target.value)}
+              />
+            </div>
+            {addPiError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addPiError}</p>}
+            <div className="add-comm-row">
+              <button className="btn-primary" disabled={addingPi}>{addingPi ? 'Adding…' : 'Add Proforma Invoice'}</button>
+              <button type="button" className="link-btn" onClick={() => setShowAddPi(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
         <div className="table-scroll">
           <table className="ledger-table">
             <thead>
               <tr>
                 <th>Customer</th><th>{docLabel} #</th><th>Issued</th>
                 <th className="num">Amount Pending</th><th>Due Date</th><th className="num">Days Overdue</th>
-                <th>Status</th><th>Last Reminder</th><th>Actions</th>
+                <th>Status</th><th>Expected Date</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -658,7 +759,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                         {r.linkedToInvoice && <span title="This PI is linked to a Sales Invoice - the amount shown here follows that invoice's current payment status, not a separately-tracked figure on the PI itself." style={{ marginLeft: 4, color: 'var(--paper-dim)', cursor: 'help' }}>ⓘ</span>}
                       </td>
                       <td className="mono">{toISODate(dueDate)}</td>
-                      <td className="num mono" style={{ color: overdue > 0 && !r.is_cancelled ? 'var(--brick)' : 'inherit' }}>{overdue > 0 && !r.is_cancelled ? overdue : '—'}</td>
+                      <td className="num mono" style={{ color: overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? 'var(--brick)' : 'inherit' }}>
+                        {overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? overdue : '—'}
+                      </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <select
                           className="select select--sm"
@@ -670,11 +773,12 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="Cancelled">Cancelled</option>
                         </select>
                       </td>
-                      <td>
-                        {r.last_reminder_sent_date
-                          ? <span className="login-footnote" style={{ margin: 0 }}>{STAGE_LABEL[r.last_reminder_stage] || r.last_reminder_stage} · {r.last_reminder_sent_date}</span>
-                          : <span className="pill pill--neutral">Never sent</span>}
-                        {r.reminders_paused && <span className="pill pill--warn" style={{ marginLeft: 6 }}>Paused</span>}
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="date" className="date-input"
+                          value={r.expected_payment_date || ''}
+                          onChange={(e) => handleSetExpectedDate(r, e.target.value)}
+                        />
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <select
@@ -856,6 +960,13 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                 )
               })}
               {filtered.length === 0 && <EmptyRow colSpan={9}>No {docLabel.toLowerCase()}s match these filters.</EmptyRow>}
+              {filtered.length > 0 && (
+                <tr className="ledger-row" style={{ fontWeight: 600, borderTop: '2px solid var(--rule)' }}>
+                  <td colSpan={3}>Total</td>
+                  <td className="num mono">{inr(filtered.reduce((sum, r) => sum + balanceDue(r), 0))}</td>
+                  <td colSpan={4}></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -191,24 +191,40 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, range, partyFilter, statusFilter, search, sortBy, parties])
 
+  const totalAmount = filtered.reduce((sum, r) => sum + Number(r.amount), 0)
+  const totalPaid = filtered.reduce((sum, r) => sum + Number(r.paid_amount), 0)
+  const totalBalance = filtered.reduce((sum, r) => sum + balanceDue(r), 0)
+
   const handleExportCsv = () => {
+    const rows = filtered.map((r) => [
+      r[numberField],
+      partyName(r[partyJoinKey]),
+      r.issued_date,
+      r.due_date || '',
+      r.amount.toFixed(2),
+      r.paid_amount.toFixed(2),
+      balanceDue(r).toFixed(2),
+      liveStatus(r),
+    ])
+    if (filtered.length > 0) rows.push(['Total', '', '', '', totalAmount.toFixed(2), totalPaid.toFixed(2), totalBalance.toFixed(2), ''])
     downloadCsv(
       `${isSales ? 'sales-invoices' : 'purchase-bills'}`,
       [isSales ? 'Invoice #' : 'Bill #', isSales ? 'Customer' : 'Supplier', 'Issued', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status'],
-      filtered.map((r) => [
-        r[numberField],
-        partyName(r[partyJoinKey]),
-        r.issued_date,
-        r.due_date || '',
-        r.amount.toFixed(2),
-        r.paid_amount.toFixed(2),
-        balanceDue(r).toFixed(2),
-        liveStatus(r),
-      ])
+      rows
     )
   }
 
   const handleExportPdf = () => {
+    const rows = filtered.map((r) => [
+      r[numberField],
+      partyName(r[partyJoinKey]),
+      r.issued_date,
+      inr(r.amount),
+      inr(r.paid_amount),
+      inr(balanceDue(r)),
+      liveStatus(r),
+    ])
+    if (filtered.length > 0) rows.push(['Total', '', '', inr(totalAmount), inr(totalPaid), inr(totalBalance), ''])
     downloadListPdf({
       title: isSales ? 'Sales Invoices' : 'Purchase Bills',
       firm,
@@ -217,19 +233,21 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         { label: isSales ? 'Invoice #' : 'Bill #' }, { label: isSales ? 'Customer' : 'Supplier' }, { label: 'Issued' },
         { label: 'Amount', align: 'right' }, { label: 'Paid', align: 'right' }, { label: 'Balance', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [
-        r[numberField],
-        partyName(r[partyJoinKey]),
-        r.issued_date,
-        inr(r.amount),
-        inr(r.paid_amount),
-        inr(balanceDue(r)),
-        liveStatus(r),
-      ]),
+      rows,
     })
   }
 
   const handleExportWord = () => {
+    const rows = filtered.map((r) => [
+      r[numberField],
+      partyName(r[partyJoinKey]),
+      r.issued_date,
+      inr(r.amount),
+      inr(r.paid_amount),
+      inr(balanceDue(r)),
+      liveStatus(r),
+    ])
+    if (filtered.length > 0) rows.push(['Total', '', '', inr(totalAmount), inr(totalPaid), inr(totalBalance), ''])
     downloadListDocx({
       title: isSales ? 'Sales Invoices' : 'Purchase Bills',
       firm,
@@ -238,15 +256,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         { label: isSales ? 'Invoice #' : 'Bill #' }, { label: isSales ? 'Customer' : 'Supplier' }, { label: 'Issued' },
         { label: 'Amount', align: 'right' }, { label: 'Paid', align: 'right' }, { label: 'Balance', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [
-        r[numberField],
-        partyName(r[partyJoinKey]),
-        r.issued_date,
-        inr(r.amount),
-        inr(r.paid_amount),
-        inr(balanceDue(r)),
-        liveStatus(r),
-      ]),
+      rows,
     })
   }
 
@@ -788,6 +798,15 @@ export default function InvoiceListScreen({ type, onNavigate }) {
               )
             })}
             {filtered.length === 0 && <EmptyRow colSpan={8}>No records match these filters.</EmptyRow>}
+            {filtered.length > 0 && (
+              <tr className="ledger-row" style={{ fontWeight: 600, borderTop: '2px solid var(--rule)' }}>
+                <td colSpan={3}>Total</td>
+                <td className="num mono">{inr(filtered.reduce((sum, r) => sum + Number(r.amount), 0))}</td>
+                <td className="num mono">{inr(filtered.reduce((sum, r) => sum + Number(r.paid_amount), 0))}</td>
+                <td className="num mono">{inr(filtered.reduce((sum, r) => sum + balanceDue(r), 0))}</td>
+                <td colSpan={2}></td>
+              </tr>
+            )}
           </tbody>
         </table>
         </div>
