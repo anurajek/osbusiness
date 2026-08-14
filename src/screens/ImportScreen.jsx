@@ -386,16 +386,41 @@ export default function ImportScreen() {
     setUndoingId(batch.id)
     const t = TARGETS[batch.target_type]
     // Delete documents first if this was a doc import, then any parties it
-    // auto-created, then the batch record itself.
+    // auto-created, then the batch record itself. Every step's error is
+    // actually checked now - previously a failed delete here (e.g. a
+    // foreign key from another table still referencing one of these rows)
+    // was silently ignored, and the import_batches record got deleted
+    // anyway, making the undo look like it fully succeeded when it had
+    // only partially worked - exactly what left some Sales Invoices still
+    // showing after "everything" was supposedly removed. Stops at the
+    // first failure now, and never deletes the batch record (which would
+    // permanently lose the ability to retry Undo) unless every step
+    // actually succeeded.
     if (t.kind === 'doc') {
-      await supabase.from(t.table).delete().eq('import_batch_id', batch.id)
-      await supabase.from(t.partyTable).delete().eq('import_batch_id', batch.id)
+      const { error: docErr } = await supabase.from(t.table).delete().eq('import_batch_id', batch.id)
+      if (docErr) {
+        setUndoingId(null)
+        alert(`Couldn't remove all the ${t.label.toLowerCase()} from this import: ${docErr.message}\n\nThis usually means something else still references one of these records (a credit/debit note or quotation linked to an invoice, for example) - find and remove that first, then try Undo again. Nothing was deleted from this batch.`)
+        return
+      }
+      const { error: partyErr } = await supabase.from(t.partyTable).delete().eq('import_batch_id', batch.id)
+      if (partyErr) {
+        setUndoingId(null)
+        alert(`The ${t.label.toLowerCase()} were removed, but couldn't remove the ${t.partyLabel.toLowerCase()}s this import created: ${partyErr.message}\n\nThe import record is kept so you can try Undo again once that's resolved.`)
+        loadBatches()
+        return
+      }
     } else {
-      await supabase.from(t.table).delete().eq('import_batch_id', batch.id)
+      const { error: partyErr } = await supabase.from(t.table).delete().eq('import_batch_id', batch.id)
+      if (partyErr) {
+        setUndoingId(null)
+        alert(`Couldn't remove all the ${t.label.toLowerCase()} from this import: ${partyErr.message}\n\nNothing was deleted from this batch - the import record is kept so you can try again.`)
+        return
+      }
     }
-    const { error: err } = await supabase.from('import_batches').delete().eq('id', batch.id)
+    const { error: batchErr } = await supabase.from('import_batches').delete().eq('id', batch.id)
     setUndoingId(null)
-    if (err) { alert(`Couldn't remove the import record itself (the data was deleted though): ${err.message}`); }
+    if (batchErr) { alert(`Everything from this import was removed, but the import record itself couldn't be cleared: ${batchErr.message}`) }
     loadBatches()
   }
 

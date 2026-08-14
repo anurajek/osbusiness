@@ -13,7 +13,7 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
 
 export default function PaymentFollowUpScreen({ docType, navParams, clearNavParams }) {
-  const { firmId, firm } = useFirm()
+  const { firmId, firm, role } = useFirm()
   const isPi = docType === 'pi'
   const table = isPi ? 'proforma_invoices' : 'sales_invoices'
   const numberField = isPi ? 'pi_no' : 'invoice_no'
@@ -184,6 +184,29 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward what's owed, but stays on record.`)) return
     const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
     if (err) { alert(`Couldn't update that: ${err.message}`); return }
+    load()
+  }
+
+  // Owner-only, and deliberately not offered when a payment is on record -
+  // this is a genuine, permanent delete (unlike Cancel, which keeps the
+  // row), and deleting a document that still has a linked bank
+  // transaction would orphan that transaction rather than cleaning it up.
+  // Remove the payment from Cash & Bank first (which correctly reverses
+  // the account balance), then delete becomes available. Also blocked for
+  // a linked PI - deleting it out from under its invoice would leave that
+  // invoice's linked_pi_id pointing at nothing.
+  const handleDeleteDoc = async (row) => {
+    if (row.linkedToInvoice) {
+      alert(`${row[numberField]} is linked to Invoice ${row.linkedInvoiceNo} - delete or unlink that first.`)
+      return
+    }
+    if (Number(row.paid_amount) > 0) {
+      alert(`${row[numberField]} has a payment on record (${inr(row.paid_amount)} paid) - remove that from Cash & Bank first, then delete becomes available. This avoids leaving an orphaned transaction behind.`)
+      return
+    }
+    if (!window.confirm(`Permanently delete ${row[numberField]}? This can't be undone.`)) return
+    const { error: err } = await supabase.from(table).delete().eq('id', row.id)
+    if (err) { alert(`Couldn't delete that: ${err.message}`); return }
     load()
   }
 
@@ -539,6 +562,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'emails') openManageEmails(row)
     else if (action === 'cancel') handleToggleCancelled(row)
     else if (action === 'convert') openConvertForm(row)
+    else if (action === 'delete') handleDeleteDoc(row)
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -667,6 +691,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="emails">Manage reminder emails</option>
                           {isPi && <option value="convert">{r.linkedToInvoice ? `Already → ${r.linkedInvoiceNo}` : 'Move to Invoice…'}</option>}
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
+                          {role === 'Owner' && <option value="delete">Delete</option>}
                         </select>
                       </td>
                     </tr>

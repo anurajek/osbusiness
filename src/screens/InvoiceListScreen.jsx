@@ -14,7 +14,7 @@ import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/u
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
 
 export default function InvoiceListScreen({ type, onNavigate }) {
-  const { firmId, firm } = useFirm()
+  const { firmId, firm, role } = useFirm()
   const isSales = type === 'sales'
   const baseStatus = isSales ? 'Sent' : 'Approved'
   const statusOptions = [baseStatus, ...ALL_STATUSES, 'Cancelled']
@@ -151,6 +151,23 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     if (willCancel && !window.confirm(`Cancel ${row[numberField]}? It'll stop counting toward ${owedPhrase}, but stays on record.`)) return
     const { error: err } = await supabase.from(table).update({ is_cancelled: willCancel }).eq('id', row.id)
     if (err) { alert(`Couldn't update that: ${err.message}`); return }
+    load()
+  }
+
+  // Owner-only, and deliberately not offered when a payment is on record -
+  // this is a genuine, permanent delete (unlike Cancel, which keeps the
+  // row), and deleting an invoice/bill that still has a linked bank
+  // transaction would orphan that transaction rather than cleaning it up.
+  // Remove the payment from Cash & Bank first (which correctly reverses
+  // the account balance), then delete becomes available.
+  const handleDeleteDoc = async (row) => {
+    if (Number(row.paid_amount) > 0) {
+      alert(`${row[numberField]} has a payment on record (${inr(row.paid_amount)} paid) - remove that from Cash & Bank first, then delete becomes available. This avoids leaving an orphaned transaction behind.`)
+      return
+    }
+    if (!window.confirm(`Permanently delete ${row[numberField]}? This can't be undone.`)) return
+    const { error: err } = await supabase.from(table).delete().eq('id', row.id)
+    if (err) { alert(`Couldn't delete that: ${err.message}`); return }
     load()
   }
 
@@ -667,6 +684,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                           else if (action === 'edit') openEditForm(r)
                           else if (action === 'preview') handlePreviewPdf(r)
                           else if (action === 'cancel') handleToggleCancelled(r)
+                          else if (action === 'delete') handleDeleteDoc(r)
                           else if (action === 'link-pi') openLinkForm(r)
                           else if (action === 'receivables') onNavigate?.('arap', 'receivables', { customerId: r[partyJoinKey] })
                           else if (action === 'payables') onNavigate?.('arap', 'payables', { supplierId: r[partyJoinKey] })
@@ -684,6 +702,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         {onNavigate && !isSales && <option value="payables">Payables →</option>}
                         {onNavigate && isSales && <option value="invoice-followup">Invoice Follow-up →</option>}
                         {onNavigate && isSales && <option value="pi-followup">PI Follow-up →</option>}
+                        {role === 'Owner' && <option value="delete">Delete</option>}
                       </select>
                     </td>
                   </tr>

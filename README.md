@@ -1352,7 +1352,66 @@ and stacks one per row on mobile, matching what Search already did.
 Worth confirming directly on your phone once deployed, since this is
 based on reading the CSS rather than an actual device test.
 
+## The real cause of "Import Undo removed some data but not Sales"
+
+Run `migration_fix_invoice_delete_fk.sql` in Supabase's SQL Editor —
+additive, safe on the existing database.
+
+### The actual bug, confirmed by tracing the code
+
+Two tables — `credit_notes` and `quotations`, both built and tested
+earlier in this project before being hidden from navigation — reference
+`sales_invoices(id)` with no `ON DELETE` behavior specified at all.
+Postgres defaults that to blocking the delete outright if anything still
+references the row. If even one leftover credit note or quotation from
+earlier testing pointed at one of those invoices, deleting it via Import
+Data's Undo would fail — a real, genuine database constraint, not a
+random glitch.
+
+**The part that actually caused the confusion**: Undo's code called
+delete on each table but never checked whether it succeeded. When the
+Sales Invoice delete silently failed on that constraint, the code
+continued anyway and deleted the import record itself — making it look
+like everything was removed, while actually leaving the blocked rows
+behind with no way to retry (the "Undo" button was already gone, since
+its import record no longer existed).
+
+**Fixed on both ends:**
+- The two foreign keys now use `ON DELETE SET NULL` — if the invoice they
+  pointed to is gone, the credit note or quotation just loses that one
+  reference rather than blocking the delete.
+- Undo now actually checks every delete step. If one fails, it stops
+  immediately, tells you specifically what happened, and — critically —
+  does *not* delete the import record, so you can fix the underlying
+  issue and try again instead of losing that option permanently.
+
+## Delete option, Owner-only
+
+No migration needed for this part — just deploy.
+
+A genuine permanent delete, distinct from Cancel (which keeps the record
+but stops it counting toward anything owed) — available on Sales,
+Purchases, and Invoice/PI Follow-up, visible only to the Owner role.
+Deliberately blocked (with a clear message, not silently) when a payment
+is already on record for that document — deleting it then would orphan
+the linked bank transaction rather than cleaning it up. Remove the
+payment from Cash & Bank first (which correctly reverses the account
+balance), and delete becomes available.
+
 ## Status
+
+- [x] **Real cause of the Import Undo bug found and fixed; Owner-only
+      Delete added (Aug 2026):** confirmed the actual mechanism -
+      credit_notes/quotations referencing sales_invoices with no ON DELETE
+      behavior silently blocked some invoice deletions, and Undo never
+      checked for that error, so it deleted the import record anyway and
+      made a partial failure look like full success. Fixed at both the
+      database level (ON DELETE SET NULL) and the code level (Undo now
+      checks every step and never deletes the import record on failure).
+      Added a genuine permanent Delete option, Owner-only, blocked when a
+      payment is on record to avoid orphaning a bank transaction. See "The
+      real cause of 'Import Undo removed some data but not Sales'" and
+      "Delete option, Owner-only" above.
 
 - [x] **Mobile alignment fixes for AR/AP (Aug 2026):** the 5-tab row
       (Receivables/Payables/Invoice Follow-up/PI Follow-up/DSO & Trends)
