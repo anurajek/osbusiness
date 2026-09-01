@@ -212,16 +212,39 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // the account balance), then delete becomes available. Also blocked for
   // a linked PI - deleting it out from under its invoice would leave that
   // invoice's linked_pi_id pointing at nothing.
+  // Same atomic delete as Sales/Purchases - see that file's comment for
+  // the full reasoning. The linkedToInvoice case stays a hard block
+  // rather than trying to auto-resolve it: once a PI is linked, any
+  // payment showing here is actually the linked invoice's own
+  // transaction (re-pointed, not duplicated, when the link was made), so
+  // reversing it from this side would be reversing the wrong document's
+  // payment.
   const handleDeleteDoc = async (row) => {
     if (row.linkedToInvoice) {
       alert(`${row[numberField]} is linked to Invoice ${row.linkedInvoiceNo} - delete or unlink that first.`)
       return
     }
+    const linkedField = isPi ? 'related_proforma_invoice_id' : 'related_sales_invoice_id'
+    let confirmMsg = `Permanently delete ${row[numberField]}? This can't be undone.`
     if (Number(row.paid_amount) > 0) {
-      alert(`${row[numberField]} has a payment on record (${inr(row.paid_amount)} paid) - remove that from Cash & Bank first, then delete becomes available. This avoids leaving an orphaned transaction behind.`)
-      return
+      confirmMsg = `${row[numberField]} has a payment on record (${inr(row.paid_amount)} paid). Deleting it will also remove that payment from Cash & Bank and reverse the account balance. Permanently delete both? This can't be undone.`
     }
-    if (!window.confirm(`Permanently delete ${row[numberField]}? This can't be undone.`)) return
+    if (!window.confirm(confirmMsg)) return
+
+    if (Number(row.paid_amount) > 0) {
+      const { data: txns, error: txnFetchErr } = await supabase.from('bank_transactions').select('id, bank_account_id, amount').eq(linkedField, row.id)
+      if (txnFetchErr) { alert(`Couldn't check for linked payments: ${txnFetchErr.message}`); return }
+      for (const txn of txns ?? []) {
+        const account = bankAccounts.find((a) => a.id === txn.bank_account_id)
+        if (account) {
+          const { error: acctErr } = await supabase.from('bank_accounts').update({ balance: Number(account.balance) - Number(txn.amount) }).eq('id', txn.bank_account_id)
+          if (acctErr) { alert(`Couldn't reverse the linked payment's account balance: ${acctErr.message}. Nothing was deleted.`); return }
+        }
+        const { error: txnDelErr } = await supabase.from('bank_transactions').delete().eq('id', txn.id)
+        if (txnDelErr) { alert(`Couldn't remove the linked payment: ${txnDelErr.message}. The account balance was already reversed - check Cash & Bank.`); return }
+      }
+    }
+
     const { error: err } = await supabase.from(table).delete().eq('id', row.id)
     if (err) { alert(`Couldn't delete that: ${err.message}`); return }
     load()

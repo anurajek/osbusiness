@@ -411,11 +411,60 @@ export default function ImportScreen() {
         return
       }
     } else {
-      const { error: partyErr } = await supabase.from(t.table).delete().eq('import_batch_id', batch.id)
-      if (partyErr) {
+      // Customers/Suppliers - after weeks of real use, an imported batch
+      // commonly ends up with SOME records now genuinely referenced by
+      // real invoices/bills/PIs, and others that were never touched
+      // (duplicates, typos, records nobody used). The all-or-nothing
+      // delete this used to be would block on the very first real
+      // reference and remove nothing at all, even when most of the batch
+      // was perfectly safe to clean up - exactly what happened here.
+      // This checks each row individually and removes only the ones with
+      // zero references, reporting precisely what happened either way.
+      const { data: partyRows, error: fetchErr } = await supabase.from(t.table).select('id').eq('import_batch_id', batch.id)
+      if (fetchErr) {
         setUndoingId(null)
-        alert(`Couldn't remove all the ${t.label.toLowerCase()} from this import: ${partyErr.message}\n\nNothing was deleted from this batch - the import record is kept so you can try again.`)
+        alert(`Couldn't check this import's ${t.label.toLowerCase()}: ${fetchErr.message}`)
         return
+      }
+      const ids = (partyRows ?? []).map((r) => r.id)
+      if (ids.length > 0) {
+        const referenceQueries = t.table === 'customers'
+          ? [
+              supabase.from('sales_invoices').select('customer_id').in('customer_id', ids),
+              supabase.from('proforma_invoices').select('customer_id').in('customer_id', ids),
+            ]
+          : [supabase.from('purchase_bills').select('supplier_id').in('supplier_id', ids)]
+        const results = await Promise.all(referenceQueries)
+        const refErr = results.find((r) => r.error)
+        if (refErr) {
+          setUndoingId(null)
+          alert(`Couldn't check which ${t.label.toLowerCase()} are in use: ${refErr.error.message}`)
+          return
+        }
+        const referencedIds = new Set(results.flatMap((r) => (r.data ?? []).map((row) => row.customer_id ?? row.supplier_id)))
+        const deletableIds = ids.filter((id) => !referencedIds.has(id))
+        const keptCount = ids.length - deletableIds.length
+
+        if (deletableIds.length > 0) {
+          const { error: delErr } = await supabase.from(t.table).delete().in('id', deletableIds)
+          if (delErr) {
+            setUndoingId(null)
+            alert(`Couldn't remove the ${t.label.toLowerCase()}: ${delErr.message}`)
+            return
+          }
+        }
+
+        if (keptCount > 0) {
+          setUndoingId(null)
+          const plural = keptCount === 1
+          alert(
+            `Removed ${deletableIds.length} of ${ids.length} ${t.label.toLowerCase()}. ` +
+            `The other ${keptCount} ${plural ? 'has' : 'have'} invoices/bills recorded against ${plural ? 'it' : 'them'}, so ${plural ? 'it was' : 'they were'} kept - deleting ${plural ? 'it' : 'them'} would break that real data. ` +
+            `This import's record is kept since it's only partially undone.`
+          )
+          loadBatches()
+          return
+        }
       }
     }
     const { error: batchErr } = await supabase.from('import_batches').delete().eq('id', batch.id)

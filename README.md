@@ -1443,7 +1443,51 @@ delivered zip rather than continuing from the original checkout, which
 hadn't happened before now. Restored, and the zip command that produces
 every future delivery is corrected so this can't recur.
 
+## Undo works around real references now; delete handles payments atomically
+
+No migration needed — just deploy.
+
+### Import Undo: from all-or-nothing to "remove what's safe"
+
+The blocked error you saw was actually correct — a real foreign key
+violation, and it correctly kept the import record instead of losing it.
+But it was all-or-nothing: after weeks of real use, a batch of 428
+imported customers naturally ends up with *some* now genuinely
+referenced by real invoices, and others never touched. The old Undo
+blocked on the very first real reference and removed nothing at all,
+even when most of the batch was perfectly safe to clean up.
+
+**Fixed properly, not loosened.** For Customers/Suppliers specifically,
+Undo now checks every row individually against sales_invoices/
+proforma_invoices (or purchase_bills for suppliers), removes only the
+ones with zero references, and reports exactly what happened —
+"Removed 380 of 428. The other 48 have invoices/bills recorded against
+them, so they were kept." The import record stays if anything was kept,
+since it's only partially undone.
+
+### Deleting a document with a payment — now one step, not two
+
+Previously required a separate manual trip to Cash & Bank first, which
+was correct but genuinely inconvenient for something that's really one
+decision. Delete (Sales/Purchases/Invoice-PI Follow-up) now does both
+atomically: finds every bank transaction linked to the document, reverses
+each one's account balance the same way Cash & Bank's own delete does,
+removes the transactions, then deletes the document — with a
+confirmation that says plainly both things will happen. Still Owner-only,
+still requires explicit confirmation.
+
 ## Status
+
+- [x] **Import Undo removes what's safe instead of all-or-nothing; delete
+      handles payments atomically (Aug 2026):** Customers/Suppliers Undo
+      now checks each row individually against real invoice/bill/PI
+      references and removes only what's genuinely unreferenced, reporting
+      exact counts - no longer blocked entirely by the first real
+      reference in a large batch. Deleting a document with a payment on
+      record no longer requires a separate Cash & Bank trip first - one
+      confirmed action now reverses the linked transaction(s) and deletes
+      the document together. See "Undo works around real references now;
+      delete handles payments atomically" above.
 
 - [x] **Real cause of the Import Undo bug found and fixed; Owner-only
       Delete added (Aug 2026):** confirmed the actual mechanism -
