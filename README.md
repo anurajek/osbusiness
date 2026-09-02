@@ -1476,7 +1476,34 @@ removes the transactions, then deletes the document — with a
 confirmation that says plainly both things will happen. Still Owner-only,
 still requires explicit confirmation.
 
+## Receivables: a real per-document view, for a shareable daily report
+
+No migration needed — just deploy.
+
+Receivables' original table groups everything by customer (good for "who
+do I call today"), which loses the day-by-day, invoice-by-invoice detail
+a real report needs to be useful to share. Rather than rebuilding
+Receivables into something closer to Invoice/PI Follow-up and losing what
+already worked there, this adds a toggle — **By Customer** (unchanged,
+same table/drawer/actions as before) and **By Document** (new) right
+above the table.
+
+By Document flattens the same underlying invoices and PIs into one row
+per document — Customer, Type, Document #, Issued, Due Date, Amount, and
+Status — with a Total row, matching the level of detail Invoice/PI
+Follow-up already shows. Every export (CSV/PDF/Word) follows whichever
+view is currently active, so switching to By Document before exporting
+gets the actual per-document report, ready to share.
+
 ## Status
+
+- [x] **Receivables By Document view (Aug 2026):** new toggle above
+      Receivables' table - "By Customer" (unchanged) and "By Document"
+      (new), a flat per-invoice/PI list with Issued, Due Date, Amount,
+      and Status, matching the level of detail Invoice/PI Follow-up
+      already shows. Every export follows whichever view is active, for
+      a genuine day-level report to share. See "Receivables: a real
+      per-document view, for a shareable daily report" above.
 
 - [x] **Import Undo removes what's safe instead of all-or-nothing; delete
       handles payments atomically (Aug 2026):** Customers/Suppliers Undo

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus, isResolved, MANUAL_STATUSES } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, isResolved, toISODate, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -36,6 +36,16 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   const [search, setSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
 
+  // "By Customer" (the original view, unchanged) groups every open item
+  // per customer - good for who-to-call-today, but loses per-document
+  // detail (individual issue dates, due dates, one line per invoice/PI)
+  // that a real day-by-day report needs. "By Document" is the same
+  // underlying data, just flattened to one row per invoice/PI instead of
+  // aggregated - closer to what Invoice/PI Follow-up already shows, and
+  // exports the same way. Neither replaces the other; this is a toggle,
+  // not a rebuild - the customer view and its drawer/actions are untouched.
+  const [viewMode, setViewMode] = useState('customer')
+
   // Arriving here from a click elsewhere (e.g. a customer's name in Sales)
   // pre-filters to that one customer, instead of landing on the full,
   // unfiltered list and making the person search for them again.
@@ -53,7 +63,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
     const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
-      supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
+      supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, due_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
@@ -161,6 +171,48 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, tableInvoices, tablePis, comms, customerFilter, sortBy, search, statusFilter])
+
+  // Same default PI Follow-up uses for a PI's computed due date (PIs
+  // don't have a stored due_date column - see migration_pi_and_reminders.sql).
+  const graceDays = firm?.reminder_grace_days ?? 7
+
+  const documentRows = useMemo(() => {
+    const custName = (id) => customers.find((c) => c.id === id)?.name || '—'
+
+    let result = [
+      ...tableInvoices.map((i) => ({
+        key: `inv-${i.id}`, customerId: i.customer_id, customer: custName(i.customer_id),
+        type: 'Invoice', number: i.invoice_no, issuedDate: i.issued_date, dueDate: i.due_date || null,
+        amount: isPaidView ? Number(i.paid_amount) : Number(i.amount) - Number(i.paid_amount),
+        status: i.manual_status || computeStatus(i, 'Sent'),
+      })),
+      ...tablePis.map((p) => {
+        const d = new Date(p.issued_date + 'T00:00:00')
+        d.setDate(d.getDate() + graceDays)
+        return {
+          key: `pi-${p.id}`, customerId: p.customer_id, customer: custName(p.customer_id),
+          type: 'PI', number: p.pi_no, issuedDate: p.issued_date, dueDate: toISODate(d),
+          amount: isPaidView ? Number(p.paid_amount || 0) : Number(p.amount) - Number(p.paid_amount || 0),
+          status: p.manual_status || 'Sent',
+        }
+      }),
+    ]
+
+    if (customerFilter !== 'all') result = result.filter((r) => r.customerId === customerFilter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      result = result.filter((r) => r.customer.toLowerCase().includes(q) || r.number.toLowerCase().includes(q))
+    }
+
+    if (sortBy === 'amount-desc') result.sort((a, b) => b.amount - a.amount)
+    else if (sortBy === 'amount-asc') result.sort((a, b) => a.amount - b.amount)
+    else if (sortBy === 'name-asc') result.sort((a, b) => a.customer.localeCompare(b.customer))
+    else result.sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate)) // 'last-contact' isn't meaningful per-document - falls back to newest issued first
+
+    return result
+  }, [tableInvoices, tablePis, customers, customerFilter, search, sortBy, isPaidView, graceDays])
+
+  const documentTotal = useMemo(() => documentRows.reduce((sum, r) => sum + r.amount, 0), [documentRows])
 
   const totals = useMemo(() => {
     // Cancelled documents are void - excluded everywhere, same as
@@ -270,6 +322,16 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
 
   const handleExportCsv = () => {
+    if (viewMode === 'document') {
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '', r.amount.toFixed(2), r.status])
+      if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', documentTotal.toFixed(2), ''])
+      downloadCsv(
+        'receivables-by-document',
+        ['Customer', 'Type', 'Document #', 'Issued', 'Due Date', isPaidView ? 'Amount Received' : 'Amount Due', 'Status'],
+        docRows
+      )
+      return
+    }
     downloadCsv(
       'receivables-clients',
       ['Customer', isPaidView ? 'Paid Items' : 'Open Items', isPaidView ? 'Amount Received' : 'Amount Due', 'Last Follow-up', 'Last Contact Date'],
@@ -284,6 +346,21 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   }
 
   const handleExportPdf = () => {
+    if (viewMode === 'document') {
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '—', inr(r.amount), r.status])
+      if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', inr(documentTotal), ''])
+      downloadListPdf({
+        title: isPaidView ? 'Receivables — Paid, by Document' : 'Receivables — Pending, by Document',
+        firm,
+        filename: 'receivables-by-document',
+        columns: [
+          { label: 'Customer' }, { label: 'Type' }, { label: 'Document #' }, { label: 'Issued' }, { label: 'Due Date' },
+          { label: isPaidView ? 'Amount Received' : 'Amount Due', align: 'right' }, { label: 'Status' },
+        ],
+        rows: docRows,
+      })
+      return
+    }
     downloadListPdf({
       title: isPaidView ? 'Receivables — Paid Clients' : 'Receivables — Pending Clients',
       firm,
@@ -304,6 +381,21 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   }
 
   const handleExportWord = () => {
+    if (viewMode === 'document') {
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '—', inr(r.amount), r.status])
+      if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', inr(documentTotal), ''])
+      downloadListDocx({
+        title: isPaidView ? 'Receivables — Paid, by Document' : 'Receivables — Pending, by Document',
+        firm,
+        filename: 'receivables-by-document',
+        columns: [
+          { label: 'Customer' }, { label: 'Type' }, { label: 'Document #' }, { label: 'Issued' }, { label: 'Due Date' },
+          { label: isPaidView ? 'Amount Received' : 'Amount Due', align: 'right' }, { label: 'Status' },
+        ],
+        rows: docRows,
+      })
+      return
+    }
     downloadListDocx({
       title: isPaidView ? 'Receivables — Paid Clients' : 'Receivables — Pending Clients',
       firm,
@@ -349,14 +441,19 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
         period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
         sort={{
           value: sortBy, onChange: setSortBy,
-          options: [
+          options: viewMode === 'document' ? [
+            { value: 'amount-desc', label: `Amount ${isPaidView ? 'received' : 'due'}: high to low` },
+            { value: 'amount-asc', label: `Amount ${isPaidView ? 'received' : 'due'}: low to high` },
+            { value: 'issued-desc', label: 'Issued: newest first' },
+            { value: 'name-asc', label: 'Customer name: A–Z' },
+          ] : [
             { value: 'amount-desc', label: `Amount ${isPaidView ? 'received' : 'due'}: high to low` },
             { value: 'amount-asc', label: `Amount ${isPaidView ? 'received' : 'due'}: low to high` },
             { value: 'last-contact', label: 'Last contact: most recent' },
             { value: 'name-asc', label: 'Customer name: A–Z' },
           ],
         }}
-        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: rows.length === 0 }}
+        exportOptions={{ onExcel: handleExportCsv, onPdf: handleExportPdf, onWord: handleExportWord, disabled: (viewMode === 'document' ? documentRows : rows).length === 0 }}
       />
 
       {statusFilter !== 'all' && statusFilter !== 'Paid' && (
@@ -365,6 +462,12 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
         </p>
       )}
 
+      <div className="tabs" style={{ marginTop: 4 }}>
+        <div className={`tab ${viewMode === 'customer' ? 'tab--active' : ''}`} onClick={() => setViewMode('customer')}>By Customer</div>
+        <div className={`tab ${viewMode === 'document' ? 'tab--active' : ''}`} onClick={() => setViewMode('document')}>By Document</div>
+      </div>
+
+      {viewMode === 'customer' ? (
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}>
           <h2>{isPaidView ? 'Paid clients' : 'Pending clients'}</h2>
@@ -418,6 +521,45 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
         </table>
         </div>
       </div>
+      ) : (
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: 8 }}>
+          <h2>{isPaidView ? 'Paid documents' : 'Pending documents'}</h2>
+          <span className="section-header__note">{documentRows.length} document{documentRows.length !== 1 ? 's' : ''} · invoices + proforma invoices combined</span>
+        </div>
+        <div className="table-scroll">
+        <table className="ledger-table">
+          <thead>
+            <tr>
+              <th>Customer</th><th>Type</th><th>Document #</th><th>Issued</th><th>Due Date</th>
+              <th className="num">{isPaidView ? 'Amount Received' : 'Amount Due'}</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {documentRows.map((r) => (
+              <tr key={r.key} className="ledger-row ledger-row--clickable" onClick={() => setSelectedCustomerId(r.customerId)}>
+                <td>{r.customer}</td>
+                <td>{r.type}</td>
+                <td className="mono">{r.number}</td>
+                <td className="mono">{toISODate(new Date(r.issuedDate))}</td>
+                <td className="mono">{r.dueDate ? toISODate(new Date(r.dueDate)) : '—'}</td>
+                <td className="num mono">{inr(r.amount)}</td>
+                <td>{r.status}</td>
+              </tr>
+            ))}
+            {documentRows.length === 0 && <EmptyRow colSpan={7}>No {isPaidView ? 'paid' : 'open'} receivables match these filters.</EmptyRow>}
+            {documentRows.length > 0 && (
+              <tr className="ledger-row" style={{ fontWeight: 600, borderTop: '2px solid var(--rule)' }}>
+                <td colSpan={5}>Total</td>
+                <td className="num mono">{inr(documentTotal)}</td>
+                <td></td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      )}
 
       {selectedCustomer && (
         <CommDrawer
