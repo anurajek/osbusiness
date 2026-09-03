@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
-  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud,
+  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
@@ -22,7 +22,7 @@ const MODULES = [
   { key: 'permissions', label: 'Users & Permissions', icon: ShieldCheck },
 ]
 
-export default function AppShell({ activeModule, onNavigate, onSignOut, children }) {
+export default function AppShell({ activeModule, onNavigate, onSignOut, theme, toggleTheme, children }) {
   const { memberships, firmId, setFirmId, firm, role, permissions } = useFirm()
   const [navOpen, setNavOpen] = useState(false)
   const [firmMenuOpen, setFirmMenuOpen] = useState(false)
@@ -86,6 +86,14 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, children
           </div>
 
           <div className="topbar__user">
+            <button
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <span className="role-badge">{role}</span>
           </div>
         </header>

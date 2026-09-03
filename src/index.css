@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: dark;
   --ink: #0f1720;
   --panel: #16212c;
   --panel-alt: #1c2a38;
@@ -11,6 +12,29 @@
   --brass-dim: #8a701c;
   --teal: #3fa796;
   --brick: #c1554d;
+}
+
+/* Light mode - the same "financial ledger" identity (brass accents, that
+   exact accent palette), just inverted onto a warm cream paper background
+   instead of dark ink. --ink and --paper keep their original roles (page
+   background and primary text, respectively) rather than being redefined
+   - every rule in this file already refers to them by role, so only the
+   values needed to change, not the hundreds of places that use them.
+   brass/teal/brick are deliberately darkened here, not reused unchanged -
+   the original values are tuned to pop against a dark background and lose
+   real contrast/readability against a light one. */
+[data-theme="light"] {
+  color-scheme: light;
+  --ink: #f7f4ec;
+  --panel: #ffffff;
+  --panel-alt: #f1ede0;
+  --rule: #ddd5c0;
+  --paper: #1f2a33;
+  --paper-dim: #5b6b75;
+  --brass: #a6811e;
+  --brass-dim: #8a701c;
+  --teal: #227a6c;
+  --brick: #a83f38;
 }
 
 html, body, #root {
@@ -49,6 +73,8 @@ body {
 .topbar__gstin { font-family: 'Times New Roman', Times, serif; font-size: 11px; color: var(--paper-dim); font-weight: 400; }
 .topbar__user { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .role-badge { background: var(--brass); color: var(--ink); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+.theme-toggle { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--rule); background: var(--panel-alt); color: var(--paper-dim); cursor: pointer; }
+.theme-toggle:hover { color: var(--brass); border-color: var(--brass); }
 .signout-btn { background: none; border: 1px solid var(--rule); color: var(--paper-dim); font-size: 12px; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
 .signout-btn:hover { color: var(--paper); border-color: var(--paper-dim); }
 
@@ -108,9 +134,9 @@ body {
 .tab--active { color: var(--brass); background: var(--panel-alt); }
 
 .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
-.pill--ok { background: rgba(63,167,150,0.16); color: var(--teal); }
-.pill--bad { background: rgba(193,85,77,0.16); color: var(--brick); }
-.pill--warn { background: rgba(201,162,39,0.16); color: var(--brass); }
+.pill--ok { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
+.pill--bad { background: color-mix(in srgb, var(--brick) 16%, transparent); color: var(--brick); }
+.pill--warn { background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
 .pill--neutral { background: var(--panel-alt); color: var(--paper-dim); }
 
 .ledger-stamp { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; border: 1.5px solid; border-radius: 999px; padding: 3px 8px; transform: rotate(-2deg); display: inline-block; }
@@ -125,14 +151,14 @@ body {
 /* Permissions toggle */
 .toggle { width: 34px; height: 18px; border-radius: 999px; background: var(--panel-alt); border: 1px solid var(--rule); position: relative; cursor: pointer; }
 .toggle__dot { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper-dim); transition: transform .15s, background .15s; }
-.toggle--on { background: rgba(201,162,39,0.25); border-color: var(--brass); }
+.toggle--on { background: color-mix(in srgb, var(--brass) 25%, transparent); border-color: var(--brass); }
 .toggle--on .toggle__dot { background: var(--brass); transform: translateX(16px); }
 .toggle--locked { opacity: 0.5; cursor: not-allowed; }
 
 /* Period selector */
 .period-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .period-pill { background: var(--panel); border: 1px solid var(--rule); color: var(--paper-dim); font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
-.period-pill--active { color: var(--brass); border-color: var(--brass); background: rgba(201,162,39,0.1); }
+.period-pill--active { color: var(--brass); border-color: var(--brass); background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .period-custom { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
 .period-custom__to { font-size: 12px; color: var(--paper-dim); }
 .date-input { background: var(--panel-alt); border: 1px solid var(--rule); color: var(--paper); font-size: 12.5px; padding: 5px 8px; border-radius: 6px; font-family: 'Times New Roman', Times, serif; }
@@ -171,7 +197,7 @@ body {
 .select--sm { flex: 1; padding: 7px 10px; font-size: 12.5px; }
 .textarea { width: 100%; background: var(--panel-alt); border: 1px solid var(--rule); color: var(--paper); border-radius: 8px; padding: 10px; font-size: 13px; font-family: inherit; resize: vertical; }
 .btn-primary { background: var(--brass); color: var(--ink); border: none; font-weight: 600; font-size: 13px; padding: 9px 14px; border-radius: 8px; cursor: pointer; align-self: flex-start; }
-.btn-primary:hover { background: #DCB230; }
+.btn-primary:hover { background: color-mix(in srgb, var(--brass) 85%, white); }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Search box */

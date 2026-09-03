@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from './hooks/useAuth'
+import { useTheme } from './hooks/useTheme'
 import { FirmProvider, useFirm } from './context/FirmContext'
 import LoginScreen from './screens/LoginScreen'
 import SignupScreen from './screens/SignupScreen'
@@ -82,7 +83,7 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
   )
 }
 
-function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword }) {
+function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme }) {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [arapTab, setArapTab] = useState('receivables')
 
@@ -98,12 +99,14 @@ function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreate
         initialError={initialError}
         onSignOut={onSignOut}
         onChangePassword={onChangePassword}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
     </FirmProvider>
   )
 }
 
-function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword }) {
+function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme }) {
   const { permissions, firmId, role } = useFirm()
   const [navParams, setNavParams] = useState(null)
 
@@ -145,13 +148,14 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
   }
 
   return (
-    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut}>
+    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut} theme={theme} toggleTheme={toggleTheme}>
       {renderModule()}
     </AppShell>
   )
 }
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme()
   const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, refreshMemberships, signOut, passwordRecovery, requestPasswordReset, completePasswordReset, changeOwnPassword } = useAuth()
   const [authMode, setAuthMode] = useState('login')
 
@@ -215,6 +219,8 @@ export default function App() {
       initialError={memberships.length === 0 ? error : null}
       onSignOut={signOut}
       onChangePassword={changeOwnPassword}
+      theme={theme}
+      toggleTheme={toggleTheme}
     />
   )
 }

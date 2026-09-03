@@ -1495,7 +1495,52 @@ Follow-up already shows. Every export (CSV/PDF/Word) follows whichever
 view is currently active, so switching to By Document before exporting
 gets the actual per-document report, ready to share.
 
+## Light mode / dark mode
+
+No migration needed — just deploy.
+
+A sun/moon toggle in the topbar, next to the role badge. Preference is
+saved to the browser (`localStorage`, not per-account) and applied from
+the very first render — including the login/signup screens, not just the
+authenticated app — so it doesn't flash to dark mode for a signed-out
+visitor before settling on the saved choice. Defaults to dark, matching
+what the app has always looked like, so nothing changes until it's
+actually toggled.
+
+This was possible without touching individual screens because the whole
+app was already built on ten CSS custom properties (`--ink`, `--panel`,
+`--paper`, `--brass`, etc.) rather than scattered hardcoded colors — every
+component already referred to color by *role* (page background, primary
+text, accent) rather than by specific value, so light mode only needed a
+second set of values for those same ten roles, not hundreds of individual
+edits.
+
+Light mode uses a warm cream "ledger paper" palette, the same identity as
+dark mode (same brass accent, same overall feel) just inverted onto a
+light background — with brass/teal/brick genuinely darkened for real
+contrast against a light background rather than reused unchanged, since
+colors tuned to pop on dark ink don't automatically stay readable on
+cream paper.
+
+**Also fixed as part of this**: a handful of pill/hover backgrounds
+(status pills, the active period pill, the primary button's hover state)
+were hardcoded `rgba()`/hex values *derived* from the dark palette's
+specific numbers, rather than referencing the CSS variables themselves —
+they'd have gone visibly out of sync with the new light-mode colors.
+Converted to `color-mix()` using the actual variables, so they now
+automatically track whichever theme is active instead of needing a
+second hardcoded copy per theme.
+
 ## Status
+
+- [x] **Light mode / dark mode (Aug 2026):** sun/moon toggle in the
+      topbar, saved to the browser, applied from first render including
+      login/signup. Warm cream "ledger paper" light palette, same brand
+      identity as dark mode with brass/teal/brick genuinely darkened for
+      real contrast on a light background. A few pill/hover backgrounds
+      hardcoded from the dark palette's specific values were converted to
+      `color-mix()` so they track whichever theme is active automatically.
+      See "Light mode / dark mode" above.
 
 - [x] **Receivables By Document view (Aug 2026):** new toggle above
       Receivables' table - "By Customer" (unchanged) and "By Document"
