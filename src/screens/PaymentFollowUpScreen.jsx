@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, MANUAL_STATUSES } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -93,6 +93,22 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [newPiPaid, setNewPiPaid] = useState('0')
   const [addPiError, setAddPiError] = useState(null)
   const [addingPi, setAddingPi] = useState(false)
+
+  // Edit, for both Invoice and PI Follow-up - PIs previously had no way
+  // to edit an existing record at all (only create, via Add PI or CSV
+  // import, never modify afterward). Paid amount is deliberately not
+  // editable here, matching Sales/Purchases' own Edit form exactly - use
+  // the Status dropdown's Paid/Partially Paid (a real Record Payment
+  // flow) instead, so Cash & Bank stays correct rather than a number here
+  // silently drifting out of sync with what's actually in the bank.
+  const [editingRowId, setEditingRowId] = useState(null)
+  const [editCustomerId, setEditCustomerId] = useState('')
+  const [editNumber, setEditNumber] = useState('')
+  const [editIssuedDate, setEditIssuedDate] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editAmount, setEditAmount] = useState('')
+  const [editError, setEditError] = useState(null)
+  const [editingBusy, setEditingBusy] = useState(false)
 
   const load = useCallback(async () => {
     if (!firmId) return
@@ -288,6 +304,58 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     load()
   }
 
+  const openEditForm = (row) => {
+    setEditingRowId(row.id)
+    setEditCustomerId(row.customer_id || '')
+    setEditNumber(row[numberField] || '')
+    setEditIssuedDate(row.issued_date ? toISODate(new Date(row.issued_date)) : toISODate(new Date()))
+    setEditDueDate(!isPi && row.due_date ? toISODate(new Date(row.due_date)) : '')
+    setEditAmount(String(row.amount ?? ''))
+    setEditError(null)
+    setExpandedId(null)
+    setPayingRowId(null)
+    setConvertingRowId(null)
+  }
+
+  const handleSaveEdit = async (row) => {
+    setEditError(null)
+    if (!editCustomerId) { setEditError('Select a customer.'); return }
+    if (!editNumber.trim()) { setEditError(`Enter a ${docLabel} number.`); return }
+    const amountNum = parseFloat(editAmount)
+    if (!amountNum || amountNum <= 0) { setEditError('Enter a valid amount.'); return }
+    if (!isPlausibleDate(editIssuedDate)) { setEditError(`That issued date (${editIssuedDate}) doesn't look right — check the year.`); return }
+    if (!isPi && !isPlausibleDate(editDueDate)) { setEditError(`That due date (${editDueDate}) doesn't look right — check the year.`); return }
+
+    setEditingBusy(true)
+    // paid_amount itself is never part of this payload - locked, see the
+    // state comment above for why. Still needed here (unchanged) to
+    // correctly recompute the invoice status against the new amount/due
+    // date, since a status like Overdue/Partial depends on both.
+    const currentPaid = Number(row.paid_amount || 0)
+    const payload = isPi
+      ? {
+          customer_id: editCustomerId,
+          pi_no: editNumber.trim(),
+          issued_date: editIssuedDate,
+          amount: amountNum,
+          status: currentPaid >= amountNum ? 'Paid' : 'Sent',
+        }
+      : {
+          customer_id: editCustomerId,
+          invoice_no: editNumber.trim(),
+          issued_date: editIssuedDate,
+          due_date: editDueDate || null,
+          amount: amountNum,
+          status: statusForStorage(computeStatus({ amount: amountNum, paid_amount: currentPaid, due_date: editDueDate }, 'Sent'), true),
+        }
+
+    const { error: err } = await supabase.from(table).update(payload).eq('id', row.id)
+    setEditingBusy(false)
+    if (err) { setEditError(err.message); return }
+    setEditingRowId(null)
+    load()
+  }
+
   const openConvertForm = (row) => {
     if (row.linkedToInvoice) {
       alert(`${row[numberField]} is already linked to Invoice ${row.linkedInvoiceNo}. Moving it again would create a second invoice for the same PI - manage this from Invoice Follow-up instead.`)
@@ -303,6 +371,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setConvertError(null)
     setExpandedId(null)
     setPayingRowId(null)
+    setEditingRowId(null)
   }
 
   // Creates the real sales_invoices row from this PI - customer and amount
@@ -431,6 +500,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setPayError(null)
     setExpandedId(null)
     setConvertingRowId(null)
+    setEditingRowId(null)
   }
 
   const handleStatusDropdownChange = async (row, value) => {
@@ -549,6 +619,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setSendConfirmId(null)
     setPayingRowId(null)
     setConvertingRowId(null)
+    setEditingRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -561,6 +632,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setSendConfirmId(row.id)
     setPayingRowId(null)
     setConvertingRowId(null)
+    setEditingRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -644,6 +716,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'cancel') handleToggleCancelled(row)
     else if (action === 'convert') openConvertForm(row)
     else if (action === 'delete') handleDeleteDoc(row)
+    else if (action === 'edit') openEditForm(row)
   }
 
   const addComm = async ({ channel, tag, note }) => {
@@ -817,6 +890,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                         >
                           <option value="" disabled>{busy ? 'Working…' : 'Actions…'}</option>
                           <option value="preview">Preview</option>
+                          <option value="edit">Edit</option>
                           <option value="send" disabled={r.reminders_paused}>Send reminder now</option>
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
@@ -980,6 +1054,45 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               {convertingBusy ? 'Creating…' : 'Create invoice'}
                             </button>
                             <button type="button" className="link-btn" onClick={() => { setConvertingRowId(null); setConvertError(null) }}>Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {editingRowId === r.id && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
+                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
+                            Editing {r[numberField]}
+                          </div>
+                          <div className="add-comm-row">
+                            <select className="select select--sm" value={editCustomerId} onChange={(e) => setEditCustomerId(e.target.value)}>
+                              <option value="" disabled>Select customer…</option>
+                              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <input
+                              className="text-input" placeholder={`${docLabel} number`} value={editNumber}
+                              onChange={(e) => setEditNumber(e.target.value)}
+                            />
+                            <input type="date" className="text-input" value={editIssuedDate} onChange={(e) => setEditIssuedDate(e.target.value)} />
+                            {!isPi && (
+                              <input type="date" className="text-input" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} placeholder="Due date" />
+                            )}
+                          </div>
+                          <div className="add-comm-row">
+                            <input
+                              type="number" min="0" step="0.01" className="text-input" placeholder="Amount"
+                              value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
+                            />
+                          </div>
+                          <p className="login-footnote" style={{ marginTop: 2 }}>
+                            Amount already paid ({inr(r.paid_amount)}) isn't editable here — use the Status column (Paid/Partially Paid) to record a real payment, so Cash & Bank stays correct.
+                          </p>
+                          {editError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{editError}</p>}
+                          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                            <button className="btn-primary" disabled={editingBusy} onClick={() => handleSaveEdit(r)}>
+                              {editingBusy ? 'Saving…' : 'Save changes'}
+                            </button>
+                            <button type="button" className="link-btn" onClick={() => { setEditingRowId(null); setEditError(null) }}>Cancel</button>
                           </div>
                         </td>
                       </tr>

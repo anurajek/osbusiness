@@ -1570,7 +1570,33 @@ add it.
 Expected Date is now shown in the By Document view too (table and every
 export), matching Invoice/PI Follow-up.
 
+## Edit on Invoice/PI Follow-up
+
+No migration needed — just deploy.
+
+PIs previously had no way to edit an existing record at all — only create
+one (Add PI or CSV import), never modify it afterward. Invoice/PI
+Follow-up → Actions → Edit, right next to Preview, now covers both:
+Customer, {Invoice/PI} #, Issued Date, Amount, and Due Date for invoices
+specifically (PIs don't have a stored due date — it's always computed
+from Issued Date + grace days for display, same as everywhere else).
+
+**Paid amount is deliberately not editable here**, matching exactly how
+Sales/Purchases' own Edit form already works — a note in the form points
+to the Status column (Paid/Partially Paid) instead, which is a real
+Record Payment flow. Editing a number directly here would silently drift
+out of sync with whatever Cash & Bank actually shows; recording it as a
+real payment keeps both correct.
+
 ## Status
+
+- [x] **Edit added to Invoice/PI Follow-up (Aug 2026):** PIs previously
+      had no way to edit an existing record at all. New Edit action
+      covers Customer, number, Issued Date, Amount, and Due Date
+      (invoices only). Paid amount deliberately not editable here,
+      matching Sales/Purchases' own Edit exactly - use the Status
+      column's real Record Payment flow instead, so Cash & Bank never
+      drifts out of sync. See "Edit on Invoice/PI Follow-up" above.
 
 - [x] **Date year-corruption safeguard; By Document fixes (Aug 2026):**
       traced the "10-09-2026 becomes 10-09-0002" bug to native
