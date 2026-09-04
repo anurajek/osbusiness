@@ -1,6 +1,21 @@
 export const inr = (n) =>
   "₹" + Math.abs(Number(n) || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+// A safeguard against native <input type="date"> widgets occasionally
+// mangling a typed year (a real, reported browser quirk - typing a full
+// 4-digit year over an existing value can misfire into something like
+// "0002" instead of "2026" depending on how the browser's own segment
+// navigation reads the keystrokes). This can't be fixed by changing how
+// Claude's code reads the value - the browser already handed back a
+// technically-valid ISO date string, just a wrong one - so instead this
+// catches anything with an implausible year before it gets saved, rather
+// than silently writing corrupted data.
+export function isPlausibleDate(dateStr) {
+  if (!dateStr) return true; // empty/optional is fine, that's a different check
+  const year = Number(String(dateStr).slice(0, 4));
+  return year >= 1990 && year <= 2200;
+}
+
 export function daysAgoLabel(dateStr) {
   if (!dateStr) return "—";
   const d = new Date(dateStr);

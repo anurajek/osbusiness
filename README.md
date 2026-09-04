@@ -1531,7 +1531,57 @@ Converted to `color-mix()` using the actual variables, so they now
 automatically track whichever theme is active instead of needing a
 second hardcoded copy per theme.
 
+## Date year-corruption safeguard, By Document fixes
+
+No migration needed — just deploy.
+
+### The "10-09-2026 becomes 10-09-0002" bug
+
+Traced this to its actual source: the Due Date field is a native
+`<input type="date">`, which means the browser's own date-picker widget
+is handling the keystrokes, not this app's code. This is a real, known
+quirk of native date inputs — typing a full year over an existing value
+can occasionally misfire depending on how the browser reads the
+keystrokes, and the browser hands back a technically-valid but wrong ISO
+date string. There's no way to change how the browser's own widget
+interprets typing — but there is a way to stop a wrong date it produces
+from ever reaching the database.
+
+**Added a real safeguard, not a workaround**: every date field that gets
+saved anywhere in the app (Due Date, Issued Date, all four payment-date
+fields, Expected Date, Move to Invoice's dates) now checks the year is
+plausible (1990–2200) before saving, with a clear message rather than a
+silent save. If this happens again, clearing the field first and typing
+it fresh should avoid the browser's own misfire.
+
+### Receivables By Document: Due Date and Expected Date
+
+Checked the actual code and data rather than assuming either was
+correct. The report itself was reading `due_date` correctly — what's
+genuinely true is that Due Date is an *optional* field on both CSV import
+and manual entry, so any invoice where it was never filled in has nothing
+to show. This matters more broadly than just this report, worth knowing:
+an invoice without a due date never shows as Overdue or Due Today
+*anywhere* in the app, not just here — the status calculation quietly
+falls back to "Sent" indefinitely when there's no due date to compare
+against. If invoices are missing it, backfilling via Edit is the way to
+add it.
+
+Expected Date is now shown in the By Document view too (table and every
+export), matching Invoice/PI Follow-up.
+
 ## Status
+
+- [x] **Date year-corruption safeguard; By Document fixes (Aug 2026):**
+      traced the "10-09-2026 becomes 10-09-0002" bug to native
+      `<input type="date">` widgets, not app code - added a real
+      safeguard (year plausibility check, 1990-2200) before any date
+      saves anywhere in the app, rather than a workaround. Confirmed
+      Receivables By Document was reading due_date correctly - it's an
+      optional field, and any invoice missing it never shows Overdue/Due
+      Today anywhere in the app, not just this report. Expected Date
+      added to By Document (table + exports). See "Date year-corruption
+      safeguard, By Document fixes" above.
 
 - [x] **Light mode / dark mode (Aug 2026):** sun/moon toggle in the
       topbar, saved to the browser, applied from first render including

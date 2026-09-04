@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage, balanceDue } from '../lib/format'
+import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage, balanceDue, isPlausibleDate } from '../lib/format'
 import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -347,6 +347,8 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     const amountNum = parseFloat(newDocAmount)
     if (!amountNum || amountNum <= 0) { setAddDocError('Enter a valid amount.'); return }
     const paidNum = parseFloat(newDocPaid) || 0
+    if (!isPlausibleDate(newDocIssuedDate)) { setAddDocError(`That issued date (${newDocIssuedDate}) doesn't look right — check the year.`); return }
+    if (!isPlausibleDate(newDocDueDate)) { setAddDocError(`That due date (${newDocDueDate}) doesn't look right — check the year. This is a known quirk of the browser's own date picker (typing a year over an existing value can occasionally misfire) — try clearing the field first, then typing the date fresh.`); return }
 
     setAddingDoc(true)
 
@@ -405,6 +407,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
     if (!payAccountId) { setPayError('Select which cash or bank account this moved through.'); return }
     if (!payDate) { setPayError('Pick the date this payment was actually received/made.'); return }
+    if (!isPlausibleDate(payDate)) { setPayError(`That date (${payDate}) doesn't look right — check the year.`); return }
 
     const account = bankAccounts.find((a) => a.id === payAccountId)
     if (!account) { setPayError('That account could not be found - try reopening this form.'); return }

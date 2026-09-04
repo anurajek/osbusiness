@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange, isResolved, balanceDue, MANUAL_STATUSES } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -255,6 +255,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // Expected Date is always optional and freely editable - a blank value
   // clears it back to null, same as any other optional field.
   const handleSetExpectedDate = async (row, value) => {
+    if (!isPlausibleDate(value)) { alert(`That date (${value}) doesn't look right — check the year.`); return }
     const { error: err } = await supabase.from(table).update({ expected_payment_date: value || null }).eq('id', row.id)
     if (err) { alert(`Couldn't update that: ${err.message}`); return }
     load()
@@ -268,6 +269,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     const amountNum = parseFloat(newPiAmount)
     if (!amountNum || amountNum <= 0) { setAddPiError('Enter a valid amount.'); return }
     const paidNum = parseFloat(newPiPaid) || 0
+    if (!isPlausibleDate(newPiIssuedDate)) { setAddPiError(`That issued date (${newPiIssuedDate}) doesn't look right — check the year.`); return }
 
     setAddingPi(true)
     const { error: err } = await supabase.from('proforma_invoices').insert({
@@ -317,12 +319,14 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setConvertError(null)
     if (!convertInvoiceNo.trim()) { setConvertError('Enter the real invoice number.'); return }
     if (!convertDate) { setConvertError('Pick the invoice date.'); return }
+    if (!isPlausibleDate(convertDate)) { setConvertError(`That invoice date (${convertDate}) doesn't look right — check the year.`); return }
     let newPayment = 0
     if (convertPaymentReceived) {
       newPayment = parseFloat(convertPayAmount)
       if (!newPayment || newPayment <= 0) { setConvertError('Enter a valid amount received.'); return }
       if (!convertPayAccountId) { setConvertError('Select which cash or bank account this landed in.'); return }
       if (!convertPayDate) { setConvertError('Pick the date this payment was actually received.'); return }
+      if (!isPlausibleDate(convertPayDate)) { setConvertError(`That payment date (${convertPayDate}) doesn't look right — check the year.`); return }
     }
 
     setConvertingBusy(true)
@@ -476,6 +480,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (!extra || extra <= 0) { setPayError('Enter a valid amount.'); return }
     if (!payAccountId) { setPayError('Select which cash or bank account this landed in.'); return }
     if (!payDate) { setPayError('Pick the date this payment was actually received.'); return }
+    if (!isPlausibleDate(payDate)) { setPayError(`That date (${payDate}) doesn't look right — check the year.`); return }
 
     const account = bankAccounts.find((a) => a.id === payAccountId)
     if (!account) { setPayError('That account could not be found - try reopening this form.'); return }
