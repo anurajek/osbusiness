@@ -1588,7 +1588,59 @@ Record Payment flow. Editing a number directly here would silently drift
 out of sync with whatever Cash & Bank actually shows; recording it as a
 real payment keeps both correct.
 
+## Comm log: mentions, assignment, and self-reminders
+
+**Run `migration_comm_followup_reminders.sql` before deploying this one.**
+
+The "Log an update" form in the comm-log drawer (shared by Receivables,
+Payables, and Invoice/PI Follow-up) now supports:
+
+- **@mention** — typing `@` in the note autocompletes firm members; picking
+  one inserts `@Full Name` into the text. Mentioned names render highlighted
+  in the timeline below. This reads mentions back out of the saved text
+  itself rather than tracking insertion order, so deleting an `@Name` after
+  typing it correctly stops counting as a mention.
+- **Assign to** — a separate field from mentioning someone in the note text;
+  hands ownership of the next follow-up action on that entry to a specific
+  firm member. Deliberately just a plain member picker, not a new role
+  hierarchy (Senior Accountant / Executive Accountant / PA to CEO) — pick
+  whichever person should own whichever escalation level, per entry.
+- **Remind me on** — an optional self-set date, with quick-pick chips
+  (Tomorrow / +3d / +7d / +14d / +30d) loosely inspired by a typical
+  collections cadence, plus a raw date picker for clients on a genuinely
+  custom payment schedule. This is a personal internal nudge, entirely
+  separate from the automatic email-reminder machinery already in the app
+  (`reminders_paused` / `last_reminder_stage` on sales_invoices/
+  proforma_invoices) — that system emails clients on its own schedule; this
+  is "remind *me* to do something," not an outbound message.
+- **"No response" removed** from the response-tag list — a dead-end label
+  nobody acted on; "Awaiting response" plus a Remind-me-on date covers the
+  same situation with an actual next step attached.
+
+A reminder whose date has arrived surfaces two places at once: a **"My
+reminders today"** list on the Dashboard (filtered to whoever's logged in,
+via `assigned_to`), and a highlighted row with a small bell icon right on
+that customer/supplier's row in Receivables, Payables, and Invoice/PI
+Follow-up — so it's visible both as a daily checklist and right where the
+actual follow-up work happens. "Mark done" is available from either place.
+
+**Known limitations:** a mention is informational only — there's no
+notification inbox for "you were mentioned," just a highlighted name in the
+timeline. The comm-log tables (`ar_comms`/`supplier_comms`) only had
+select/insert RLS policies before this — an update policy was added so
+"Mark done" can actually write.
+
 ## Status
+
+- [x] **Comm log: mentions, assignment, self-reminders (Sep 2026):** @mention
+      autocomplete and an "Assign to" field added to every comm-log entry
+      (Receivables/Payables/Invoice-PI Follow-up share the same drawer). A
+      self-set "Remind me on" date (with quick-pick chips) surfaces as a
+      Dashboard "My reminders today" list and a highlighted row wherever
+      that customer/supplier appears, both dismissible via "Mark done".
+      "No response" removed from the response-tag list. See "Comm log:
+      mentions, assignment, and self-reminders" above for full detail and
+      the honest limitations.
 
 - [x] **Edit added to Invoice/PI Follow-up (Aug 2026):** PIs previously
       had no way to edit an existing record at all. New Edit action

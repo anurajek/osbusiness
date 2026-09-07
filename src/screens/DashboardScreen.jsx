@@ -75,7 +75,7 @@ function buildCashFlowSeries(bankTxns, period, currentTotalBalance) {
 }
 
 export default function DashboardScreen({ onNavigate }) {
-  const { firmId, firm } = useFirm()
+  const { firmId, firm, membershipId } = useFirm()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -90,22 +90,41 @@ export default function DashboardScreen({ onNavigate }) {
       setLoading(true)
       setError(null)
 
+      const todayISO = toISODate(new Date())
+
       const [
         { data: accounts, error: accErr },
         { data: invoices, error: invErr },
         { data: bills, error: billErr },
         { data: activity, error: actErr },
         { data: bankTxns, error: txnErr },
+        { data: custs, error: custErr },
+        { data: sups, error: supErr },
+        { data: arReminders, error: arRemErr },
+        { data: apReminders, error: apRemErr },
       ] = await Promise.all([
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
         supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
         supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
         supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
+        supabase.from('customers').select('id, name').eq('firm_id', firmId),
+        supabase.from('suppliers').select('id, name').eq('firm_id', firmId),
+        // "My reminders today" - self-set reminders (from the comm log's
+        // Remind-me-on field) assigned to the person currently looking at
+        // this Dashboard, whose date has arrived and isn't dismissed yet.
+        // Separate from the automatic email-reminder machinery entirely -
+        // see migration_comm_followup_reminders.sql.
+        membershipId
+          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on').eq('firm_id', firmId).eq('assigned_to', membershipId).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          : Promise.resolve({ data: [], error: null }),
+        membershipId
+          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on').eq('firm_id', firmId).eq('assigned_to', membershipId).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          : Promise.resolve({ data: [], error: null }),
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || actErr || txnErr
+      const err = accErr || invErr || billErr || actErr || txnErr || custErr || supErr || arRemErr || apRemErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
@@ -114,6 +133,13 @@ export default function DashboardScreen({ onNavigate }) {
       const totalAR = openInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
       const totalAP = openBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
 
+      const customerName = (id) => (custs ?? []).find((c) => c.id === id)?.name || '—'
+      const supplierName = (id) => (sups ?? []).find((s) => s.id === id)?.name || '—'
+      const myReminders = [
+        ...(arReminders ?? []).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on })),
+        ...(apReminders ?? []).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on })),
+      ].sort((a, b) => a.remindOn.localeCompare(b.remindOn))
+
       setData({
         totalCash, totalAR, totalAP,
         accountCount: (accounts ?? []).length,
@@ -121,13 +147,25 @@ export default function DashboardScreen({ onNavigate }) {
         apAgeing: buildAgeing(openBills),
         activity: activity ?? [],
         bankTxns: bankTxns ?? [],
+        myReminders,
       })
       setLoading(false)
     }
 
     load()
     return () => { cancelled = true }
-  }, [firmId])
+  }, [firmId, membershipId])
+
+  // Dismisses one of "my" reminders from the Dashboard list directly -
+  // updates optimistically rather than re-running the whole load, since
+  // this is the one thing on this screen a person is likely to do
+  // repeatedly first thing in the morning.
+  const markReminderDone = async (rem) => {
+    const table = rem.kind === 'ar' ? 'ar_comms' : 'supplier_comms'
+    const { error: err } = await supabase.from(table).update({ reminder_done: true }).eq('id', rem.id)
+    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+    setData((d) => (d ? { ...d, myReminders: d.myReminders.filter((m) => m.id !== rem.id) } : d))
+  }
 
   const cashFlow = useMemo(() => {
     if (!data) return null
@@ -149,6 +187,31 @@ export default function DashboardScreen({ onNavigate }) {
         <StatCard label="Receivable (AR)" value={inr(data.totalAR)} sub="open invoices" onClick={() => onNavigate('arap', 'receivables')} />
         <StatCard label="Payable (AP)" value={inr(data.totalAP)} sub="open bills" onClick={() => onNavigate('arap', 'payables')} />
         <StatCard label="Net position" value={inr(data.totalCash + data.totalAR - data.totalAP)} sub="cash + AR − AP" />
+      </div>
+
+      <div className="card">
+        <div className="section-header" style={{ marginBottom: 8 }}><h2>My reminders today</h2></div>
+        {data.myReminders.length === 0 && <p className="empty-state">Nothing due — you're clear.</p>}
+        {data.myReminders.length > 0 && (
+          <ul className="activity-list">
+            {data.myReminders.map((rem) => (
+              <li key={rem.id} className="activity-row" style={{ justifyContent: 'space-between', gap: 10 }}>
+                <span className="activity-dot" style={{ background: 'var(--brick)' }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <button
+                    className="link-btn" style={{ padding: 0 }}
+                    onClick={() => onNavigate('arap', rem.kind === 'ar' ? 'receivables' : 'payables', rem.kind === 'ar' ? { customerId: rem.partyId } : { supplierId: rem.partyId })}
+                  >
+                    {rem.partyName}
+                  </button>
+                  {' — '}{rem.note}
+                </span>
+                <span className="activity-when">{rem.remindOn}</span>
+                <button type="button" className="link-btn" onClick={() => markReminderDone(rem)}>Mark done</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="card chart-card">

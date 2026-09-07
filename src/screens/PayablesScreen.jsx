@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, toISODate } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -21,6 +22,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
   const [suppliers, setSuppliers] = useState([])
   const [bills, setBills] = useState([])
   const [comms, setComms] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -47,13 +49,14 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     if (!firmId) return
     setLoading(true)
     setError(null)
-    const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: commRows, error: commErr }] = await Promise.all([
+    const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }] = await Promise.all([
       supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-      supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
     ])
-    if (supErr || billErr || commErr) {
-      setError((supErr || billErr || commErr).message)
+    if (supErr || billErr || commErr || memberErr) {
+      setError((supErr || billErr || commErr || memberErr).message)
       setLoading(false)
       return
     }
@@ -64,6 +67,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     // threaded through every downstream calculation individually.
     setBills((billRows ?? []).filter((b) => !b.is_cancelled))
     setComms(commRows ?? [])
+    setMembers(memberRows ?? [])
     setLoading(false)
   }, [firmId])
 
@@ -122,15 +126,28 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     return { billed, paid, pending: billed - paid }
   }, [billsInPeriod])
 
-  const addComm = async ({ channel, tag, note }) => {
+  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('supplier_comms').insert({
       firm_id: firmId, supplier_id: selectedSupplierId, channel, tag, note,
+      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
     })
     setSaving(false)
     if (insertErr) { alert(`Couldn't save that update: ${insertErr.message}`); return }
     await load()
   }
+
+  const markReminderDone = async (commId) => {
+    const { error: err } = await supabase.from('supplier_comms').update({ reminder_done: true }).eq('id', commId)
+    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+    await load()
+  }
+
+  const todayISO = toISODate(new Date())
+  const dueReminderSupplierIds = useMemo(
+    () => new Set(comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.supplier_id)),
+    [comms, todayISO]
+  )
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSupplierId)
 
@@ -241,8 +258,11 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.supplier.id} className="ledger-row ledger-row--clickable" onClick={() => setSelectedSupplierId(r.supplier.id)}>
-                <td>{r.supplier.name}</td>
+              <tr key={r.supplier.id} className={`ledger-row ledger-row--clickable ${dueReminderSupplierIds.has(r.supplier.id) ? 'ledger-row--reminder' : ''}`} onClick={() => setSelectedSupplierId(r.supplier.id)}>
+                <td>
+                  {r.supplier.name}
+                  {dueReminderSupplierIds.has(r.supplier.id) && <Bell size={12} style={{ marginLeft: 6, color: 'var(--brick)', verticalAlign: 'middle' }} aria-label="Reminder due" />}
+                </td>
                 <td className="num mono">{r.count}</td>
                 <td className="num mono">{inr(r.amount)}</td>
                 {!isPaidView && <td>{r.mostUrgent ? <StatusPill status={computeStatus(r.mostUrgent, 'Approved')} /> : '—'}</td>}
@@ -276,6 +296,8 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
           onAddComm={addComm}
           onClose={() => setSelectedSupplierId(null)}
           saving={saving}
+          members={members}
+          onMarkReminderDone={markReminderDone}
         />
       )}
     </>

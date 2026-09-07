@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
@@ -24,6 +24,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [docs, setDocs] = useState([])
   const [customers, setCustomers] = useState([])
   const [comms, setComms] = useState([])
+  const [members, setMembers] = useState([])
   const [bankAccounts, setBankAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -114,12 +115,13 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     if (!firmId) return
     setLoading(true)
     setError(null)
-    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }, { data: linkedRows, error: linkedErr }] = await Promise.all([
+    const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }, { data: acctRows, error: acctErr }, { data: linkedRows, error: linkedErr }] = await Promise.all([
       supabase.from(table)
         .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, expected_payment_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
       // Once a PI is linked to an invoice (Move to Invoice / Link to PI),
       // the PI's own paid_amount is a one-time snapshot from that moment -
@@ -132,7 +134,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       // immediately with no backfill needed.
       isPi ? supabase.from('sales_invoices').select('id, invoice_no, paid_amount, linked_pi_id').eq('firm_id', firmId).not('linked_pi_id', 'is', null) : Promise.resolve({ data: [], error: null }),
     ])
-    if (docErr || custErr || commErr || acctErr || linkedErr) { setError((docErr || custErr || commErr || acctErr || linkedErr).message); setLoading(false); return }
+    if (docErr || custErr || commErr || memberErr || acctErr || linkedErr) { setError((docErr || custErr || commErr || memberErr || acctErr || linkedErr).message); setLoading(false); return }
 
     const linkedInvoiceByPiId = new Map((linkedRows ?? []).map((inv) => [inv.linked_pi_id, inv]))
     const effectiveDocs = (docRows ?? []).map((d) => {
@@ -143,6 +145,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setDocs(effectiveDocs)
     setCustomers(custs ?? [])
     setComms(commRows ?? [])
+    setMembers(memberRows ?? [])
     setBankAccounts(acctRows ?? [])
     setLoading(false)
   }, [firmId, table, numberField, isPi])
@@ -719,13 +722,34 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'edit') openEditForm(row)
   }
 
-  const addComm = async ({ channel, tag, note }) => {
+  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
     setSaving(true)
-    const { error: insertErr } = await supabase.from('ar_comms').insert({ firm_id: firmId, customer_id: selectedCustomerId, channel, tag, note })
+    const { error: insertErr } = await supabase.from('ar_comms').insert({
+      firm_id: firmId, customer_id: selectedCustomerId, channel, tag, note,
+      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
+    })
     setSaving(false)
     if (insertErr) { alert(`Couldn't save that update: ${insertErr.message}`); return }
     await load()
   }
+
+  // Dismisses a pending "Remind me on" tag - doesn't touch the note/tag/
+  // channel themselves, just marks the reminder resolved so it drops off
+  // the Dashboard list and this customer's row-highlight here.
+  const markReminderDone = async (commId) => {
+    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true }).eq('id', commId)
+    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+    await load()
+  }
+
+  // Customer ids with at least one unresolved reminder whose date has
+  // arrived - used to highlight their row(s) below and badge their name in
+  // the Comm drawer trigger, so a due reminder is visible right where the
+  // day's actual follow-up work happens, not just on the Dashboard.
+  const todayISO = toISODate(new Date())
+  const dueReminderCustomerIds = new Set(
+    comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.customer_id)
+  )
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
 
@@ -849,10 +873,14 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                 dueDate.setDate(dueDate.getDate() + graceDays)
                 const busy = busyId === r.id
                 const msg = actionMsg[r.id]
+                const reminderDue = dueReminderCustomerIds.has(r.customer_id)
                 return (
                   <Fragment key={r.id}>
-                    <tr className="ledger-row ledger-row--clickable" onClick={() => setSelectedCustomerId(r.customer_id)}>
-                      <td>{customerName(r.customer_id)}</td>
+                    <tr className={`ledger-row ledger-row--clickable ${reminderDue ? 'ledger-row--reminder' : ''}`} onClick={() => setSelectedCustomerId(r.customer_id)}>
+                      <td>
+                        {customerName(r.customer_id)}
+                        {reminderDue && <Bell size={12} style={{ marginLeft: 6, color: 'var(--brick)', verticalAlign: 'middle' }} aria-label="Reminder due" />}
+                      </td>
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
                       <td className="num mono">
@@ -1130,6 +1158,8 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
+          members={members}
+          onMarkReminderDone={markReminderDone}
         />
       )}
     </>

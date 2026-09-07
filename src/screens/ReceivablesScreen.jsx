@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, isResolved, toISODate, isPlausibleDate, MANUAL_STATUSES } from '../lib/format'
@@ -22,6 +23,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   const [invoices, setInvoices] = useState([])
   const [pis, setPis] = useState([])
   const [comms, setComms] = useState([])
+  const [members, setMembers] = useState([])
   const [bankAccounts, setBankAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -61,16 +63,17 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     setLoading(true)
     setError(null)
 
-    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }, { data: acctRows, error: acctErr }] = await Promise.all([
+    const [{ data: custRows, error: custErr }, { data: invRows, error: invErr }, { data: piRows, error: piErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }, { data: acctRows, error: acctErr }] = await Promise.all([
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, due_date, expected_payment_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, expected_payment_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
     ])
 
-    if (custErr || invErr || piErr || commErr || acctErr) {
-      setError((custErr || invErr || piErr || commErr || acctErr).message)
+    if (custErr || invErr || piErr || commErr || memberErr || acctErr) {
+      setError((custErr || invErr || piErr || commErr || memberErr || acctErr).message)
       setLoading(false)
       return
     }
@@ -78,6 +81,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     setInvoices(invRows ?? [])
     setPis(piRows ?? [])
     setComms(commRows ?? [])
+    setMembers(memberRows ?? [])
     setBankAccounts(acctRows ?? [])
     setLoading(false)
   }, [firmId])
@@ -307,12 +311,13 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     return { ok: true }
   }
 
-  const addComm = async ({ channel, tag, note }) => {
+  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('ar_comms').insert({
       firm_id: firmId,
       customer_id: selectedCustomerId,
       channel, tag, note,
+      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
     })
     setSaving(false)
     if (insertErr) {
@@ -321,6 +326,18 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     }
     await loadAll()
   }
+
+  const markReminderDone = async (commId) => {
+    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true }).eq('id', commId)
+    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+    await loadAll()
+  }
+
+  const todayISO = toISODate(new Date())
+  const dueReminderCustomerIds = useMemo(
+    () => new Set(comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.customer_id)),
+    [comms, todayISO]
+  )
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
 
@@ -490,8 +507,11 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.customer.id} className="ledger-row ledger-row--clickable" onClick={() => setSelectedCustomerId(r.customer.id)}>
-                <td>{r.customer.name}</td>
+              <tr key={r.customer.id} className={`ledger-row ledger-row--clickable ${dueReminderCustomerIds.has(r.customer.id) ? 'ledger-row--reminder' : ''}`} onClick={() => setSelectedCustomerId(r.customer.id)}>
+                <td>
+                  {r.customer.name}
+                  {dueReminderCustomerIds.has(r.customer.id) && <Bell size={12} style={{ marginLeft: 6, color: 'var(--brick)', verticalAlign: 'middle' }} aria-label="Reminder due" />}
+                </td>
                 <td className="num mono">{r.count}</td>
                 <td className="num mono">{inr(r.amount)}</td>
                 <td>
@@ -540,8 +560,11 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           </thead>
           <tbody>
             {documentRows.map((r) => (
-              <tr key={r.key} className="ledger-row ledger-row--clickable" onClick={() => setSelectedCustomerId(r.customerId)}>
-                <td>{r.customer}</td>
+              <tr key={r.key} className={`ledger-row ledger-row--clickable ${dueReminderCustomerIds.has(r.customerId) ? 'ledger-row--reminder' : ''}`} onClick={() => setSelectedCustomerId(r.customerId)}>
+                <td>
+                  {r.customer}
+                  {dueReminderCustomerIds.has(r.customerId) && <Bell size={12} style={{ marginLeft: 6, color: 'var(--brick)', verticalAlign: 'middle' }} aria-label="Reminder due" />}
+                </td>
                 <td>{r.type}</td>
                 <td className="mono">{r.number}</td>
                 <td className="mono">{toISODate(new Date(r.issuedDate))}</td>
@@ -585,6 +608,8 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           onRecordPayment={handleRecordPaymentFromDrawer}
           bankAccounts={bankAccounts}
           manualStatusOptions={[...MANUAL_STATUSES, 'Cancelled']}
+          members={members}
+          onMarkReminderDone={markReminderDone}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
             { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },
