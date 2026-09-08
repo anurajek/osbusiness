@@ -1995,7 +1995,32 @@ DatePicker gets the popup's full width to open its own calendar in,
 instead of two of them competing for a half-width column - this is the
 "don't shrink it, let the date open properly" fix specifically.
 
+## Removed the horizontal scroll on flyout menus
+
+No migration needed - UI-only.
+
+Root cause of the horizontal scrollbar seen in the calendar screenshot:
+`.mention-menu` set `overflow-y: auto` without setting `overflow-x` -
+per the CSS spec, that silently turns the other axis into `auto` too,
+so any time content got even slightly wider than the container (like the
+calendar did while nested inside last round's cramped popup), a
+horizontal scrollbar appeared. Added `overflow-x: hidden` so that never
+happens, on every flyout that shares this style (Assign, Remind, Period,
+@mention, and the date calendar). The calendar itself also got a bit more
+room (`minWidth`/`maxWidth` bumped to 240-260px) so hidden overflow never
+means clipped content - its 7-column grid is already flexible (equal
+`fr` columns), so nothing about the calendar's layout needed to change,
+just its container's headroom.
+
 ## Status
+
+- [x] **Removed the horizontal scroll on flyout menus (Sep 2026):**
+      `.mention-menu` was implicitly getting `overflow-x: auto` (a side
+      effect of only setting `overflow-y: auto`), which is what produced
+      the scrollbar seen when the calendar got cramped last round. Set
+      `overflow-x: hidden` explicitly and gave the calendar a bit more
+      width headroom so nothing's clipped. See "Removed the horizontal
+      scroll on flyout menus" above.
 
 - [x] **Fixed: Custom period popup overlapping itself (Sep 2026):** the
       Period field's option list and its custom-range popup were two

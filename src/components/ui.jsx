@@ -262,7 +262,7 @@ export function DatePicker({ value, onChange, className = 'date-input', placehol
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'inherit' : 'var(--paper-dim)' }}>{value || placeholder}</span>
       </button>
       {open && (
-        <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, padding: 8, minWidth: 220 } : { padding: 8, minWidth: 220 }}>
+        <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, padding: 8, minWidth: 240, maxWidth: 260 } : { padding: 8, minWidth: 240, maxWidth: 260 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <button type="button" className="link-btn" style={{ padding: 4 }} onClick={goPrevMonth}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12.5, fontWeight: 600 }}>{monthLabel}</span>
