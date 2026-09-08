@@ -1958,7 +1958,31 @@ into a search box.
 Customer/Supplier filter dropdown at all, so its search is still the
 only way to filter by party there.
 
+## Custom period range as a popup, not an inline layout shift
+
+No migration needed - UI-only.
+
+Picking "Custom" from the Period dropdown used to reveal the From/To date
+pickers inline right next to it, which widened that filter field and
+reflowed the whole filter row - everything else visibly shifted out of
+its neat alignment the moment Custom was chosen. Those two date pickers
+now open in a floating popup instead (same `.mention-menu` look as every
+other flyout in the app) - it opens automatically the moment "Custom" is
+picked, closes on "Done," and can be reopened afterward via a small "Edit
+dates" link next to the Period label. The Period field itself is always
+exactly the same size regardless of which option is selected, so nothing
+else in the filter row ever shifts. Date format itself is unchanged -
+still the same DatePicker, same dd-mm-yyyy, just relocated into a popup
+instead of sitting inline.
+
 ## Status
+
+- [x] **Custom period range as a popup (Sep 2026):** picking "Custom" on
+      any Period dropdown no longer widens that filter field and reflows
+      the row - the From/To date pickers now open in a floating popup
+      (same style as every other flyout) instead of inline, reopenable
+      via "Edit dates." Date format/behavior itself unchanged. See
+      "Custom period range as a popup, not an inline layout shift" above.
 
 - [x] **Search boxes removed everywhere a Customer/Supplier dropdown
       exists (Sep 2026):** Receivables, Sales, Purchases, and Quotations

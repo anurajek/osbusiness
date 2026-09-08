@@ -1,22 +1,56 @@
+import { useState } from 'react'
 import { Search, X, Plus } from 'lucide-react'
 import { Dropdown, DatePicker } from './ui'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
+// The Custom-range date pickers used to sit inline next to the Period
+// dropdown, which widened that filter field and reflowed/misaligned the
+// whole filter row the moment "Custom" was picked. Now a floating popup
+// (same .mention-menu look as every other flyout) instead - opens
+// automatically the moment "Custom" is chosen, and can be reopened via
+// "Edit dates" afterward, without ever changing the size of the Period
+// field itself or anything else in the row.
+function PeriodField({ label, period, options = PERIOD_OPTIONS, className }) {
+  const [rangeOpen, setRangeOpen] = useState(false)
+
+  const handleChange = (v) => {
+    period.onChange(v)
+    setRangeOpen(v === 'Custom')
+  }
+
+  return (
+    <div className={className ?? 'filter-field'} style={{ position: 'relative' }}>
+      <label>
+        {label ?? 'Period'}
+        {period.value === 'Custom' && !rangeOpen && (
+          <button type="button" className="link-btn" style={{ marginLeft: 6, fontSize: 10, padding: 0 }} onClick={() => setRangeOpen(true)}>Edit dates</button>
+        )}
+      </label>
+      <Dropdown value={period.value} options={options} onChange={handleChange} />
+      {rangeOpen && (
+        <div className="mention-menu" style={{ padding: 10, minWidth: 260 }}>
+          <div className="chip-row">
+            <DatePicker value={period.customFrom} onChange={period.setCustomFrom} />
+            <span className="period-custom__to">to</span>
+            <DatePicker value={period.customTo} onChange={period.setCustomTo} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setRangeOpen(false)}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PeriodSelector({ period, setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }) {
   return (
     <div className="period-bar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div className="filter-field" style={{ minWidth: 160 }}>
-        <label>Period</label>
-        <Dropdown value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
-      </div>
-      {period === 'Custom' && (
-        <span className="period-custom">
-          <DatePicker value={customFrom} onChange={setCustomFrom} />
-          <span className="period-custom__to">to</span>
-          <DatePicker value={customTo} onChange={setCustomTo} />
-        </span>
-      )}
+      <PeriodField
+        period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}
+        className="filter-field"
+      />
     </div>
   )
 }
@@ -56,19 +90,7 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
           <Dropdown value={f.value} options={f.options} onChange={f.onChange} searchable={f.searchable} />
         </div>
       ))}
-      {period && (
-        <div className="filter-field">
-          <label>Period</label>
-          <Dropdown value={period.value} options={PERIOD_OPTIONS} onChange={period.onChange} />
-          {period.value === 'Custom' && (
-            <span className="period-custom" style={{ marginTop: 6 }}>
-              <DatePicker value={period.customFrom} onChange={period.setCustomFrom} />
-              <span className="period-custom__to">to</span>
-              <DatePicker value={period.customTo} onChange={period.setCustomTo} />
-            </span>
-          )}
-        </div>
-      )}
+      {period && <PeriodField period={period} />}
       {sort && (
         <div className="filter-field filter-field--sort">
           <label>Sort by</label>
