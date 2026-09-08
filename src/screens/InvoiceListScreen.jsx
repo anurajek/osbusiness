@@ -33,7 +33,6 @@ export default function InvoiceListScreen({ type, onNavigate }) {
   const [partyFilter, setPartyFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date-desc')
-  const [search, setSearch] = useState('')
 
   const [showAddParty, setShowAddParty] = useState(false)
   const [newPartyName, setNewPartyName] = useState('')
@@ -205,15 +204,9 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     }
     if (partyFilter !== 'all') list = list.filter((r) => r[partyJoinKey] === partyFilter)
     if (statusFilter !== 'all') list = list.filter((r) => liveStatus(r) === statusFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      list = list.filter(
-        (r) => r[numberField]?.toLowerCase().includes(q) || partyName(r[partyJoinKey]).toLowerCase().includes(q)
-      )
-    }
     return sortRows(list, sortBy, 'issued_date')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, range, partyFilter, statusFilter, search, sortBy, parties])
+  }, [rows, range, partyFilter, statusFilter, sortBy, parties])
 
   const totalAmount = filtered.reduce((sum, r) => sum + Number(r.amount), 0)
   const totalPaid = filtered.reduce((sum, r) => sum + Number(r.paid_amount), 0)
@@ -577,7 +570,6 @@ export default function InvoiceListScreen({ type, onNavigate }) {
 
       <FilterBar
         addAction={{ label: `Add ${partyLabel}`, onClick: () => setShowAddParty((v) => !v) }}
-        search={{ value: search, onChange: setSearch, placeholder: isSales ? 'Search invoice # or customer...' : 'Search bill # or supplier...' }}
         filters={[
           {
             label: isSales ? 'Customer' : 'Supplier', value: partyFilter, onChange: setPartyFilter, searchable: true,

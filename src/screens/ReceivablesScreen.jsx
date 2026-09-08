@@ -35,7 +35,6 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   const [customerFilter, setCustomerFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('amount-desc')
-  const [search, setSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState(null)
 
   // "By Customer" (the original view, unchanged) groups every open item
@@ -162,11 +161,6 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       }
     }).filter((r) => r.count > 0)
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      result = result.filter((r) => r.customer.name.toLowerCase().includes(q))
-    }
-
     if (sortBy === 'amount-desc') result.sort((a, b) => b.amount - a.amount)
     else if (sortBy === 'amount-asc') result.sort((a, b) => a.amount - b.amount)
     else if (sortBy === 'name-asc') result.sort((a, b) => a.customer.name.localeCompare(b.customer.name))
@@ -174,7 +168,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customers, tableInvoices, tablePis, comms, customerFilter, sortBy, search, statusFilter])
+  }, [customers, tableInvoices, tablePis, comms, customerFilter, sortBy, statusFilter])
 
   // Same default PI Follow-up uses for a PI's computed due date (PIs
   // don't have a stored due_date column - see migration_pi_and_reminders.sql).
@@ -228,10 +222,6 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     ]
 
     if (customerFilter !== 'all') result = result.filter((r) => r.customerId === customerFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      result = result.filter((r) => r.customer.toLowerCase().includes(q) || r.number.toLowerCase().includes(q))
-    }
 
     if (sortBy === 'amount-desc') result.sort((a, b) => b.amount - a.amount)
     else if (sortBy === 'amount-asc') result.sort((a, b) => a.amount - b.amount)
@@ -239,7 +229,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     else result.sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate)) // 'last-contact' isn't meaningful per-document - falls back to newest issued first
 
     return result
-  }, [tableInvoices, tablePis, customers, customerFilter, search, sortBy, isPaidView, graceDays])
+  }, [tableInvoices, tablePis, customers, customerFilter, sortBy, isPaidView, graceDays])
 
   const documentTotal = useMemo(() => documentRows.reduce((sum, r) => sum + r.amount, 0), [documentRows])
 
@@ -483,7 +473,6 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       </div>
 
       <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: 'Search customer name...' }}
         filters={[
           {
             label: 'Customer', value: customerFilter, onChange: setCustomerFilter, searchable: true,

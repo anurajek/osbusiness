@@ -1931,7 +1931,46 @@ dropdown to replace it with, so it stays too. Payables was the one place
 where the search box and the new dropdown search were doing exactly the
 same job.
 
+## Search boxes removed everywhere a Customer/Supplier dropdown exists
+
+No migration needed - UI-only.
+
+Last round I only removed Payables' search box, reasoning that Receivables/
+Sales/Purchases/Quotations also matched a document number so weren't
+*purely* redundant with the new searchable dropdown. Anuraj confirmed he
+wants the search box gone everywhere the dropdown covers it regardless -
+so Receivables, Sales, Purchases, and Quotations all lost their header
+search box and its state this round too. Document-number search (e.g.
+finding "INV-2240" without knowing the customer) is genuinely no longer
+possible from a text box on these four screens - the tradeoff of this
+choice, made explicitly rather than silently.
+
+**Invoice/PI Follow-up's search bar is now a Customer filter dropdown**
+instead of being removed outright - that screen never had a Customer
+dropdown to fall back on, so "search customer name" was replaced with
+"pick customer" (searchable, same as everywhere else) rather than losing
+the ability to filter by customer entirely. The "jump here pre-filtered
+to one customer" links elsewhere in the app (e.g. Receivables' "Invoice
+Follow-up →") now set this dropdown directly instead of typing a name
+into a search box.
+
+**Left alone:** Credit/Debit Notes' search box - that screen has no
+Customer/Supplier filter dropdown at all, so its search is still the
+only way to filter by party there.
+
 ## Status
+
+- [x] **Search boxes removed everywhere a Customer/Supplier dropdown
+      exists (Sep 2026):** Receivables, Sales, Purchases, and Quotations
+      all had their header search box removed (Payables was done last
+      round) - the searchable Customer/Supplier dropdown now covers that
+      job; document-number search is no longer available from a text box
+      on those screens, a deliberate tradeoff. Invoice/PI Follow-up's
+      search bar was replaced with a Customer filter dropdown rather than
+      removed outright, since it had no dropdown to fall back on.
+      Credit/Debit Notes was left alone (no dropdown there either). See
+      "Search boxes removed everywhere a Customer/Supplier dropdown
+      exists" above.
 
 - [x] **Removed a redundant search box on Payables (Sep 2026):** its
       "Search supplier name..." box did exactly what the now-searchable

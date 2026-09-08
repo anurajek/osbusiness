@@ -75,7 +75,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [period, setPeriod] = useState('All time')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const [search, setSearch] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('all')
   const [sortBy, setSortBy] = useState('overdue-desc')
   const [statusFilter, setStatusFilter] = useState('all')
 
@@ -204,13 +204,12 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
 
   // Arriving here from a click elsewhere (e.g. "Invoice Follow-up ->" in
-  // Receivables' update drawer) pre-filters to that one customer. This
-  // screen's only filter is the name search box, so that's what gets set -
-  // waits for customers to actually be loaded before looking the name up.
+  // Receivables' update drawer) pre-filters to that one customer, via the
+  // same Customer dropdown filter a person would otherwise pick by hand.
   useEffect(() => {
     if (navParams?.customerId && customers.length > 0) {
       const match = customers.find((c) => c.id === navParams.customerId)
-      if (match) setSearch(match.name)
+      if (match) setCustomerFilter(match.id)
       clearNavParams?.()
     }
   }, [navParams, customers, clearNavParams])
@@ -253,7 +252,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     : activeDocsInPeriod.filter((d) => d.manual_status === statusFilter)
 
   const filtered = baseRows
-    .filter((r) => !search.trim() || customerName(r.customer_id).toLowerCase().includes(search.trim().toLowerCase()))
+    .filter((r) => customerFilter === 'all' || r.customer_id === customerFilter)
     .sort((a, b) => {
       if (sortBy === 'overdue-desc') return daysOverdue(b.issued_date) - daysOverdue(a.issued_date)
       if (sortBy === 'amount-desc') return (b.amount - b.paid_amount) - (a.amount - a.paid_amount)
@@ -874,8 +873,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       </div>
 
       <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: 'Search customer name...' }}
         filters={[
+          {
+            label: 'Customer', value: customerFilter, onChange: setCustomerFilter, searchable: true,
+            options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))],
+          },
           {
             label: 'Status', value: statusFilter, onChange: setStatusFilter,
             options: [

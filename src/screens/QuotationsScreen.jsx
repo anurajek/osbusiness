@@ -47,7 +47,6 @@ export default function QuotationsScreen() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [customerFilter, setCustomerFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date-desc')
-  const [search, setSearch] = useState('')
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -93,13 +92,9 @@ export default function QuotationsScreen() {
     if (range) list = list.filter((r) => { const d = new Date(r.issued_date); return d >= range.from && d <= range.to })
     if (customerFilter !== 'all') list = list.filter((r) => r.customer_id === customerFilter)
     if (statusFilter !== 'all') list = list.filter((r) => displayStatus(r) === statusFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      list = list.filter((r) => r.quote_no?.toLowerCase().includes(q) || customerName(r.customer_id).toLowerCase().includes(q))
-    }
     return sortRows(list, sortBy, 'issued_date', 'total')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, range, customerFilter, statusFilter, search, sortBy, customers])
+  }, [rows, range, customerFilter, statusFilter, sortBy, customers])
 
   const handleExportCsv = () => {
     downloadCsv(
@@ -347,7 +342,6 @@ export default function QuotationsScreen() {
       </div>
 
       <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: 'Search quote # or customer...' }}
         filters={[
           { label: 'Customer', value: customerFilter, onChange: setCustomerFilter, searchable: true, options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))] },
           { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: 'all', label: 'All' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))] },
