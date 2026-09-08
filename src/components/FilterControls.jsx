@@ -1,43 +1,60 @@
 import { useState } from 'react'
-import { Search, X, Plus } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, Check } from 'lucide-react'
 import { Dropdown, DatePicker } from './ui'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
-// The Custom-range date pickers used to sit inline next to the Period
-// dropdown, which widened that filter field and reflowed/misaligned the
-// whole filter row the moment "Custom" was picked. Now a floating popup
-// (same .mention-menu look as every other flyout) instead - opens
-// automatically the moment "Custom" is chosen, and can be reopened via
-// "Edit dates" afterward, without ever changing the size of the Period
-// field itself or anything else in the row.
+// Previously: the Period dropdown's own option list and the Custom-range
+// date pickers were two separate flyouts that could both end up open at
+// once (re-clicking the trigger while the range picker was already open
+// reopened the plain option list on top of it) - that's what produced the
+// cramped, overlapping mess. Now it's one single flyout: the option list,
+// and if Custom is selected, the date range appended right inside that
+// same popup - nothing to collide with. From/To are stacked (not side by
+// side) so each DatePicker gets the popup's full width to open its own
+// calendar in, rather than fighting two into a half-width column.
 function PeriodField({ label, period, options = PERIOD_OPTIONS, className }) {
-  const [rangeOpen, setRangeOpen] = useState(false)
-
-  const handleChange = (v) => {
-    period.onChange(v)
-    setRangeOpen(v === 'Custom')
-  }
+  const [open, setOpen] = useState(false)
+  const isCustom = period.value === 'Custom'
 
   return (
     <div className={className ?? 'filter-field'} style={{ position: 'relative' }}>
-      <label>
-        {label ?? 'Period'}
-        {period.value === 'Custom' && !rangeOpen && (
-          <button type="button" className="link-btn" style={{ marginLeft: 6, fontSize: 10, padding: 0 }} onClick={() => setRangeOpen(true)}>Edit dates</button>
-        )}
-      </label>
-      <Dropdown value={period.value} options={options} onChange={handleChange} />
-      {rangeOpen && (
-        <div className="mention-menu" style={{ padding: 10, minWidth: 260 }}>
-          <div className="chip-row">
-            <DatePicker value={period.customFrom} onChange={period.setCustomFrom} />
-            <span className="period-custom__to">to</span>
-            <DatePicker value={period.customTo} onChange={period.setCustomTo} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setRangeOpen(false)}>Done</button>
-          </div>
+      <label>{label ?? 'Period'}</label>
+      <button
+        type="button" className="select select--sm"
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', overflow: 'hidden' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{period.value}</span>
+        <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
+      </button>
+      {open && (
+        <div className="mention-menu" style={{ minWidth: isCustom ? 220 : '100%' }}>
+          {options.map((o) => (
+            <button
+              type="button" key={o} className="mention-menu__item"
+              onClick={() => { period.onChange(o); if (o !== 'Custom') setOpen(false) }}
+            >
+              <span className="mention-menu__item-icon">{o === period.value && <Check size={13} />}</span>
+              {o}
+            </button>
+          ))}
+          {isCustom && (
+            <>
+              <div className="mention-menu__divider" />
+              <div style={{ padding: '4px 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>From</label>
+                  <DatePicker className="text-input" value={period.customFrom} onChange={period.setCustomFrom} />
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>To</label>
+                  <DatePicker className="text-input" value={period.customTo} onChange={period.setCustomTo} />
+                </div>
+                <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, alignSelf: 'flex-end' }} onClick={() => setOpen(false)}>Done</button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

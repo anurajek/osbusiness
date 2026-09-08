@@ -1975,7 +1975,36 @@ else in the filter row ever shifts. Date format itself is unchanged -
 still the same DatePicker, same dd-mm-yyyy, just relocated into a popup
 instead of sitting inline.
 
+## Fixed: Custom period popup overlapping itself
+
+No migration needed - UI-only.
+
+Real cause of the cramped, overlapping mess from last round: the Period
+field had *two independent* flyouts that could both end up open at
+once - the dropdown's own option list (All time/Last month/etc.) and the
+separate custom-range popup. Re-clicking the Period trigger while the
+range popup was already open reopened the option list on top of it,
+and then opening a date's calendar on top of *that* was the third layer -
+hence the jumble in the screenshot.
+
+Rebuilt as one single flyout instead: the option list, and - only when
+Custom is the selected option - the date range appended right inside
+that same popup, so there's nothing left for it to collide with. From
+and To are stacked one above the other (not side by side) so each
+DatePicker gets the popup's full width to open its own calendar in,
+instead of two of them competing for a half-width column - this is the
+"don't shrink it, let the date open properly" fix specifically.
+
 ## Status
+
+- [x] **Fixed: Custom period popup overlapping itself (Sep 2026):** the
+      Period field's option list and its custom-range popup were two
+      independent flyouts that could both be open at once, producing the
+      cramped overlap. Merged into a single flyout - the date range
+      appends inside the same popup as the option list when Custom is
+      selected, stacked vertically so each date field's calendar opens
+      at full width instead of competing for space. See "Fixed: Custom
+      period popup overlapping itself" above.
 
 - [x] **Custom period range as a popup (Sep 2026):** picking "Custom" on
       any Period dropdown no longer widens that filter field and reflows
