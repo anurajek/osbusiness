@@ -204,7 +204,6 @@ body {
 .chip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .chip-btn { background: var(--panel); border: 1px solid var(--rule); color: var(--paper-dim); font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer; }
 .chip-btn:hover { color: var(--brass); border-color: var(--brass); }
-.chip-btn--active { color: var(--ink); background: var(--brass); border-color: var(--brass); font-weight: 600; }
 .resolve-form { margin-top: 8px; padding: 8px; background: var(--panel-alt); border-radius: 8px; }
 .assignee-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .assignee-badge { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--panel-alt); color: var(--paper-dim); border: 1px solid var(--rule); white-space: nowrap; }
@@ -288,7 +287,7 @@ body {
   .table-scroll .ledger-table { min-width: 640px; }
 
   /* Multi-field forms (New customer/invoice/account, Record payment,
-     Invite teammate, Log update) stack into one field per row instead of
+     Invite teammate, Update) stack into one field per row instead of
      cramming 3-4 side by side. */
   .add-comm-row { flex-direction: column; }
   .add-comm-row > * { width: 100%; max-width: none; }

@@ -120,7 +120,6 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
-  const [assignedIds, setAssignedIds] = useState([])
   const [remindOn, setRemindOn] = useState('')
   const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
@@ -146,10 +145,6 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [payingBusy, setPayingBusy] = useState(false)
 
   const memberList = members ?? []
-
-  const toggleAssignee = (id) => {
-    setAssignedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
 
   const handleTextChange = (e) => {
     const value = e.target.value
@@ -204,13 +199,12 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setRemindError(null)
     await onAddComm({
       channel, tag, note: text.trim(),
-      assignedIds,
+      assignedIds: [],
       remindOn: remindOn || null,
       remindTime: remindOn && remindTime ? remindTime : null,
       mentionedIds: extractMentionedIds(text.trim()),
     })
     setText('')
-    setAssignedIds([])
     setRemindOn('')
     setRemindTime('')
     setMentionQuery(null)
@@ -374,7 +368,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
         </div>
 
         <div>
-          <div className="drawer__label">Log an update</div>
+          <div className="drawer__label">Update</div>
           <div className="add-comm-form">
             <div className="add-comm-row">
               <select className="select select--sm" value={channel} onChange={(e) => setChannel(e.target.value)}>
@@ -384,23 +378,6 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                 {STATUS_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-
-            {memberList.length > 0 && (
-              <div>
-                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
-                <div className="chip-row">
-                  {memberList.map((m) => (
-                    <button
-                      type="button" key={m.id}
-                      className={`chip-btn ${assignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
-                      onClick={() => toggleAssignee(m.id)}
-                    >
-                      {m.full_name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div style={{ position: 'relative' }}>
               <textarea
@@ -434,7 +411,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
             </div>
 
             <button className="btn-primary" onClick={submit} disabled={saving}>
-              {saving ? 'Saving…' : 'Log update'}
+              {saving ? 'Saving…' : 'Update'}
             </button>
           </div>
         </div>

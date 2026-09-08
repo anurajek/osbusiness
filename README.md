@@ -1702,7 +1702,37 @@ migrations above already created.
   explicitly-set due date, that real value is still shown (more accurate
   than the generic default) - only the previously-blank case changed.
 
+## Assign as a dropdown; assign removed from the comm log; "Update" renaming
+
+No migration needed - UI-only changes.
+
+- **Assign now looks like the rest of the app's dropdowns.** The chip-toggle
+  row (still technically a multi-select) is replaced by a closed, one-line
+  button showing the selected names (or "Assign to…") that opens a small
+  checkbox list on click - same anchored-panel pattern the @mention
+  autocomplete already uses, just repurposed. Used in both places
+  document-level assignment happens: Add PI and the Assign… row action.
+- **Assign removed from the comm log entirely.** The "Log an update" form
+  no longer has its own Assign-to picker - document-level assignment (Add
+  PI / Assign… action) is now the one place ownership gets set, instead of
+  two separate assign mechanisms living side by side. Existing comm-log
+  entries that already have assignees from before keep showing them in the
+  timeline; new entries just don't collect one anymore (the app always
+  sends an empty list for new entries now).
+- **"Log an update" renamed to "Update"** everywhere it appeared - the
+  drawer section label, the submit button, and the Actions menu option on
+  Invoice/PI Follow-up.
+
 ## Status
+
+- [x] **Assign as a dropdown, removed from the comm log, "Update" renaming
+      (Sep 2026):** Assign is now a closed dropdown-style multi-select
+      (click to open a checkbox list) instead of always-open chips, used
+      on Add PI and the Assign… action - the comm log's own separate
+      assign picker is gone, so there's one place ownership gets set, not
+      two. "Log an update" renamed to "Update" throughout (drawer label,
+      button, Actions menu). See "Assign as a dropdown; assign removed
+      from the comm log; 'Update' renaming" above.
 
 - [x] **Assign as its own action; balance-aware reminders; By Document
       due-date fix (Sep 2026):** "Assign…" is now a standalone action on

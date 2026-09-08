@@ -13,6 +13,41 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
 
+// A multi-select that looks like the rest of the app's dropdowns (closed,
+// one line, click to open) rather than a permanently-open row of chips - a
+// native <select multiple> can't collapse like that, so this is a small
+// button that opens the same kind of small anchored panel the @mention
+// autocomplete already uses (.mention-menu), with a checkbox per member.
+function AssignDropdown({ members, selectedIds, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const label = selectedIds.length === 0
+    ? 'Assign to…'
+    : members.filter((m) => selectedIds.includes(m.id)).map((m) => m.full_name).join(', ')
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', minWidth: 160 }}>
+      <button
+        type="button" className="select select--sm"
+        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {label} ▾
+      </button>
+      {open && (
+        <div className="mention-menu" style={{ minWidth: 200, padding: 4 }}>
+          {members.map((m) => (
+            <label key={m.id} className="mention-menu__item" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={selectedIds.includes(m.id)} onChange={() => onToggle(m.id)} />
+              {m.full_name}
+            </label>
+          ))}
+          <button type="button" className="link-btn" style={{ padding: '6px 10px', display: 'block' }} onClick={() => setOpen(false)}>Done</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PaymentFollowUpScreen({ docType, navParams, clearNavParams }) {
   const { firmId, firm, role } = useFirm()
   const isPi = docType === 'pi'
@@ -898,18 +933,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
             </div>
             {members.length > 0 && (
               <div>
-                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
-                <div className="chip-row">
-                  {members.map((m) => (
-                    <button
-                      type="button" key={m.id}
-                      className={`chip-btn ${newPiAssignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
-                      onClick={() => setNewPiAssignedIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
-                    >
-                      {m.full_name}
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional)</label>
+                <AssignDropdown
+                  members={members} selectedIds={newPiAssignedIds}
+                  onToggle={(id) => setNewPiAssignedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                />
               </div>
             )}
             {addPiError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addPiError}</p>}
@@ -992,7 +1020,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="assign">Assign…</option>
                           <option value="send" disabled={r.reminders_paused}>Send reminder now</option>
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
-                          <option value="update">Log an update</option>
+                          <option value="update">Update</option>
                           <option value="emails">Manage reminder emails</option>
                           {isPi && <option value="convert">{r.linkedToInvoice ? `Already → ${r.linkedInvoiceNo}` : 'Move to Invoice…'}</option>}
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
@@ -1204,17 +1232,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           </div>
                           {members.length === 0 && <p className="login-footnote">No firm members to assign yet — invite teammates from Users &amp; Permissions.</p>}
                           {members.length > 0 && (
-                            <div className="chip-row">
-                              {members.map((m) => (
-                                <button
-                                  type="button" key={m.id}
-                                  className={`chip-btn ${assigningIds.includes(m.id) ? 'chip-btn--active' : ''}`}
-                                  onClick={() => setAssigningIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
-                                >
-                                  {m.full_name}
-                                </button>
-                              ))}
-                            </div>
+                            <AssignDropdown
+                              members={members} selectedIds={assigningIds}
+                              onToggle={(id) => setAssigningIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                            />
                           )}
                           <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                             <button className="btn-primary" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
