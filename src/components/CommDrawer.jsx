@@ -1,5 +1,5 @@
 import { useState, useRef, Fragment } from 'react'
-import { X, ChevronDown, Clock, CalendarClock, CalendarPlus } from 'lucide-react'
+import { X, ChevronDown, Clock, CalendarClock } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate } from '../lib/format'
 import { StatusPill } from './ui'
 
@@ -54,18 +54,15 @@ function buildRemindOptions(nearestDueDate) {
 
 // Same floating-menu look as AssignDropdown (.mention-menu, shared with
 // the @mention autocomplete) - a closed one-line trigger, single-select
-// this time rather than checkboxes, plus a "Custom date & time…" escape
-// hatch for anything the presets don't cover (a client on a genuinely
-// non-standard payment schedule, say).
-function RemindDropdown({ nearestDueDate, remindOn, remindTime, onPick, onCustom, onClear }) {
+// this time rather than checkboxes. Only sets the date - time lives in its
+// own always-visible field below (see the "Remind me on" block further
+// down), so a time can be added to any preset, not just a "custom" one.
+function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
   const [open, setOpen] = useState(false)
   const options = buildRemindOptions(nearestDueDate)
 
-  let label = 'Remind me on…'
-  if (remindOn) {
-    const matched = !remindTime && options.find((o) => o.date === remindOn)
-    label = matched ? matched.label : `${remindOn}${remindTime ? `, ${remindTime}` : ''}`
-  }
+  const matched = options.find((o) => o.date === remindOn)
+  const label = matched ? matched.label : (remindOn || 'Remind me on…')
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
@@ -85,16 +82,14 @@ function RemindDropdown({ nearestDueDate, remindOn, remindTime, onPick, onCustom
               {o.label}
             </button>
           ))}
-          <div className="mention-menu__divider" />
-          <button type="button" className="mention-menu__item" onClick={() => { onCustom(); setOpen(false) }}>
-            <span className="mention-menu__item-icon"><CalendarPlus size={14} /></span>
-            Custom date &amp; time…
-          </button>
           {remindOn && (
-            <button type="button" className="mention-menu__item" onClick={() => { onClear(); setOpen(false) }}>
-              <span className="mention-menu__item-icon"><X size={14} /></span>
-              Clear reminder
-            </button>
+            <>
+              <div className="mention-menu__divider" />
+              <button type="button" className="mention-menu__item" onClick={() => { onClear(); setOpen(false) }}>
+                <span className="mention-menu__item-icon"><X size={14} /></span>
+                Clear reminder
+              </button>
+            </>
           )}
         </div>
       )}
@@ -190,7 +185,6 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [remindOn, setRemindOn] = useState('')
   const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
-  const [showCustomRemind, setShowCustomRemind] = useState(false)
 
   // Mention autocomplete state - mentionStart is the index of the "@" that
   // triggered the current query, so selecting a suggestion knows exactly
@@ -281,7 +275,6 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setText('')
     setRemindOn('')
     setRemindTime('')
-    setShowCustomRemind(false)
     setMentionQuery(null)
     setMentionStart(null)
   }
@@ -477,17 +470,13 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
               <RemindDropdown
                 nearestDueDate={nearestDueDate}
                 remindOn={remindOn}
-                remindTime={remindTime}
-                onPick={(date) => { setRemindOn(date); setRemindTime(''); setShowCustomRemind(false) }}
-                onCustom={() => setShowCustomRemind(true)}
-                onClear={() => { setRemindOn(''); setRemindTime(''); setShowCustomRemind(false) }}
+                onPick={(date) => setRemindOn(date)}
+                onClear={() => { setRemindOn(''); setRemindTime('') }}
               />
-              {showCustomRemind && (
-                <div className="chip-row" style={{ marginTop: 8 }}>
-                  <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
-                  <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
-                </div>
-              )}
+              <div className="chip-row" style={{ marginTop: 8 }}>
+                <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
+                <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
+              </div>
               {remindError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 4 }}>{remindError}</p>}
             </div>
 

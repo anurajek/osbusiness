@@ -1744,7 +1744,36 @@ No migration needed - UI-only.
   the raw date/time pickers for anything the presets don't cover (a
   client on a genuinely non-standard schedule, say).
 
+## Remind date/time split; compact Assign flyout
+
+No migration needed - UI-only.
+
+- **Remind date and time are independent fields now.** The RemindDropdown
+  only ever sets the date; a separate always-visible date input and time
+  input sit below it (not hidden behind a "custom" toggle anymore), so a
+  time can be added to *any* preset - "on due date, 3pm" - not just a
+  fully custom entry. Picking a different preset no longer clears
+  whatever time was already set. "Custom date & time…" as a menu item is
+  gone since it's redundant now - the date field itself is always
+  editable directly too.
+- **Assign, as a row action, is now a compact flyout** anchored right at
+  the Actions cell - matching the same floating-menu look and behavior as
+  RemindDropdown - instead of a full-width panel spanning the whole
+  table. Checkboxes became checkmark rows (matching AssignDropdown's
+  style), with Save and Cancel as two more rows in the same menu rather
+  than separate buttons below a big block. Add PI's own Assign field is
+  unchanged (still the AssignDropdown component, unrelated to this row
+  action).
+
 ## Status
+
+- [x] **Remind date/time split; compact Assign flyout (Sep 2026):**
+      RemindDropdown now only sets the date - a separate always-visible
+      time field means a time can be added to any preset, not just a
+      custom entry; "Custom date & time…" removed as redundant. Assign
+      as a row action is now a compact flyout anchored at the Actions
+      cell (same look as RemindDropdown) instead of a full-width panel.
+      See "Remind date/time split; compact Assign flyout" above.
 
 - [x] **Context-menu-style dropdowns; due-date-aware remind presets (Sep
       2026):** dropdown menus (AssignDropdown, the @mention autocomplete,

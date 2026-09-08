@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
-import { Plus, Bell, Check, ChevronDown } from 'lucide-react'
+import { Plus, Bell, Check, ChevronDown, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
@@ -1014,7 +1014,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           onChange={(e) => handleSetExpectedDate(r, e.target.value)}
                         />
                       </td>
-                      <td onClick={(e) => e.stopPropagation()}>
+                      <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
                         <select
                           className="select select--sm"
                           value=""
@@ -1033,6 +1033,29 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
                           {role === 'Owner' && <option value="delete">Delete</option>}
                         </select>
+                        {assigningRowId === r.id && (
+                          <div className="mention-menu" style={{ left: 'auto', right: 0, minWidth: 220 }}>
+                            {members.length === 0 && <p className="login-footnote" style={{ padding: '4px 10px' }}>No firm members yet — invite teammates from Users &amp; Permissions.</p>}
+                            {members.map((m) => (
+                              <button
+                                type="button" key={m.id} className="mention-menu__item"
+                                onClick={() => setAssigningIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                              >
+                                <span className="mention-menu__item-icon">{assigningIds.includes(m.id) && <Check size={14} />}</span>
+                                {m.full_name}
+                              </button>
+                            ))}
+                            <div className="mention-menu__divider" />
+                            <button type="button" className="mention-menu__item" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
+                              <span className="mention-menu__item-icon"><Check size={14} /></span>
+                              {assigningBusy ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" className="mention-menu__item" onClick={() => setAssigningRowId(null)}>
+                              <span className="mention-menu__item-icon"><X size={14} /></span>
+                              Cancel
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                     {msg && (
@@ -1227,28 +1250,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               {editingBusy ? 'Saving…' : 'Save changes'}
                             </button>
                             <button type="button" className="link-btn" onClick={() => { setEditingRowId(null); setEditError(null) }}>Cancel</button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {assigningRowId === r.id && (
-                      <tr>
-                        <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
-                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
-                            Assign {r[numberField]}
-                          </div>
-                          {members.length === 0 && <p className="login-footnote">No firm members to assign yet — invite teammates from Users &amp; Permissions.</p>}
-                          {members.length > 0 && (
-                            <AssignDropdown
-                              members={members} selectedIds={assigningIds}
-                              onToggle={(id) => setAssigningIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-                            />
-                          )}
-                          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
-                            <button className="btn-primary" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
-                              {assigningBusy ? 'Saving…' : 'Save'}
-                            </button>
-                            <button type="button" className="link-btn" onClick={() => setAssigningRowId(null)}>Cancel</button>
                           </div>
                         </td>
                       </tr>
