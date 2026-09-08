@@ -4,9 +4,9 @@ import { inr, toISODate, isPlausibleDate } from '../lib/format'
 import { StatusPill } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
-// 'No response' removed (Sep 2026) - Anuraj asked for it gone; a follow-up
-// that genuinely got no response is better logged as 'Awaiting response'
-// with a Remind-me-on date than tagged with a dead-end label nobody acts on.
+// 'No response' removed (Sep 2026) - a follow-up that genuinely got no
+// response is better logged as 'Awaiting response' with a Remind-me-on
+// date than tagged with a dead-end label nobody acts on.
 const STATUS_TAGS = ['Promise to pay', 'Reminder sent', 'Awaiting response', 'Disputed', 'Partially paid', 'Cancelled', 'Payment received']
 
 // Quick-pick offsets for "Remind me on" - loosely modeled on Anuraj's own
@@ -43,6 +43,17 @@ function isReminderDue(remindOn) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const target = new Date(remindOn + 'T00:00:00')
   return target <= today
+}
+
+// Postgres returns a `time` column as "HH:MM:SS" - formats that (or the
+// "HH:MM" a native <input type="time"> gives while editing) as "3:00 PM".
+function formatTime(t) {
+  if (!t) return null
+  const [hStr, mStr] = t.split(':')
+  const h = Number(hStr), m = Number(mStr)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
 // Escapes regex special characters in a member's name before it goes into
@@ -97,18 +108,21 @@ function renderNoteWithMentions(note, members) {
 // effect on Collected or Cash & Bank, which is the exact gap this closes.
 //
 // members: optional [{ id, full_name }] - firm members, used for the
-// @mention autocomplete in the note textarea and the "Assign to" select.
-// When omitted (or empty), both features simply don't render - a screen
-// that hasn't been wired up for them yet still works exactly as before.
+// @mention autocomplete, the multi-person "Assign to" chips, and resolving
+// assigned_to_ids/mentioned_member_ids back to display names. When omitted
+// (or empty), the mention/assign features simply don't render.
 //
-// onMarkReminderDone: optional (commId) => void - called when someone
-// dismisses a pending "Remind me on" tag on a past log entry.
-export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions, onRecordPayment, bankAccounts, members, onMarkReminderDone }) {
+// onResolveReminder: optional (commId, note|null) => void - called when
+// someone dismisses a pending "Remind me on" tag, with an optional note
+// on what actually happened (or null for a plain dismiss with nothing to
+// report).
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions, onRecordPayment, bankAccounts, members, onResolveReminder }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
-  const [assignedTo, setAssignedTo] = useState('')
+  const [assignedIds, setAssignedIds] = useState([])
   const [remindOn, setRemindOn] = useState('')
+  const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
 
   // Mention autocomplete state - mentionStart is the index of the "@" that
@@ -117,6 +131,11 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [mentionQuery, setMentionQuery] = useState(null)
   const [mentionStart, setMentionStart] = useState(null)
   const textareaRef = useRef(null)
+
+  // Resolve-with-note state, for the reminder being dismissed right now.
+  const [resolvingId, setResolvingId] = useState(null)
+  const [resolveNote, setResolveNote] = useState('')
+  const [resolving, setResolving] = useState(false)
 
   const [payingDocId, setPayingDocId] = useState(null)
   const [payTargetStatus, setPayTargetStatus] = useState(null)
@@ -127,6 +146,10 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [payingBusy, setPayingBusy] = useState(false)
 
   const memberList = members ?? []
+
+  const toggleAssignee = (id) => {
+    setAssignedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   const handleTextChange = (e) => {
     const value = e.target.value
@@ -181,13 +204,15 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setRemindError(null)
     await onAddComm({
       channel, tag, note: text.trim(),
-      assignedTo: assignedTo || null,
+      assignedIds,
       remindOn: remindOn || null,
+      remindTime: remindOn && remindTime ? remindTime : null,
       mentionedIds: extractMentionedIds(text.trim()),
     })
     setText('')
-    setAssignedTo('')
+    setAssignedIds([])
     setRemindOn('')
+    setRemindTime('')
     setMentionQuery(null)
     setMentionStart(null)
   }
@@ -216,6 +241,14 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setPayingBusy(false)
     if (!result.ok) { setPayError(result.error); return }
     setPayingDocId(null)
+  }
+
+  const handleResolve = async (commId) => {
+    setResolving(true)
+    await onResolveReminder(commId, resolveNote.trim() || null)
+    setResolving(false)
+    setResolvingId(null)
+    setResolveNote('')
   }
 
   return (
@@ -295,8 +328,9 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
           <div className="comm-list">
             {comms.length === 0 && <p className="login-footnote">No follow-ups logged yet.</p>}
             {comms.map((c) => {
-              const assignedMember = memberList.find((m) => m.id === c.assigned_to)
+              const assignedMembers = memberList.filter((m) => (c.assigned_to_ids ?? []).includes(m.id))
               const due = isReminderDue(c.remind_on)
+              const timeLabel = formatTime(c.remind_time)
               return (
                 <div key={c.id} className="comm-item">
                   <div className="comm-item__top">
@@ -306,16 +340,33 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                   <p className="comm-text">{renderNoteWithMentions(c.note, memberList)}</p>
                   <div className="comm-meta-row">
                     <span className="comm-meta">{c.channel}</span>
-                    {assignedMember && <span className="pill pill--neutral">→ {assignedMember.full_name}</span>}
+                    {assignedMembers.map((m) => <span key={m.id} className="pill pill--neutral">→ {m.full_name}</span>)}
                     {c.remind_on && (
                       <span className={`pill ${c.reminder_done ? 'pill--ok' : due ? 'pill--bad' : 'pill--warn'}`}>
-                        {c.reminder_done ? `✓ Reminded ${c.remind_on}` : `Remind ${c.remind_on}`}
+                        {c.reminder_done ? '✓ Reminded' : 'Remind'} {c.remind_on}{timeLabel ? `, ${timeLabel}` : ''}
                       </span>
                     )}
-                    {c.remind_on && !c.reminder_done && onMarkReminderDone && (
-                      <button type="button" className="link-btn" style={{ padding: 0 }} onClick={() => onMarkReminderDone(c.id)}>Mark done</button>
+                    {c.remind_on && !c.reminder_done && onResolveReminder && resolvingId !== c.id && (
+                      <button type="button" className="link-btn" style={{ padding: 0 }} onClick={() => setResolvingId(c.id)}>Mark done</button>
                     )}
                   </div>
+                  {c.reminder_done && c.resolution_note && (
+                    <p className="comm-text" style={{ marginTop: 4, color: 'var(--paper-dim)' }}>↳ {c.resolution_note}</p>
+                  )}
+                  {resolvingId === c.id && (
+                    <div className="resolve-form">
+                      <textarea
+                        className="textarea" rows={2}
+                        placeholder="Optional — what happened? Leave blank to just dismiss."
+                        value={resolveNote}
+                        onChange={(e) => setResolveNote(e.target.value)}
+                      />
+                      <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                        <button className="btn-primary" disabled={resolving} onClick={() => handleResolve(c.id)}>{resolving ? 'Saving…' : 'Save & resolve'}</button>
+                        <button type="button" className="link-btn" onClick={() => { setResolvingId(null); setResolveNote('') }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -332,13 +383,24 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
               <select className="select select--sm" value={tag} onChange={(e) => setTag(e.target.value)}>
                 {STATUS_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
-              {memberList.length > 0 && (
-                <select className="select select--sm" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-                  <option value="">Assign to…</option>
-                  {memberList.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-                </select>
-              )}
             </div>
+
+            {memberList.length > 0 && (
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
+                <div className="chip-row">
+                  {memberList.map((m) => (
+                    <button
+                      type="button" key={m.id}
+                      className={`chip-btn ${assignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
+                      onClick={() => toggleAssignee(m.id)}
+                    >
+                      {m.full_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ position: 'relative' }}>
               <textarea
@@ -362,10 +424,11 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
               <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Remind me on (optional)</label>
               <div className="chip-row">
                 <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
+                <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
                 {REMIND_PRESETS.map((p) => (
                   <button type="button" key={p.label} className="chip-btn" onClick={() => setRemindOn(addDaysISO(p.days))}>{p.label}</button>
                 ))}
-                {remindOn && <button type="button" className="link-btn" onClick={() => setRemindOn('')}>Clear</button>}
+                {remindOn && <button type="button" className="link-btn" onClick={() => { setRemindOn(''); setRemindTime('') }}>Clear</button>}
               </div>
               {remindError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 4 }}>{remindError}</p>}
             </div>

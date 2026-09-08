@@ -81,6 +81,9 @@ export default function DashboardScreen({ onNavigate }) {
   const [error, setError] = useState(null)
   const [cashFlowPeriod, setCashFlowPeriod] = useState('Last 12 Months')
   const [periodMenuOpen, setPeriodMenuOpen] = useState(false)
+  const [resolvingRemId, setResolvingRemId] = useState(null)
+  const [resolveNote, setResolveNote] = useState('')
+  const [resolving, setResolving] = useState(false)
 
   useEffect(() => {
     if (!firmId) return
@@ -116,10 +119,10 @@ export default function DashboardScreen({ onNavigate }) {
         // Separate from the automatic email-reminder machinery entirely -
         // see migration_comm_followup_reminders.sql.
         membershipId
-          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on').eq('firm_id', firmId).eq('assigned_to', membershipId).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on, remind_time').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
           : Promise.resolve({ data: [], error: null }),
         membershipId
-          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on').eq('firm_id', firmId).eq('assigned_to', membershipId).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on, remind_time').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
           : Promise.resolve({ data: [], error: null }),
       ])
 
@@ -136,8 +139,8 @@ export default function DashboardScreen({ onNavigate }) {
       const customerName = (id) => (custs ?? []).find((c) => c.id === id)?.name || '—'
       const supplierName = (id) => (sups ?? []).find((s) => s.id === id)?.name || '—'
       const myReminders = [
-        ...(arReminders ?? []).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on })),
-        ...(apReminders ?? []).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on })),
+        ...(arReminders ?? []).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
+        ...(apReminders ?? []).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
       ].sort((a, b) => a.remindOn.localeCompare(b.remindOn))
 
       setData({
@@ -156,15 +159,19 @@ export default function DashboardScreen({ onNavigate }) {
     return () => { cancelled = true }
   }, [firmId, membershipId])
 
-  // Dismisses one of "my" reminders from the Dashboard list directly -
-  // updates optimistically rather than re-running the whole load, since
-  // this is the one thing on this screen a person is likely to do
-  // repeatedly first thing in the morning.
-  const markReminderDone = async (rem) => {
+  // Dismisses one of "my" reminders from the Dashboard list directly, with
+  // an optional note on what happened - updates optimistically rather than
+  // re-running the whole load, since this is the one thing on this screen
+  // a person is likely to do repeatedly first thing in the morning.
+  const resolveReminder = async (rem) => {
     const table = rem.kind === 'ar' ? 'ar_comms' : 'supplier_comms'
-    const { error: err } = await supabase.from(table).update({ reminder_done: true }).eq('id', rem.id)
-    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+    setResolving(true)
+    const { error: err } = await supabase.from(table).update({ reminder_done: true, resolution_note: resolveNote.trim() || null }).eq('id', rem.id)
+    setResolving(false)
+    if (err) { alert(`Couldn't resolve that reminder: ${err.message}`); return }
     setData((d) => (d ? { ...d, myReminders: d.myReminders.filter((m) => m.id !== rem.id) } : d))
+    setResolvingRemId(null)
+    setResolveNote('')
   }
 
   const cashFlow = useMemo(() => {
@@ -195,19 +202,37 @@ export default function DashboardScreen({ onNavigate }) {
         {data.myReminders.length > 0 && (
           <ul className="activity-list">
             {data.myReminders.map((rem) => (
-              <li key={rem.id} className="activity-row" style={{ justifyContent: 'space-between', gap: 10 }}>
-                <span className="activity-dot" style={{ background: 'var(--brick)' }} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <button
-                    className="link-btn" style={{ padding: 0 }}
-                    onClick={() => onNavigate('arap', rem.kind === 'ar' ? 'receivables' : 'payables', rem.kind === 'ar' ? { customerId: rem.partyId } : { supplierId: rem.partyId })}
-                  >
-                    {rem.partyName}
-                  </button>
-                  {' — '}{rem.note}
-                </span>
-                <span className="activity-when">{rem.remindOn}</span>
-                <button type="button" className="link-btn" onClick={() => markReminderDone(rem)}>Mark done</button>
+              <li key={rem.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
+                <div className="activity-row" style={{ justifyContent: 'space-between', gap: 10 }}>
+                  <span className="activity-dot" style={{ background: 'var(--brick)' }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <button
+                      className="link-btn" style={{ padding: 0 }}
+                      onClick={() => onNavigate('arap', rem.kind === 'ar' ? 'receivables' : 'payables', rem.kind === 'ar' ? { customerId: rem.partyId } : { supplierId: rem.partyId })}
+                    >
+                      {rem.partyName}
+                    </button>
+                    {' — '}{rem.note}
+                  </span>
+                  <span className="activity-when">{rem.remindOn}{rem.remindTime ? `, ${rem.remindTime.slice(0, 5)}` : ''}</span>
+                  {resolvingRemId !== rem.id && (
+                    <button type="button" className="link-btn" onClick={() => setResolvingRemId(rem.id)}>Mark done</button>
+                  )}
+                </div>
+                {resolvingRemId === rem.id && (
+                  <div className="resolve-form">
+                    <textarea
+                      className="textarea" rows={2}
+                      placeholder="Optional — what happened? Leave blank to just dismiss."
+                      value={resolveNote}
+                      onChange={(e) => setResolveNote(e.target.value)}
+                    />
+                    <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                      <button className="btn-primary" disabled={resolving} onClick={() => resolveReminder(rem)}>{resolving ? 'Saving…' : 'Save & resolve'}</button>
+                      <button type="button" className="link-btn" onClick={() => { setResolvingRemId(null); setResolveNote('') }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

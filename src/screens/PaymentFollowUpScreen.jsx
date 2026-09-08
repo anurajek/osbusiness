@@ -92,6 +92,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [newPiIssuedDate, setNewPiIssuedDate] = useState(() => toISODate(new Date()))
   const [newPiAmount, setNewPiAmount] = useState('')
   const [newPiPaid, setNewPiPaid] = useState('0')
+  const [newPiAssignedIds, setNewPiAssignedIds] = useState([])
   const [addPiError, setAddPiError] = useState(null)
   const [addingPi, setAddingPi] = useState(false)
 
@@ -108,6 +109,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [editIssuedDate, setEditIssuedDate] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
   const [editAmount, setEditAmount] = useState('')
+  const [editAssignedIds, setEditAssignedIds] = useState([])
   const [editError, setEditError] = useState(null)
   const [editingBusy, setEditingBusy] = useState(false)
 
@@ -117,10 +119,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setError(null)
     const [{ data: docRows, error: docErr }, { data: custs, error: custErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }, { data: acctRows, error: acctErr }, { data: linkedRows, error: linkedErr }] = await Promise.all([
       supabase.from(table)
-        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, expected_payment_date, manual_status, is_cancelled, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
+        .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, expected_payment_date, manual_status, is_cancelled, assigned_to_ids, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
       // Once a PI is linked to an invoice (Move to Invoice / Link to PI),
@@ -299,10 +301,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
       amount: amountNum,
       paid_amount: paidNum,
       status: paidNum >= amountNum ? 'Paid' : 'Sent',
+      assigned_to_ids: newPiAssignedIds,
     })
     setAddingPi(false)
     if (err) { setAddPiError(err.message); return }
-    setNewPiCustomerId(''); setNewPiNumber(''); setNewPiIssuedDate(toISODate(new Date())); setNewPiAmount(''); setNewPiPaid('0')
+    setNewPiCustomerId(''); setNewPiNumber(''); setNewPiIssuedDate(toISODate(new Date())); setNewPiAmount(''); setNewPiPaid('0'); setNewPiAssignedIds([])
     setShowAddPi(false)
     load()
   }
@@ -314,6 +317,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setEditIssuedDate(row.issued_date ? toISODate(new Date(row.issued_date)) : toISODate(new Date()))
     setEditDueDate(!isPi && row.due_date ? toISODate(new Date(row.due_date)) : '')
     setEditAmount(String(row.amount ?? ''))
+    setEditAssignedIds(row.assigned_to_ids ?? [])
     setEditError(null)
     setExpandedId(null)
     setPayingRowId(null)
@@ -342,6 +346,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           issued_date: editIssuedDate,
           amount: amountNum,
           status: currentPaid >= amountNum ? 'Paid' : 'Sent',
+          assigned_to_ids: editAssignedIds,
         }
       : {
           customer_id: editCustomerId,
@@ -350,6 +355,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           due_date: editDueDate || null,
           amount: amountNum,
           status: statusForStorage(computeStatus({ amount: amountNum, paid_amount: currentPaid, due_date: editDueDate }, 'Sent'), true),
+          assigned_to_ids: editAssignedIds,
         }
 
     const { error: err } = await supabase.from(table).update(payload).eq('id', row.id)
@@ -722,23 +728,26 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     else if (action === 'edit') openEditForm(row)
   }
 
-  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
+  const addComm = async ({ channel, tag, note, assignedIds, remindOn, remindTime, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('ar_comms').insert({
       firm_id: firmId, customer_id: selectedCustomerId, channel, tag, note,
-      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
+      assigned_to_ids: assignedIds ?? [], remind_on: remindOn ?? null, remind_time: remindTime ?? null,
+      mentioned_member_ids: mentionedIds ?? [],
     })
     setSaving(false)
     if (insertErr) { alert(`Couldn't save that update: ${insertErr.message}`); return }
     await load()
   }
 
-  // Dismisses a pending "Remind me on" tag - doesn't touch the note/tag/
-  // channel themselves, just marks the reminder resolved so it drops off
-  // the Dashboard list and this customer's row-highlight here.
-  const markReminderDone = async (commId) => {
-    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true }).eq('id', commId)
-    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+  // Dismisses a pending "Remind me on" tag, optionally recording what
+  // actually happened - doesn't touch the note/tag/channel/assignees of
+  // the original entry, just marks the reminder resolved (with a response
+  // note alongside it, if one was given) so it drops off the Dashboard
+  // list and this customer's row-highlight here.
+  const resolveReminder = async (commId, note) => {
+    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true, resolution_note: note }).eq('id', commId)
+    if (err) { alert(`Couldn't resolve that reminder: ${err.message}`); return }
     await load()
   }
 
@@ -850,6 +859,22 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                 value={newPiPaid} onChange={(e) => setNewPiPaid(e.target.value)}
               />
             </div>
+            {members.length > 0 && (
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
+                <div className="chip-row">
+                  {members.map((m) => (
+                    <button
+                      type="button" key={m.id}
+                      className={`chip-btn ${newPiAssignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
+                      onClick={() => setNewPiAssignedIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                    >
+                      {m.full_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {addPiError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{addPiError}</p>}
             <div className="add-comm-row">
               <button className="btn-primary" disabled={addingPi}>{addingPi ? 'Adding…' : 'Add Proforma Invoice'}</button>
@@ -880,6 +905,14 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       <td>
                         {customerName(r.customer_id)}
                         {reminderDue && <Bell size={12} style={{ marginLeft: 6, color: 'var(--brick)', verticalAlign: 'middle' }} aria-label="Reminder due" />}
+                        {(r.assigned_to_ids ?? []).length > 0 && (
+                          <div className="assignee-badges">
+                            {r.assigned_to_ids.map((id) => {
+                              const m = members.find((mm) => mm.id === id)
+                              return m ? <span key={id} className="assignee-badge">{m.full_name}</span> : null
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
@@ -1112,6 +1145,22 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
                             />
                           </div>
+                          {members.length > 0 && (
+                            <div>
+                              <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
+                              <div className="chip-row">
+                                {members.map((m) => (
+                                  <button
+                                    type="button" key={m.id}
+                                    className={`chip-btn ${editAssignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
+                                    onClick={() => setEditAssignedIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                                  >
+                                    {m.full_name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <p className="login-footnote" style={{ marginTop: 2 }}>
                             Amount already paid ({inr(r.paid_amount)}) isn't editable here — use the Status column (Paid/Partially Paid) to record a real payment, so Cash & Bank stays correct.
                           </p>
@@ -1159,7 +1208,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           onClose={() => setSelectedCustomerId(null)}
           saving={saving}
           members={members}
-          onMarkReminderDone={markReminderDone}
+          onResolveReminder={resolveReminder}
         />
       )}
     </>

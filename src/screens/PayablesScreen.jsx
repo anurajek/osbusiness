@@ -52,7 +52,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }] = await Promise.all([
       supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-      supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
     ])
     if (supErr || billErr || commErr || memberErr) {
@@ -126,20 +126,21 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     return { billed, paid, pending: billed - paid }
   }, [billsInPeriod])
 
-  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
+  const addComm = async ({ channel, tag, note, assignedIds, remindOn, remindTime, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('supplier_comms').insert({
       firm_id: firmId, supplier_id: selectedSupplierId, channel, tag, note,
-      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
+      assigned_to_ids: assignedIds ?? [], remind_on: remindOn ?? null, remind_time: remindTime ?? null,
+      mentioned_member_ids: mentionedIds ?? [],
     })
     setSaving(false)
     if (insertErr) { alert(`Couldn't save that update: ${insertErr.message}`); return }
     await load()
   }
 
-  const markReminderDone = async (commId) => {
-    const { error: err } = await supabase.from('supplier_comms').update({ reminder_done: true }).eq('id', commId)
-    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+  const resolveReminder = async (commId, note) => {
+    const { error: err } = await supabase.from('supplier_comms').update({ reminder_done: true, resolution_note: note }).eq('id', commId)
+    if (err) { alert(`Couldn't resolve that reminder: ${err.message}`); return }
     await load()
   }
 
@@ -297,7 +298,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
           onClose={() => setSelectedSupplierId(null)}
           saving={saving}
           members={members}
-          onMarkReminderDone={markReminderDone}
+          onResolveReminder={resolveReminder}
         />
       )}
     </>

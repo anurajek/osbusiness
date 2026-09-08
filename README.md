@@ -1630,7 +1630,53 @@ timeline. The comm-log tables (`ar_comms`/`supplier_comms`) only had
 select/insert RLS policies before this — an update policy was added so
 "Mark done" can actually write.
 
+## Follow-up refinements: multi-assign, reminder time, resolution notes
+
+**Run `migration_followup_multi_assign_time_resolution.sql` before deploying
+this one** (after `migration_comm_followup_reminders.sql`, which it depends
+on).
+
+Real use of the mentions/assignment/reminders work above surfaced three
+gaps, fixed together since they touch the same columns:
+
+- **Multiple assignees.** The comm-log "Assign to" field was a single
+  dropdown; it's now a set of toggleable chips, so a follow-up can genuinely
+  be owned by more than one person at once (e.g. the person who calls +
+  the person who needs to know). Stored as `assigned_to_ids` (an array)
+  instead of the old singular `assigned_to` - the old column is left in
+  place with its data intact, just no longer read or written by the app.
+- **Assign at the point of adding the Invoice/PI, not only afterward.** Add
+  PI and the Edit form on Invoice/PI Follow-up both got the same multi-chip
+  "Assign to" - a document-level ownership, separate from (and in addition
+  to) assigning a specific comm-log entry. Whoever's assigned shows as
+  small badges under the customer name in the Follow-up table itself.
+  `assigned_to_ids` on `sales_invoices`/`proforma_invoices` is the new
+  column for this - a different concept from the comm-log's own
+  `assigned_to_ids` (general document ownership vs. ownership of one
+  specific logged follow-up action).
+- **A time alongside the reminder date**, since "remind me on the 7th"
+  and "remind me on the 7th at 3pm" are genuinely different asks once
+  multiple reminders land on the same day. Kept as a separate nullable
+  `remind_time` column rather than upgrading `remind_on` to a timestamp,
+  so it's purely additive - every existing date-only reminder and every
+  "is this due yet" comparison already in the app keeps working unchanged.
+- **"Mark done" can now capture what actually happened.** Clicking it opens
+  a small optional note field before resolving - leave it blank to just
+  dismiss like before, or write what the client said/did. Saved as
+  `resolution_note` and shown under the resolved reminder in the timeline
+  (and this is available from the Dashboard's reminder list too, not just
+  the comm drawer).
+
 ## Status
+
+- [x] **Follow-up refinements: multi-assign, time, resolution notes (Sep
+      2026):** comm-log assignment is now multi-person (chip toggles, not
+      a single dropdown); Invoice/PI Add and Edit forms got their own
+      multi-assign for document-level ownership, shown as badges on the
+      Follow-up table; reminders can carry an optional time alongside the
+      date; "Mark done" now offers an optional note on what happened,
+      shown alongside the resolved reminder. See "Follow-up refinements:
+      multi-assign, reminder time, resolution notes" above.
 
 - [x] **Comm log: mentions, assignment, self-reminders (Sep 2026):** @mention
       autocomplete and an "Assign to" field added to every comm-log entry

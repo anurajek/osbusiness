@@ -67,7 +67,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, due_date, expected_payment_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, expected_payment_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to, remind_on, reminder_done, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
     ])
@@ -311,13 +311,14 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     return { ok: true }
   }
 
-  const addComm = async ({ channel, tag, note, assignedTo, remindOn, mentionedIds }) => {
+  const addComm = async ({ channel, tag, note, assignedIds, remindOn, remindTime, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('ar_comms').insert({
       firm_id: firmId,
       customer_id: selectedCustomerId,
       channel, tag, note,
-      assigned_to: assignedTo ?? null, remind_on: remindOn ?? null, mentioned_member_ids: mentionedIds ?? [],
+      assigned_to_ids: assignedIds ?? [], remind_on: remindOn ?? null, remind_time: remindTime ?? null,
+      mentioned_member_ids: mentionedIds ?? [],
     })
     setSaving(false)
     if (insertErr) {
@@ -327,9 +328,9 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     await loadAll()
   }
 
-  const markReminderDone = async (commId) => {
-    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true }).eq('id', commId)
-    if (err) { alert(`Couldn't dismiss that reminder: ${err.message}`); return }
+  const resolveReminder = async (commId, note) => {
+    const { error: err } = await supabase.from('ar_comms').update({ reminder_done: true, resolution_note: note }).eq('id', commId)
+    if (err) { alert(`Couldn't resolve that reminder: ${err.message}`); return }
     await loadAll()
   }
 
@@ -609,7 +610,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           bankAccounts={bankAccounts}
           manualStatusOptions={[...MANUAL_STATUSES, 'Cancelled']}
           members={members}
-          onMarkReminderDone={markReminderDone}
+          onResolveReminder={resolveReminder}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
             { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },
