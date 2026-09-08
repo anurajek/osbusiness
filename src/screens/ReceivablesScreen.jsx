@@ -180,6 +180,15 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   // don't have a stored due_date column - see migration_pi_and_reminders.sql).
   const graceDays = firm?.reminder_grace_days ?? 7
 
+  // Same fallback used in the By Document view below and on Invoice/PI
+  // Follow-up - issued_date + graceDays when there's no real due_date to
+  // use. Also feeds CommDrawer's "remind on due date" preset.
+  const dueDateFallback = (issuedDate) => {
+    const d = new Date(issuedDate + 'T00:00:00')
+    d.setDate(d.getDate() + graceDays)
+    return toISODate(d)
+  }
+
   const documentRows = useMemo(() => {
     const custName = (id) => customers.find((c) => c.id === id)?.name || '—'
 
@@ -622,10 +631,10 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           openDocs={[
             ...invoices
               .filter((i) => i.customer_id === selectedCustomer.id && !isResolved(i))
-              .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, amountDue: i.amount - i.paid_amount, statusLabel: computeStatus(i, 'Sent'), manualStatus: i.manual_status, docType: 'invoice' })),
+              .map((i) => ({ id: i.id, number: i.invoice_no, issued_date: i.issued_date, dueDate: i.due_date || dueDateFallback(i.issued_date), amountDue: i.amount - i.paid_amount, statusLabel: computeStatus(i, 'Sent'), manualStatus: i.manual_status, docType: 'invoice' })),
             ...pis
               .filter((p) => p.customer_id === selectedCustomer.id && !isResolved(p))
-              .map((p) => ({ id: p.id, number: p.pi_no, issued_date: p.issued_date, amountDue: p.amount - p.paid_amount, statusLabel: 'Proforma', manualStatus: p.manual_status, docType: 'pi' })),
+              .map((p) => ({ id: p.id, number: p.pi_no, issued_date: p.issued_date, dueDate: dueDateFallback(p.issued_date), amountDue: p.amount - p.paid_amount, statusLabel: 'Proforma', manualStatus: p.manual_status, docType: 'pi' })),
           ]}
           comms={comms.filter((c) => c.customer_id === selectedCustomer.id)}
           onAddComm={addComm}

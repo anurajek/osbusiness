@@ -1723,7 +1723,39 @@ No migration needed - UI-only changes.
   drawer section label, the submit button, and the Actions menu option on
   Invoice/PI Follow-up.
 
+## Context-menu-style dropdowns; due-date-aware remind presets
+
+No migration needed - UI-only.
+
+- **Dropdown menus restyled** to look like a native OS context menu (a
+  floating dark card, icon+label rows, a fully-rounded highlight on hover)
+  instead of the earlier flat list - `.mention-menu` is the one shared CSS
+  behind this, so the @mention autocomplete, AssignDropdown, and the new
+  RemindDropdown below all picked up the same look from one change.
+  AssignDropdown's checkboxes became checkmark rows in the same style.
+- **"Remind me on" is now a dropdown too**, with named presets instead of
+  raw day-offsets: Tomorrow, 2 days before due date, On due date, 3 days
+  after due date, 7 days after due date. The due-date-relative ones use
+  the earliest due date among that customer/supplier's currently open
+  items (each screen now passes a real `dueDate` into `openDocs` - falling
+  back to issued_date + grace days for PIs/unset invoices, same as
+  everywhere else) - with more than one open item, whichever's due soonest
+  is what's worth being reminded about. "Custom date & time…" still opens
+  the raw date/time pickers for anything the presets don't cover (a
+  client on a genuinely non-standard schedule, say).
+
 ## Status
+
+- [x] **Context-menu-style dropdowns; due-date-aware remind presets (Sep
+      2026):** dropdown menus (AssignDropdown, the @mention autocomplete,
+      and the new RemindDropdown) restyled to look like a native OS
+      context menu - floating card, icon+label rows, rounded hover
+      highlight. "Remind me on" is now that same dropdown with named
+      presets (Tomorrow / 2 days before due / On due date / 3 or 7 days
+      after due) computed from the earliest due date among the customer's
+      open items, plus a "Custom date & time…" option for anything else.
+      See "Context-menu-style dropdowns; due-date-aware remind presets"
+      above.
 
 - [x] **Assign as a dropdown, removed from the comm log, "Update" renaming
       (Sep 2026):** Assign is now a closed dropdown-style multi-select

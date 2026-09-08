@@ -51,7 +51,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     setError(null)
     const [{ data: supRows, error: supErr }, { data: billRows, error: billErr }, { data: commRows, error: commErr }, { data: memberRows, error: memberErr }] = await Promise.all([
       supabase.from('suppliers').select('id, name').eq('firm_id', firmId).order('name'),
-      supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+      supabase.from('purchase_bills').select('id, supplier_id, bill_no, issued_date, due_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
       supabase.from('supplier_comms').select('id, supplier_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
     ])
@@ -74,6 +74,15 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
   useEffect(() => { load() }, [load])
 
   const range = getPeriodRange(period, customFrom, customTo)
+
+  // Same fallback used elsewhere - issued_date + graceDays when a bill has
+  // no real due_date. Feeds CommDrawer's "remind on due date" preset.
+  const graceDays = firm?.reminder_grace_days ?? 7
+  const dueDateFallback = (issuedDate) => {
+    const d = new Date(issuedDate + 'T00:00:00')
+    d.setDate(d.getDate() + graceDays)
+    return toISODate(d)
+  }
   const isPaidView = statusFilter === 'Paid'
 
   const billsInPeriod = useMemo(() => {
@@ -303,7 +312,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
             .filter((b) => b.supplier_id === selectedSupplier.id)
             .map((b) => ({ ...b, liveStatus: computeStatus(b, 'Approved') }))
             .filter((b) => b.liveStatus !== 'Paid')
-            .map((b) => ({ id: b.id, number: b.bill_no, issued_date: b.issued_date, amountDue: b.amount - b.paid_amount, statusLabel: b.liveStatus }))}
+            .map((b) => ({ id: b.id, number: b.bill_no, issued_date: b.issued_date, dueDate: b.due_date || dueDateFallback(b.issued_date), amountDue: b.amount - b.paid_amount, statusLabel: b.liveStatus }))}
           comms={comms.filter((c) => c.supplier_id === selectedSupplier.id)}
           onAddComm={addComm}
           onClose={() => setSelectedSupplierId(null)}

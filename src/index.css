@@ -195,9 +195,24 @@ body {
 
 /* @mention autocomplete - a small dropdown anchored under the textarea
    (not positioned at the caret itself, to keep this dependency-free) */
-.mention-menu { position: absolute; left: 0; right: 0; top: 100%; margin-top: 2px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.25); z-index: 10; overflow: hidden; }
-.mention-menu__item { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--paper); font-size: 12.5px; padding: 8px 10px; cursor: pointer; }
-.mention-menu__item:hover { background: var(--panel-alt); }
+/* Restyled (Sep 2026) to match a native OS context-menu look: a floating
+   dark card, generous padding, icon+label rows with a fully-rounded
+   highlight on hover/focus rather than an edge-to-edge one - not tied to
+   mentions specifically anymore, reused by AssignDropdown and
+   RemindDropdown below too. */
+.mention-menu {
+  position: absolute; left: 0; top: 100%; margin-top: 6px; min-width: 220px;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35); z-index: 20; padding: 6px;
+}
+.mention-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: none; border: none; color: var(--paper); font-size: 13px;
+  padding: 9px 10px; border-radius: 7px; cursor: pointer;
+}
+.mention-menu__item:hover, .mention-menu__item:focus-visible { background: color-mix(in srgb, var(--teal) 22%, transparent); outline: none; }
+.mention-menu__item-icon { display: inline-flex; width: 16px; flex-shrink: 0; color: var(--paper-dim); }
+.mention-menu__divider { height: 1px; background: var(--rule); margin: 5px 4px; }
 
 /* Quick-pick chips for the "Remind me on" date, and the reminder-due row
    highlight used on Receivables/Payables/Invoice-PI Follow-up */

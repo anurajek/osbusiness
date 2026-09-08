@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, Fragment } from 'react'
-import { Plus, Bell } from 'lucide-react'
+import { Plus, Bell, Check, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
@@ -16,8 +16,10 @@ const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due no
 // A multi-select that looks like the rest of the app's dropdowns (closed,
 // one line, click to open) rather than a permanently-open row of chips - a
 // native <select multiple> can't collapse like that, so this is a small
-// button that opens the same kind of small anchored panel the @mention
-// autocomplete already uses (.mention-menu), with a checkbox per member.
+// button that opens a floating menu (.mention-menu, shared with the
+// @mention autocomplete and RemindDropdown below) with a checkmark next
+// to whichever members are currently selected, in the style of a native
+// OS context menu rather than a form checkbox list.
 function AssignDropdown({ members, selectedIds, onToggle }) {
   const [open, setOpen] = useState(false)
   const label = selectedIds.length === 0
@@ -28,20 +30,25 @@ function AssignDropdown({ members, selectedIds, onToggle }) {
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 160 }}>
       <button
         type="button" className="select select--sm"
-        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
         onClick={() => setOpen((o) => !o)}
       >
-        {label} ▾
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
       {open && (
-        <div className="mention-menu" style={{ minWidth: 200, padding: 4 }}>
+        <div className="mention-menu">
           {members.map((m) => (
-            <label key={m.id} className="mention-menu__item" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" checked={selectedIds.includes(m.id)} onChange={() => onToggle(m.id)} />
+            <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
+              <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
               {m.full_name}
-            </label>
+            </button>
           ))}
-          <button type="button" className="link-btn" style={{ padding: '6px 10px', display: 'block' }} onClick={() => setOpen(false)}>Done</button>
+          <div className="mention-menu__divider" />
+          <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
+            <span className="mention-menu__item-icon" />
+            Done
+          </button>
         </div>
       )}
     </div>
@@ -1270,11 +1277,16 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           docLabel={docLabel}
           openDocs={pending
             .filter((d) => d.customer_id === selectedCustomer.id)
-            .map((d) => ({
-              id: d.id, number: d[numberField], issued_date: d.issued_date,
-              amountDue: d.amount - d.paid_amount,
-              statusLabel: daysOverdue(d.issued_date) > 0 ? 'Overdue' : 'Sent',
-            }))}
+            .map((d) => {
+              const due = new Date(d.issued_date + 'T00:00:00')
+              due.setDate(due.getDate() + graceDays)
+              return {
+                id: d.id, number: d[numberField], issued_date: d.issued_date,
+                dueDate: toISODate(due),
+                amountDue: d.amount - d.paid_amount,
+                statusLabel: daysOverdue(d.issued_date) > 0 ? 'Overdue' : 'Sent',
+              }
+            })}
           comms={comms.filter((c) => c.customer_id === selectedCustomer.id)}
           onAddComm={addComm}
           onClose={() => setSelectedCustomerId(null)}

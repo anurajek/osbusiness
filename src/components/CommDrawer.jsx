@@ -1,5 +1,5 @@
 import { useState, useRef, Fragment } from 'react'
-import { X } from 'lucide-react'
+import { X, ChevronDown, Clock, CalendarClock, CalendarPlus } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate } from '../lib/format'
 import { StatusPill } from './ui'
 
@@ -8,20 +8,6 @@ const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
 // response is better logged as 'Awaiting response' with a Remind-me-on
 // date than tagged with a dead-end label nobody acts on.
 const STATUS_TAGS = ['Promise to pay', 'Reminder sent', 'Awaiting response', 'Disputed', 'Partially paid', 'Cancelled', 'Payment received']
-
-// Quick-pick offsets for "Remind me on" - loosely modeled on Anuraj's own
-// accounts-follow-up cadence (early nudge, on/after due date, then longer
-// escalation windows) but kept as plain day-offsets from today rather than
-// tied to a specific due date, since this drawer serves customers/suppliers
-// generally (not just one invoice) and PIs don't always have a due date to
-// offset from anyway.
-const REMIND_PRESETS = [
-  { label: 'Tomorrow', days: 1 },
-  { label: '+3d', days: 3 },
-  { label: '+7d', days: 7 },
-  { label: '+14d', days: 14 },
-  { label: '+30d', days: 30 },
-]
 
 function relativeTime(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime()
@@ -36,6 +22,84 @@ function addDaysISO(days) {
   d.setHours(0, 0, 0, 0)
   d.setDate(d.getDate() + days)
   return toISODate(d)
+}
+
+// Offsets from a specific ISO date (e.g. a due date), not from today -
+// negative days for "before".
+function offsetISO(iso, days) {
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return toISODate(d)
+}
+
+// The "Remind me on" preset list - Tomorrow is always available; the rest
+// only appear once there's a due date to anchor to. nearestDueDate is the
+// earliest due date among this customer/supplier's open items (see where
+// it's computed below) - with more than one open item, the follow-up most
+// worth reminding about is whichever is due soonest, so that's the one
+// these presets are built around rather than asking which specific
+// document a reminder is about.
+function buildRemindOptions(nearestDueDate) {
+  const options = [{ key: 'tomorrow', label: 'Tomorrow', date: addDaysISO(1) }]
+  if (nearestDueDate) {
+    options.push(
+      { key: 'before2', label: '2 days before due date', date: offsetISO(nearestDueDate, -2) },
+      { key: 'ondue', label: 'On due date', date: nearestDueDate },
+      { key: 'after3', label: '3 days after due date', date: offsetISO(nearestDueDate, 3) },
+      { key: 'after7', label: '7 days after due date', date: offsetISO(nearestDueDate, 7) },
+    )
+  }
+  return options
+}
+
+// Same floating-menu look as AssignDropdown (.mention-menu, shared with
+// the @mention autocomplete) - a closed one-line trigger, single-select
+// this time rather than checkboxes, plus a "Custom date & time…" escape
+// hatch for anything the presets don't cover (a client on a genuinely
+// non-standard payment schedule, say).
+function RemindDropdown({ nearestDueDate, remindOn, remindTime, onPick, onCustom, onClear }) {
+  const [open, setOpen] = useState(false)
+  const options = buildRemindOptions(nearestDueDate)
+
+  let label = 'Remind me on…'
+  if (remindOn) {
+    const matched = !remindTime && options.find((o) => o.date === remindOn)
+    label = matched ? matched.label : `${remindOn}${remindTime ? `, ${remindTime}` : ''}`
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
+      <button
+        type="button" className="select select--sm"
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
+      </button>
+      {open && (
+        <div className="mention-menu">
+          {options.map((o) => (
+            <button type="button" key={o.key} className="mention-menu__item" onClick={() => { onPick(o.date); setOpen(false) }}>
+              <span className="mention-menu__item-icon">{o.key === 'tomorrow' ? <Clock size={14} /> : <CalendarClock size={14} />}</span>
+              {o.label}
+            </button>
+          ))}
+          <div className="mention-menu__divider" />
+          <button type="button" className="mention-menu__item" onClick={() => { onCustom(); setOpen(false) }}>
+            <span className="mention-menu__item-icon"><CalendarPlus size={14} /></span>
+            Custom date &amp; time…
+          </button>
+          {remindOn && (
+            <button type="button" className="mention-menu__item" onClick={() => { onClear(); setOpen(false) }}>
+              <span className="mention-menu__item-icon"><X size={14} /></span>
+              Clear reminder
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function isReminderDue(remindOn) {
@@ -82,12 +146,15 @@ function renderNoteWithMentions(note, members) {
 }
 
 // openDocs: pre-computed, already filtered to this customer's open items -
-// [{ id, number, issued_date, amountDue, statusLabel, manualStatus,
-// docType }]. Takes already-computed rows rather than raw invoices + doing
-// its own computeStatus internally, specifically so this same drawer works
-// for Proforma Invoices too (which have a pi_no, not an invoice_no, and no
-// due_date to compute a status from) without hardcoding Sales-Invoice-only
-// logic here.
+// [{ id, number, issued_date, dueDate, amountDue, statusLabel,
+// manualStatus, docType }]. Takes already-computed rows rather than raw
+// invoices + doing its own computeStatus internally, specifically so this
+// same drawer works for Proforma Invoices too (which have a pi_no, not an
+// invoice_no, and no real due_date column to compute a status from)
+// without hardcoding Sales-Invoice-only logic here. dueDate is always a
+// real ISO date string regardless of docType (each screen fills in the
+// issued_date + grace-days fallback itself when there's no stored
+// due_date) - RemindDropdown below relies on it being populated.
 //
 // links: optional [{ label, onClick }] - rendered as small buttons next to
 // the close button, for jumping to a related screen (e.g. "Invoice
@@ -123,6 +190,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [remindOn, setRemindOn] = useState('')
   const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
+  const [showCustomRemind, setShowCustomRemind] = useState(false)
 
   // Mention autocomplete state - mentionStart is the index of the "@" that
   // triggered the current query, so selecting a suggestion knows exactly
@@ -145,6 +213,12 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [payingBusy, setPayingBusy] = useState(false)
 
   const memberList = members ?? []
+
+  // Earliest due date among this customer/supplier's currently open items -
+  // feeds RemindDropdown's due-date-relative presets. null when nothing's
+  // open or nothing has a due date, in which case those presets just don't
+  // show (see buildRemindOptions above).
+  const nearestDueDate = openDocs.reduce((min, d) => (!d.dueDate ? min : (!min || d.dueDate < min ? d.dueDate : min)), null)
 
   const handleTextChange = (e) => {
     const value = e.target.value
@@ -207,6 +281,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setText('')
     setRemindOn('')
     setRemindTime('')
+    setShowCustomRemind(false)
     setMentionQuery(null)
     setMentionStart(null)
   }
@@ -399,14 +474,20 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
 
             <div>
               <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Remind me on (optional)</label>
-              <div className="chip-row">
-                <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
-                <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
-                {REMIND_PRESETS.map((p) => (
-                  <button type="button" key={p.label} className="chip-btn" onClick={() => setRemindOn(addDaysISO(p.days))}>{p.label}</button>
-                ))}
-                {remindOn && <button type="button" className="link-btn" onClick={() => { setRemindOn(''); setRemindTime('') }}>Clear</button>}
-              </div>
+              <RemindDropdown
+                nearestDueDate={nearestDueDate}
+                remindOn={remindOn}
+                remindTime={remindTime}
+                onPick={(date) => { setRemindOn(date); setRemindTime(''); setShowCustomRemind(false) }}
+                onCustom={() => setShowCustomRemind(true)}
+                onClear={() => { setRemindOn(''); setRemindTime(''); setShowCustomRemind(false) }}
+              />
+              {showCustomRemind && (
+                <div className="chip-row" style={{ marginTop: 8 }}>
+                  <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
+                  <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
+                </div>
+              )}
               {remindError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 4 }}>{remindError}</p>}
             </div>
 
