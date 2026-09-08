@@ -1765,7 +1765,42 @@ No migration needed - UI-only.
   unchanged (still the AssignDropdown component, unrelated to this row
   action).
 
+## Assign restored to the comm log, scoped to the reminder ("task")
+
+No migration needed - the `assigned_to_ids` column on `ar_comms`/
+`supplier_comms` was never dropped when the UI for it was removed a few
+rounds ago (see migration_comm_followup_reminders.sql) - this just starts
+writing to it again.
+
+- **Assign is back in the Update form, but living inside the "Remind me
+  on" section specifically** rather than as a general field on every
+  entry - the framing is "assigning this reminder makes it a task," not
+  "assign this log entry." Same context-menu-style multi-select dropdown
+  as everywhere else. Skipped entirely (not rendered) if the firm has no
+  other members yet.
+- **This is what actually powers the Dashboard's "My reminders today"
+  list** - it queries `assigned_to_ids` for the current person, so
+  without a way to set it, nothing new could ever show up there no matter
+  how many reminders got created. Worth knowing: between when assign was
+  removed from this form and now, any reminder set in that window has no
+  assignee and won't appear in anyone's list - only affects reminders
+  created in that gap, nothing already-existing before it or from now on.
+- **The Dashboard list now shows who a reminder's assigned to**, not just
+  the note - "Assigned to: Sneha N" under the customer/supplier name,
+  when it has an assignee (older reminders without one just don't show
+  that line).
+
 ## Status
+
+- [x] **Assign restored to the comm log, scoped as a reminder/task (Sep
+      2026):** "Assign to" is back in the Update form, but now living
+      specifically inside "Remind me on" - framed as making the reminder
+      a task, not a general per-entry field. This is what the Dashboard's
+      "My reminders today" list actually queries, so it was effectively
+      empty for any reminder created since assign was removed a few
+      rounds back. The Dashboard list now also shows who each reminder is
+      assigned to. See "Assign restored to the comm log, scoped to the
+      reminder ('task')" above.
 
 - [x] **Remind date/time split; compact Assign flyout (Sep 2026):**
       RemindDropdown now only sets the date - a separate always-visible

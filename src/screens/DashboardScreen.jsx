@@ -104,6 +104,7 @@ export default function DashboardScreen({ onNavigate }) {
         { data: bankTxns, error: txnErr },
         { data: custs, error: custErr },
         { data: sups, error: supErr },
+        { data: members, error: memberErr },
         { data: arReminders, error: arRemErr },
         { data: apReminders, error: apRemErr },
       ] = await Promise.all([
@@ -119,21 +120,24 @@ export default function DashboardScreen({ onNavigate }) {
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
         supabase.from('customers').select('id, name').eq('firm_id', firmId),
         supabase.from('suppliers').select('id, name').eq('firm_id', firmId),
+        // Only fetched to resolve assigned_to_ids on each reminder below to
+        // real names for display ("who" a task is assigned to).
+        supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId),
         // "My reminders today" - self-set reminders (from the comm log's
         // Remind-me-on field) assigned to the person currently looking at
         // this Dashboard, whose date has arrived and isn't dismissed yet.
         // Separate from the automatic email-reminder machinery entirely -
         // see migration_comm_followup_reminders.sql.
         membershipId
-          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on, remind_time').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on, remind_time, assigned_to_ids').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
           : Promise.resolve({ data: [], error: null }),
         membershipId
-          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on, remind_time').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
+          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on, remind_time, assigned_to_ids').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
           : Promise.resolve({ data: [], error: null }),
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || piErr || actErr || txnErr || custErr || supErr || arRemErr || apRemErr
+      const err = accErr || invErr || billErr || piErr || actErr || txnErr || custErr || supErr || memberErr || arRemErr || apRemErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
@@ -144,6 +148,7 @@ export default function DashboardScreen({ onNavigate }) {
 
       const customerName = (id) => (custs ?? []).find((c) => c.id === id)?.name || '—'
       const supplierName = (id) => (sups ?? []).find((s) => s.id === id)?.name || '—'
+      const assigneeNames = (ids) => (members ?? []).filter((m) => (ids ?? []).includes(m.id)).map((m) => m.full_name).join(', ')
       // Same "still actually owed" gate used on Receivables/Payables/
       // Invoice-PI Follow-up - a reminder only belongs on this list while
       // the customer/supplier it's about still has an open balance.
@@ -156,8 +161,8 @@ export default function DashboardScreen({ onNavigate }) {
       ])
       const openSupplierIds = new Set(openBills.map((b) => b.supplier_id))
       const myReminders = [
-        ...(arReminders ?? []).filter((r) => openCustomerIds.has(r.customer_id)).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
-        ...(apReminders ?? []).filter((r) => openSupplierIds.has(r.supplier_id)).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
+        ...(arReminders ?? []).filter((r) => openCustomerIds.has(r.customer_id)).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
+        ...(apReminders ?? []).filter((r) => openSupplierIds.has(r.supplier_id)).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
       ].sort((a, b) => a.remindOn.localeCompare(b.remindOn))
 
       setData({
@@ -230,6 +235,11 @@ export default function DashboardScreen({ onNavigate }) {
                       {rem.partyName}
                     </button>
                     {' — '}{rem.note}
+                    {rem.assignees && (
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--paper-dim)', marginTop: 2 }}>
+                        Assigned to: {rem.assignees}
+                      </span>
+                    )}
                   </span>
                   <span className="activity-when">{rem.remindOn}{rem.remindTime ? `, ${rem.remindTime.slice(0, 5)}` : ''}</span>
                   {resolvingRemId !== rem.id && (

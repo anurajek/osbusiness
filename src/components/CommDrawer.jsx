@@ -1,5 +1,5 @@
 import { useState, useRef, Fragment } from 'react'
-import { X, ChevronDown, Clock, CalendarClock } from 'lucide-react'
+import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate } from '../lib/format'
 import { StatusPill } from './ui'
 
@@ -97,6 +97,50 @@ function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
   )
 }
 
+// Same floating-menu look as RemindDropdown/AssignDropdown elsewhere -
+// what turns a plain reminder into an actual task: whoever's picked here
+// is who the Dashboard's "My reminders today" list shows it to (see
+// migration_comm_followup_reminders.sql's assigned_to_ids /
+// contains('assigned_to_ids', [membershipId]) on the Dashboard side).
+// Multi-select, same as document-level assignment - a task can genuinely
+// need more than one person looped in.
+function TaskAssignDropdown({ members, selectedIds, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const label = selectedIds.length === 0
+    ? 'Assign to…'
+    : members.filter((m) => selectedIds.includes(m.id)).map((m) => m.full_name).join(', ')
+
+  if (members.length === 0) return null
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
+      <button
+        type="button" className="select select--sm"
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
+      </button>
+      {open && (
+        <div className="mention-menu">
+          {members.map((m) => (
+            <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
+              <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
+              {m.full_name}
+            </button>
+          ))}
+          <div className="mention-menu__divider" />
+          <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
+            <span className="mention-menu__item-icon" />
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function isReminderDue(remindOn) {
   if (!remindOn) return false
   const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -185,6 +229,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
   const [remindOn, setRemindOn] = useState('')
   const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
+  const [taskAssignedIds, setTaskAssignedIds] = useState([])
 
   // Mention autocomplete state - mentionStart is the index of the "@" that
   // triggered the current query, so selecting a suggestion knows exactly
@@ -267,12 +312,13 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setRemindError(null)
     await onAddComm({
       channel, tag, note: text.trim(),
-      assignedIds: [],
+      assignedIds: taskAssignedIds,
       remindOn: remindOn || null,
       remindTime: remindOn && remindTime ? remindTime : null,
       mentionedIds: extractMentionedIds(text.trim()),
     })
     setText('')
+    setTaskAssignedIds([])
     setRemindOn('')
     setRemindTime('')
     setMentionQuery(null)
@@ -478,6 +524,15 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                 <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
               </div>
               {remindError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 4 }}>{remindError}</p>}
+              {memberList.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign this reminder as a task to (optional)</label>
+                  <TaskAssignDropdown
+                    members={memberList} selectedIds={taskAssignedIds}
+                    onToggle={(id) => setTaskAssignedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                  />
+                </div>
+              )}
             </div>
 
             <button className="btn-primary" onClick={submit} disabled={saving}>
