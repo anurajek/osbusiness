@@ -988,10 +988,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                       </td>
                       <td className="mono">{r[numberField]}</td>
                       <td className="mono">{toISODate(new Date(r.issued_date))}</td>
-                      <td className="num mono">
-                        {inr(balanceDue(r))}
-                        {r.linkedToInvoice && <span title="This PI is linked to a Sales Invoice - the amount shown here follows that invoice's current payment status, not a separately-tracked figure on the PI itself." style={{ marginLeft: 4, color: 'var(--paper-dim)', cursor: 'help' }}>ⓘ</span>}
-                      </td>
+                      <td className="num mono">{inr(balanceDue(r))}</td>
                       <td className="mono">{toISODate(dueDate)}</td>
                       <td className="num mono" style={{ color: overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? 'var(--brick)' : 'inherit' }}>
                         {overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? overdue : '—'}

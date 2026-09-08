@@ -141,6 +141,40 @@ function TaskAssignDropdown({ members, selectedIds, onToggle }) {
   )
 }
 
+// A single-select that keeps the exact same box (same classes, same width
+// within a flex row) as the native <select> it replaces, but opens the
+// same context-menu-style flyout as everywhere else instead of the
+// browser's native list - used for Channel/Tag here so the whole Update
+// section has one consistent dropdown feel, not native selects sitting
+// next to styled ones. flex: 1 on the wrapper (not the button) reproduces
+// exactly what .select--sm's own flex: 1 did when it was a direct flex
+// child of .add-comm-row.
+function Dropdown({ value, options, onChange, className = 'select select--sm' }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <button
+        type="button" className={className}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', overflow: 'hidden' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+        <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
+      </button>
+      {open && (
+        <div className="mention-menu" style={{ minWidth: '100%' }}>
+          {options.map((o) => (
+            <button type="button" key={o} className="mention-menu__item" onClick={() => { onChange(o); setOpen(false) }}>
+              <span className="mention-menu__item-icon">{o === value && <Check size={13} />}</span>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function isReminderDue(remindOn) {
   if (!remindOn) return false
   const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -485,12 +519,8 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
           <div className="drawer__label">Update</div>
           <div className="add-comm-form">
             <div className="add-comm-row">
-              <select className="select select--sm" value={channel} onChange={(e) => setChannel(e.target.value)}>
-                {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select className="select select--sm" value={tag} onChange={(e) => setTag(e.target.value)}>
-                {STATUS_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <Dropdown value={channel} options={CHANNELS} onChange={setChannel} />
+              <Dropdown value={tag} options={STATUS_TAGS} onChange={setTag} />
             </div>
 
             <div style={{ position: 'relative' }}>

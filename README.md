@@ -1806,7 +1806,34 @@ No migration needed - UI-only.
   where things like the Actions button sit in that row relative to
   shorter rows around it.
 
+## Linked-PI hint removed; Channel/Tag match the dropdown style too
+
+No migration needed - UI-only.
+
+- **Removed the "ⓘ" hint icon** next to a linked PI's amount on Invoice/PI
+  Follow-up (the one explaining the amount follows the linked invoice's
+  payment status). The underlying behavior it was explaining is unchanged
+  - just the icon/tooltip itself is gone.
+- **Channel and Tag in the Update form now use the same context-menu
+  dropdown** as Remind and Assign, instead of being native `<select>`
+  elements sitting next to styled ones - the whole Update section now has
+  one consistent feel. Built as a small generic `Dropdown` (value +
+  options + onChange) that keeps the exact same box as the native select
+  it replaces - same classes, same width within the row - so nothing
+  about size or alignment changed, only which kind of menu opens on
+  click. Other native selects elsewhere in the app (filters, Status
+  columns, etc.) are unchanged for now - a bigger, separate undertaking
+  if wanted next.
+
 ## Status
+
+- [x] **Linked-PI hint removed; Channel/Tag match the dropdown style
+      (Sep 2026):** removed the "ⓘ" tooltip icon next to a linked PI's
+      amount on Invoice/PI Follow-up. Channel and Tag in the Update form
+      now open the same context-menu dropdown as Remind/Assign instead of
+      a native select - same box, same size, same position, just a
+      consistent look across the whole section. See "Linked-PI hint
+      removed; Channel/Tag match the dropdown style too" above.
 
 - [x] **Dropdown menus sized down; row alignment (Sep 2026):** the
       floating context-menu-style dropdowns (Assign, Remind, @mention)
