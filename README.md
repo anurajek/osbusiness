@@ -2012,7 +2012,35 @@ means clipped content - its 7-column grid is already flexible (equal
 `fr` columns), so nothing about the calendar's layout needed to change,
 just its container's headroom.
 
+## Fixed: Period popup clipping its own calendar
+
+No migration needed - UI-only.
+
+Real cause this time: the Period popup itself carried the shared
+`.mention-menu` height cap (`max-height: 260px` + scroll), meant for
+things like a long member list. But Period's own content - the 5 period
+options, plus From/To fields and whichever calendar is open - easily
+adds up to 400-500px combined, so that cap was clipping the calendar and
+forcing a scroll inside a tiny window, which is what made it feel
+impossible to reach the rest of it. Period's own content is fixed and
+bounded (never a long dynamic list the way Assign can be), so it doesn't
+need internal scrolling at all - removed the height cap specifically for
+this popup (`maxHeight: none`) so it just grows to fit everything, no
+scrollbar. Nothing else using `.mention-menu` (Assign, @mention, the
+calendar itself when opened elsewhere) changed - only Period's own outer
+wrapper.
+
 ## Status
+
+- [x] **Fixed: Period popup clipping its own calendar (Sep 2026):** the
+      Period popup inherited the shared 260px height cap meant for long
+      lists (like Assign's member list), but its own combined content
+      (options + From/To + an open calendar) needs 400-500px - that's
+      what was clipping the calendar and forcing a scroll inside a tiny
+      window. Removed the height cap specifically for Period's popup
+      (its content is fixed/bounded, unlike a dynamic list) so it just
+      grows to fit everything now. See "Fixed: Period popup clipping its
+      own calendar" above.
 
 - [x] **Removed the horizontal scroll on flyout menus (Sep 2026):**
       `.mention-menu` was implicitly getting `overflow-x: auto` (a side

@@ -29,7 +29,7 @@ function PeriodField({ label, period, options = PERIOD_OPTIONS, className }) {
         <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
       {open && (
-        <div className="mention-menu" style={{ minWidth: isCustom ? 220 : '100%' }}>
+        <div className="mention-menu" style={{ minWidth: isCustom ? 240 : '100%', maxHeight: 'none', overflow: 'visible' }}>
           {options.map((o) => (
             <button
               type="button" key={o} className="mention-menu__item"
