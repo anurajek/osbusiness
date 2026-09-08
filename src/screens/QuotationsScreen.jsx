@@ -7,7 +7,7 @@ import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, sortRows } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, SortableTh, Dropdown } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined', 'expired', 'converted']
 const STATUS_PILL = {
@@ -303,11 +303,11 @@ export default function QuotationsScreen() {
             <div className="add-comm-row">
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Issued date</label>
-                <input type="date" className="text-input" value={formIssuedDate} onChange={(e) => setFormIssuedDate(e.target.value)} />
+                <DatePicker className="text-input" value={formIssuedDate} onChange={setFormIssuedDate} />
               </div>
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Valid until (optional)</label>
-                <input type="date" className="text-input" value={formValidUntil} onChange={(e) => setFormValidUntil(e.target.value)} />
+                <DatePicker className="text-input" value={formValidUntil} onChange={setFormValidUntil} allowClear />
               </div>
             </div>
 

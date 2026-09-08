@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, StatCard, Dropdown } from '../components/ui'
+import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf, previewDocumentPdf, itemTaxFieldsFromRow } from '../lib/pdf'
@@ -927,7 +927,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                 className="text-input" placeholder="PI number" value={newPiNumber}
                 onChange={(e) => setNewPiNumber(e.target.value)}
               />
-              <input type="date" className="text-input" value={newPiIssuedDate} onChange={(e) => setNewPiIssuedDate(e.target.value)} />
+              <DatePicker className="text-input" value={newPiIssuedDate} onChange={setNewPiIssuedDate} />
             </div>
             <div className="add-comm-row">
               <input
@@ -1001,11 +1001,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           onChange={(v) => handleStatusDropdownChange(r, v || null)}
                         />
                       </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="date" className="date-input"
+                      <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                        <DatePicker
                           value={r.expected_payment_date || ''}
-                          onChange={(e) => handleSetExpectedDate(r, e.target.value)}
+                          onChange={(v) => handleSetExpectedDate(r, v)}
+                          allowClear
                         />
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
@@ -1120,10 +1120,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
                               onChange={setPayAccountId}
                             />
-                            <input
-                              className="text-input" type="date"
-                              value={payDate} onChange={(e) => setPayDate(e.target.value)}
-                            />
+                            <DatePicker className="text-input" value={payDate} onChange={setPayDate} />
                           </div>
                           {bankAccounts.length === 0 && (
                             <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>No bank/cash accounts set up yet — add one in Cash & Bank first.</p>
@@ -1149,10 +1146,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               className="text-input" placeholder="Real invoice number"
                               value={convertInvoiceNo} onChange={(e) => setConvertInvoiceNo(e.target.value)}
                             />
-                            <input
-                              className="text-input" type="date"
-                              value={convertDate} onChange={(e) => setConvertDate(e.target.value)}
-                            />
+                            <DatePicker className="text-input" value={convertDate} onChange={setConvertDate} />
                           </div>
                           <p className="login-footnote" style={{ marginTop: 6 }}>
                             {Number(r.paid_amount) > 0
@@ -1189,10 +1183,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                                     options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
                                     onChange={setConvertPayAccountId}
                                   />
-                                  <input
-                                    className="text-input" type="date"
-                                    value={convertPayDate} onChange={(e) => setConvertPayDate(e.target.value)}
-                                  />
+                                  <DatePicker className="text-input" value={convertPayDate} onChange={setConvertPayDate} />
                                 </div>
                               )}
                             </>
@@ -1227,9 +1218,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               className="text-input" placeholder={`${docLabel} number`} value={editNumber}
                               onChange={(e) => setEditNumber(e.target.value)}
                             />
-                            <input type="date" className="text-input" value={editIssuedDate} onChange={(e) => setEditIssuedDate(e.target.value)} />
+                            <DatePicker className="text-input" value={editIssuedDate} onChange={setEditIssuedDate} />
                             {!isPi && (
-                              <input type="date" className="text-input" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} placeholder="Due date" />
+                              <DatePicker className="text-input" value={editDueDate} onChange={setEditDueDate} placeholder="Due date" allowClear />
                             )}
                           </div>
                           <div className="add-comm-row">

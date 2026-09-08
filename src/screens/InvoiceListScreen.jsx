@@ -8,7 +8,7 @@ import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { StatusPill, SectionHeader, EmptyRow, SortableTh, Dropdown } from '../components/ui'
+import { StatusPill, SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
 
 // Full list of statuses a record can ever show as (computed live, not stored).
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
@@ -634,11 +634,11 @@ export default function InvoiceListScreen({ type, onNavigate }) {
             <div className="add-comm-row">
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Issued date</label>
-                <input type="date" className="text-input" value={newDocIssuedDate} onChange={(e) => setNewDocIssuedDate(e.target.value)} />
+                <DatePicker className="text-input" value={newDocIssuedDate} onChange={setNewDocIssuedDate} />
               </div>
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Due date (optional)</label>
-                <input type="date" className="text-input" value={newDocDueDate} onChange={(e) => setNewDocDueDate(e.target.value)} />
+                <DatePicker className="text-input" value={newDocDueDate} onChange={setNewDocDueDate} allowClear />
               </div>
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Amount (₹)</label>
@@ -754,9 +754,8 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                             type="number" min="0" step="0.01" className="text-input pay-amount-input"
                             value={payAmount} onChange={(e) => setPayAmount(e.target.value)} placeholder="Amount received" autoFocus
                           />
-                          <input
-                            type="date" className="date-input"
-                            value={payDate} onChange={(e) => setPayDate(e.target.value)}
+                          <DatePicker
+                            value={payDate} onChange={setPayDate}
                             title="Date this payment actually happened"
                           />
                           <Dropdown

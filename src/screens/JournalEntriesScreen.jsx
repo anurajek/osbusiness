@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate } from '../lib/format'
-import { Dropdown } from '../components/ui'
+import { Dropdown, DatePicker } from '../components/ui'
 
 function emptyLine() { return { account_id: '', debit: '', credit: '', description: '' } }
 
@@ -127,7 +127,7 @@ export default function JournalEntriesScreen() {
           <div className="section-header" style={{ marginBottom: 8 }}><h2>New journal entry</h2></div>
           <form onSubmit={handleSubmit}>
             <div className="add-comm-row" style={{ marginBottom: 12 }}>
-              <input type="date" className="date-input" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+              <DatePicker value={entryDate} onChange={setEntryDate} />
               <input className="text-input" placeholder="Reference / memo" value={reference} onChange={(e) => setReference(e.target.value)} />
             </div>
 

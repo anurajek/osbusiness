@@ -7,7 +7,7 @@ import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { EmptyRow, SortableTh, Dropdown } from '../components/ui'
+import { EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
 
 // type: 'credit' (sales side - issued to a customer) or 'debit' (purchase
 // side - issued to a supplier).
@@ -319,7 +319,7 @@ export default function CreditDebitNoteScreen({ type }) {
             <div className="add-comm-row">
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Issued date</label>
-                <input type="date" className="text-input" value={formIssuedDate} onChange={(e) => setFormIssuedDate(e.target.value)} />
+                <DatePicker className="text-input" value={formIssuedDate} onChange={setFormIssuedDate} />
               </div>
               <div style={{ flex: 1 }}>
                 <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Amount (₹)</label>
@@ -389,9 +389,8 @@ export default function CreditDebitNoteScreen({ type }) {
                           <span className="text-[12.5px]" style={{ color: 'var(--paper-dim)', whiteSpace: 'nowrap' }}>
                             Refunding {inr(r.amount)} {isCredit ? 'to' : 'from'} {partyName(r[partyJoinKey])}
                           </span>
-                          <input
-                            type="date" className="date-input"
-                            value={refundDate} onChange={(e) => setRefundDate(e.target.value)}
+                          <DatePicker
+                            value={refundDate} onChange={setRefundDate}
                             title="Date this refund actually happened"
                           />
                           <Dropdown

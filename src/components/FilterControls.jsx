@@ -1,5 +1,5 @@
 import { Search, X, Plus } from 'lucide-react'
-import { Dropdown } from './ui'
+import { Dropdown, DatePicker } from './ui'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
@@ -12,9 +12,9 @@ export function PeriodSelector({ period, setPeriod, customFrom, customTo, setCus
       </div>
       {period === 'Custom' && (
         <span className="period-custom">
-          <input type="date" className="date-input" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+          <DatePicker value={customFrom} onChange={setCustomFrom} />
           <span className="period-custom__to">to</span>
-          <input type="date" className="date-input" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          <DatePicker value={customTo} onChange={setCustomTo} />
         </span>
       )}
     </div>
@@ -62,9 +62,9 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
           <Dropdown value={period.value} options={PERIOD_OPTIONS} onChange={period.onChange} />
           {period.value === 'Custom' && (
             <span className="period-custom" style={{ marginTop: 6 }}>
-              <input type="date" className="date-input" value={period.customFrom} onChange={(e) => period.setCustomFrom(e.target.value)} />
+              <DatePicker value={period.customFrom} onChange={period.setCustomFrom} />
               <span className="period-custom__to">to</span>
-              <input type="date" className="date-input" value={period.customTo} onChange={(e) => period.setCustomTo(e.target.value)} />
+              <DatePicker value={period.customTo} onChange={period.setCustomTo} />
             </span>
           )}
         </div>

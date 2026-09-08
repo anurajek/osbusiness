@@ -1,7 +1,7 @@
 import { useState, useRef, Fragment } from 'react'
 import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate } from '../lib/format'
-import { StatusPill, Dropdown } from './ui'
+import { StatusPill, Dropdown, DatePicker } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
 // 'No response' removed (Sep 2026) - a follow-up that genuinely got no
@@ -413,7 +413,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                             options={(bankAccounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
                             onChange={setPayAccountId}
                           />
-                          <input className="text-input" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+                          <DatePicker className="text-input" value={payDate} onChange={setPayDate} />
                         </div>
                         {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{payError}</p>}
                         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>

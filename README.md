@@ -1857,7 +1857,48 @@ reminder now" while reminders are paused) and conditionally-included
 options (`isPi &&`, `role === 'Owner' &&`) both carry over via the
 options array.
 
+## Date picker, everywhere in the app (matching mobile's native feel)
+
+No migration needed - UI-only.
+
+On mobile, `<input type="date">` is rendered by the OS as a real calendar/
+wheel picker - a good experience. On desktop, browsers typically render
+the same native input as three typable dd/mm/yyyy segments with a tiny
+calendar-icon popup - a meaningfully different, more error-prone
+experience (typing a segment by hand is exactly how the old
+"10-09-2026 becomes 10-09-0002" bug happened before the plausibility
+safeguard was added). Every date field across the app - Issued/Due/
+Expected Date, payment and refund dates, journal entries, custom filter
+ranges - now uses a new shared `DatePicker` component
+(`src/components/ui.jsx`) instead: a click-to-open calendar in the same
+context-menu style as Dropdown, so picking a date now feels the same on
+desktop as it already did on mobile, everywhere in the app at once.
+
+Built the same way `Dropdown` was: same `value`/`onChange` contract (a
+plain ISO "YYYY-MM-DD" string, same as the native input), same className
+(`date-input` or `text-input`) so size/position are unchanged - only the
+calendar that opens is different. An optional `allowClear` shows a Clear
+action for fields where an empty date is meaningful (Due Date, Expected
+Date, Valid Until) - required fields like Issued Date don't get one.
+
+**Deliberately left alone:** the "Remind me on" date field in the comm
+log - that one was reviewed and approved separately with its own layout
+a few rounds back, and this request was scoped to the *other* date
+fields, not that one.
+
 ## Status
+
+- [x] **Date picker, everywhere in the app (Sep 2026):** every date field
+      (Issued/Due/Expected Date, payment/refund dates, journal entries,
+      custom filter ranges) now opens a click-to-open calendar in the
+      same context-menu style as Dropdown, via a new shared `DatePicker`
+      component - matches the good native picker experience mobile
+      already had, instead of desktop's typable dd/mm/yyyy segments.
+      Same value contract and className as the native input it replaces,
+      so size/position are unchanged. The "Remind me on" date field was
+      deliberately left as-is (reviewed/approved separately already).
+      See "Date picker, everywhere in the app (matching mobile's native
+      feel)" above.
 
 - [x] **Dropdown look, everywhere in the app (Sep 2026):** every native
       `<select>` across the whole app (Sales/Purchases, Quotations,

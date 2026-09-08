@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getFiscalYearRange } from '../lib/format'
+import { DatePicker } from '../components/ui'
 
 const REPORTS = ['Trial Balance', 'Profit & Loss', 'Balance Sheet']
 
@@ -140,9 +141,9 @@ function RangePeriodBar({ preset, setPreset, from, to, setFrom, setTo }) {
       ))}
       {preset === 'Custom' && (
         <span className="period-custom">
-          <input type="date" className="date-input" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <DatePicker value={from} onChange={setFrom} />
           <span className="period-custom__to">to</span>
-          <input type="date" className="date-input" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DatePicker value={to} onChange={setTo} />
         </span>
       )}
     </div>
@@ -157,7 +158,7 @@ function AsOfPeriodBar({ preset, setPreset, date, setDate }) {
       ))}
       {preset === 'Custom' && (
         <span className="period-custom">
-          <input type="date" className="date-input" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker value={date} onChange={setDate} />
         </span>
       )}
     </div>
