@@ -5,7 +5,7 @@ import {
 import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, computeStatus, toISODate, getFiscalYearRange } from '../lib/format'
+import { inr, computeStatus, isResolved, toISODate, getFiscalYearRange } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
@@ -99,6 +99,7 @@ export default function DashboardScreen({ onNavigate }) {
         { data: accounts, error: accErr },
         { data: invoices, error: invErr },
         { data: bills, error: billErr },
+        { data: pis, error: piErr },
         { data: activity, error: actErr },
         { data: bankTxns, error: txnErr },
         { data: custs, error: custErr },
@@ -107,8 +108,13 @@ export default function DashboardScreen({ onNavigate }) {
         { data: apReminders, error: apRemErr },
       ] = await Promise.all([
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
-        supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-        supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+        supabase.from('sales_invoices').select('id, customer_id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+        supabase.from('purchase_bills').select('id, supplier_id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+        // Only fetched here to know which customers still have an open PI
+        // (not counted in totalAR/arAgeing - those stay Sales-Invoice-only,
+        // unchanged - just used below to decide whether a customer's
+        // reminder still belongs on "My reminders today").
+        supabase.from('proforma_invoices').select('id, customer_id, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
         supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
         supabase.from('customers').select('id, name').eq('firm_id', firmId),
@@ -127,7 +133,7 @@ export default function DashboardScreen({ onNavigate }) {
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || actErr || txnErr || custErr || supErr || arRemErr || apRemErr
+      const err = accErr || invErr || billErr || piErr || actErr || txnErr || custErr || supErr || arRemErr || apRemErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
@@ -138,9 +144,20 @@ export default function DashboardScreen({ onNavigate }) {
 
       const customerName = (id) => (custs ?? []).find((c) => c.id === id)?.name || '—'
       const supplierName = (id) => (sups ?? []).find((s) => s.id === id)?.name || '—'
+      // Same "still actually owed" gate used on Receivables/Payables/
+      // Invoice-PI Follow-up - a reminder only belongs on this list while
+      // the customer/supplier it's about still has an open balance.
+      // Checks both Sales Invoices and PIs for a customer (a PI-only
+      // balance still counts, even though PIs aren't part of totalAR/
+      // arAgeing above), and Purchase Bills for a supplier.
+      const openCustomerIds = new Set([
+        ...openInvoices.map((i) => i.customer_id),
+        ...(pis ?? []).filter((p) => !isResolved(p)).map((p) => p.customer_id),
+      ])
+      const openSupplierIds = new Set(openBills.map((b) => b.supplier_id))
       const myReminders = [
-        ...(arReminders ?? []).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
-        ...(apReminders ?? []).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
+        ...(arReminders ?? []).filter((r) => openCustomerIds.has(r.customer_id)).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
+        ...(apReminders ?? []).filter((r) => openSupplierIds.has(r.supplier_id)).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time })),
       ].sort((a, b) => a.remindOn.localeCompare(b.remindOn))
 
       setData({

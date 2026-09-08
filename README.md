@@ -1667,7 +1667,54 @@ gaps, fixed together since they touch the same columns:
   (and this is available from the Dashboard's reminder list too, not just
   the comm drawer).
 
+## Assign moved to its own action; reminders track open balance; By Document due-date fix
+
+No migration needed for this one - it's UI/logic changes on columns the two
+migrations above already created.
+
+- **Assign is now its own row action** on Invoice/PI Follow-up (Actions →
+  Assign…), not something buried inside the Edit form - opens the same
+  chip-toggle multi-select in an inline panel, so ownership can be set or
+  changed on an existing row in one click without touching anything else
+  about it. Edit no longer has its own separate assign section - Add PI
+  still does (assigning still makes sense as part of creating a new one).
+- **A reminder now tracks whether there's still an open balance.** Comm-log
+  reminders aren't tied to one specific invoice/PI (the comm log is
+  customer/supplier-level), so instead of trying to catch every possible
+  place a payment could get recorded, the fix is a display-time check: a
+  reminder only counts as "due" (row highlight, Dashboard list) while the
+  customer/supplier it's about still owes something across their open
+  invoices/PIs/bills. Once everything's paid off, cancelled, or manually
+  resolved, it stops showing up as due on its own - no need to remember to
+  click "Mark done" purely because the money already came in. The
+  underlying `ar_comms`/`supplier_comms` row and its `reminder_done` flag
+  are untouched either way; this only changes which reminders get
+  surfaced as currently due.
+- **Fixed: Receivables' "By Document" view showing a blank Due Date for
+  invoices that Invoice/PI Follow-up showed one for.** The real cause:
+  By Document was reading the invoice's raw `due_date` column only, which
+  is genuinely null for a lot of invoices (never set, or imported without
+  one) - while Invoice/PI Follow-up's own Due Date column always shows a
+  computed `issued_date + graceDays` value regardless of the stored
+  column. By Document now falls back to that same computed value whenever
+  `due_date` is null, matching what Follow-up already shows for the same
+  document, and PIs already did this. When an invoice does have a real,
+  explicitly-set due date, that real value is still shown (more accurate
+  than the generic default) - only the previously-blank case changed.
+
 ## Status
+
+- [x] **Assign as its own action; balance-aware reminders; By Document
+      due-date fix (Sep 2026):** "Assign…" is now a standalone action on
+      Invoice/PI Follow-up rather than living inside Edit. A comm-log
+      reminder only shows as due while its customer/supplier still has an
+      open balance somewhere, so it stops flagging on its own once
+      everything's paid off - no dependency on remembering to dismiss it.
+      Fixed Receivables' By Document view showing no Due Date for
+      invoices without one set - falls back to the same computed value
+      Invoice/PI Follow-up already shows. See "Assign moved to its own
+      action; reminders track open balance; By Document due-date fix"
+      above.
 
 - [x] **Follow-up refinements: multi-assign, time, resolution notes (Sep
       2026):** comm-log assignment is now multi-person (chip toggles, not

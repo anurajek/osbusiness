@@ -184,13 +184,27 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     const custName = (id) => customers.find((c) => c.id === id)?.name || '—'
 
     let result = [
-      ...tableInvoices.map((i) => ({
-        key: `inv-${i.id}`, customerId: i.customer_id, customer: custName(i.customer_id),
-        type: 'Invoice', number: i.invoice_no, issuedDate: i.issued_date, dueDate: i.due_date || null,
-        expectedDate: i.expected_payment_date || null,
-        amount: isPaidView ? Number(i.paid_amount) : Number(i.amount) - Number(i.paid_amount),
-        status: i.manual_status || computeStatus(i, 'Sent'),
-      })),
+      ...tableInvoices.map((i) => {
+        // Same fallback PI rows already get below: when there's no real
+        // due_date on the invoice itself (never set, or imported without
+        // one), show issued_date + graceDays instead of leaving the column
+        // blank - this is exactly the value Invoice/PI Follow-up already
+        // shows for the same document, so the two screens now agree
+        // instead of one showing a date and the other showing nothing.
+        let dueDate = i.due_date || null
+        if (!dueDate) {
+          const d = new Date(i.issued_date + 'T00:00:00')
+          d.setDate(d.getDate() + graceDays)
+          dueDate = toISODate(d)
+        }
+        return {
+          key: `inv-${i.id}`, customerId: i.customer_id, customer: custName(i.customer_id),
+          type: 'Invoice', number: i.invoice_no, issuedDate: i.issued_date, dueDate,
+          expectedDate: i.expected_payment_date || null,
+          amount: isPaidView ? Number(i.paid_amount) : Number(i.amount) - Number(i.paid_amount),
+          status: i.manual_status || computeStatus(i, 'Sent'),
+        }
+      }),
       ...tablePis.map((p) => {
         const d = new Date(p.issued_date + 'T00:00:00')
         d.setDate(d.getDate() + graceDays)
@@ -335,9 +349,21 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
   }
 
   const todayISO = toISODate(new Date())
+  // A reminder only counts as "due" while the customer still actually owes
+  // something (across both invoices and PIs) - once everything's paid off,
+  // cancelled, or manually resolved, the follow-up task is done whether or
+  // not anyone remembered to click "Mark done" on the old reminder.
+  const openCustomerIds = useMemo(
+    () => new Set([...invoices, ...pis].filter((d) => !isResolved(d)).map((d) => d.customer_id)),
+    [invoices, pis]
+  )
   const dueReminderCustomerIds = useMemo(
-    () => new Set(comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.customer_id)),
-    [comms, todayISO]
+    () => new Set(
+      comms
+        .filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO && openCustomerIds.has(c.customer_id))
+        .map((c) => c.customer_id)
+    ),
+    [comms, todayISO, openCustomerIds]
   )
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)

@@ -59,6 +59,13 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [payError, setPayError] = useState(null)
   const [payingBusy, setPayingBusy] = useState(false)
 
+  // Assign, as its own row action rather than only living inside the Edit
+  // form - lets ownership be set/changed on an existing row in one click,
+  // without opening the full Edit form for an otherwise-unrelated change.
+  const [assigningRowId, setAssigningRowId] = useState(null)
+  const [assigningIds, setAssigningIds] = useState([])
+  const [assigningBusy, setAssigningBusy] = useState(false)
+
   // PI-only: creates the real sales_invoices record directly from this PI
   // (you type the actual invoice number/date - this tool still never
   // auto-generates those, it's just one step instead of a separate CSV
@@ -109,7 +116,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const [editIssuedDate, setEditIssuedDate] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
   const [editAmount, setEditAmount] = useState('')
-  const [editAssignedIds, setEditAssignedIds] = useState([])
   const [editError, setEditError] = useState(null)
   const [editingBusy, setEditingBusy] = useState(false)
 
@@ -317,11 +323,29 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setEditIssuedDate(row.issued_date ? toISODate(new Date(row.issued_date)) : toISODate(new Date()))
     setEditDueDate(!isPi && row.due_date ? toISODate(new Date(row.due_date)) : '')
     setEditAmount(String(row.amount ?? ''))
-    setEditAssignedIds(row.assigned_to_ids ?? [])
     setEditError(null)
     setExpandedId(null)
     setPayingRowId(null)
     setConvertingRowId(null)
+    setAssigningRowId(null)
+  }
+
+  const openAssignForm = (row) => {
+    setAssigningRowId(row.id)
+    setAssigningIds(row.assigned_to_ids ?? [])
+    setExpandedId(null)
+    setPayingRowId(null)
+    setConvertingRowId(null)
+    setEditingRowId(null)
+  }
+
+  const handleSaveAssign = async (row) => {
+    setAssigningBusy(true)
+    const { error: err } = await supabase.from(table).update({ assigned_to_ids: assigningIds }).eq('id', row.id)
+    setAssigningBusy(false)
+    if (err) { alert(`Couldn't save that: ${err.message}`); return }
+    setAssigningRowId(null)
+    load()
   }
 
   const handleSaveEdit = async (row) => {
@@ -346,7 +370,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           issued_date: editIssuedDate,
           amount: amountNum,
           status: currentPaid >= amountNum ? 'Paid' : 'Sent',
-          assigned_to_ids: editAssignedIds,
         }
       : {
           customer_id: editCustomerId,
@@ -355,7 +378,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           due_date: editDueDate || null,
           amount: amountNum,
           status: statusForStorage(computeStatus({ amount: amountNum, paid_amount: currentPaid, due_date: editDueDate }, 'Sent'), true),
-          assigned_to_ids: editAssignedIds,
         }
 
     const { error: err } = await supabase.from(table).update(payload).eq('id', row.id)
@@ -381,6 +403,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setExpandedId(null)
     setPayingRowId(null)
     setEditingRowId(null)
+    setAssigningRowId(null)
   }
 
   // Creates the real sales_invoices row from this PI - customer and amount
@@ -510,6 +533,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setExpandedId(null)
     setConvertingRowId(null)
     setEditingRowId(null)
+    setAssigningRowId(null)
   }
 
   const handleStatusDropdownChange = async (row, value) => {
@@ -629,6 +653,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setPayingRowId(null)
     setConvertingRowId(null)
     setEditingRowId(null)
+    setAssigningRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -642,6 +667,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     setPayingRowId(null)
     setConvertingRowId(null)
     setEditingRowId(null)
+    setAssigningRowId(null)
     loadEmails(row.customer_id)
   }
 
@@ -718,6 +744,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
 
   const handleAction = (row, action) => {
     if (action === 'preview') handlePreview(row)
+    else if (action === 'assign') openAssignForm(row)
     else if (action === 'send') openSendConfirm(row)
     else if (action === 'pause') handleTogglePause(row)
     else if (action === 'update') setSelectedCustomerId(row.customer_id)
@@ -755,9 +782,19 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // arrived - used to highlight their row(s) below and badge their name in
   // the Comm drawer trigger, so a due reminder is visible right where the
   // day's actual follow-up work happens, not just on the Dashboard.
+  //
+  // Also requires the customer to still actually owe something on this
+  // docType - once every one of their invoices/PIs here is paid off (or
+  // cancelled, or manually marked resolved), the follow-up task is done
+  // whether or not anyone remembered to click "Mark done" on the old
+  // reminder - a stale reminder shouldn't keep flagging someone who's
+  // already settled up.
   const todayISO = toISODate(new Date())
+  const openCustomerIds = new Set(docs.filter((d) => !isResolved(d)).map((d) => d.customer_id))
   const dueReminderCustomerIds = new Set(
-    comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.customer_id)
+    comms
+      .filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO && openCustomerIds.has(c.customer_id))
+      .map((c) => c.customer_id)
   )
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
@@ -952,6 +989,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           <option value="" disabled>{busy ? 'Working…' : 'Actions…'}</option>
                           <option value="preview">Preview</option>
                           <option value="edit">Edit</option>
+                          <option value="assign">Assign…</option>
                           <option value="send" disabled={r.reminders_paused}>Send reminder now</option>
                           <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
                           <option value="update">Log an update</option>
@@ -1145,22 +1183,6 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
                             />
                           </div>
-                          {members.length > 0 && (
-                            <div>
-                              <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Assign to (optional, pick any number)</label>
-                              <div className="chip-row">
-                                {members.map((m) => (
-                                  <button
-                                    type="button" key={m.id}
-                                    className={`chip-btn ${editAssignedIds.includes(m.id) ? 'chip-btn--active' : ''}`}
-                                    onClick={() => setEditAssignedIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
-                                  >
-                                    {m.full_name}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                           <p className="login-footnote" style={{ marginTop: 2 }}>
                             Amount already paid ({inr(r.paid_amount)}) isn't editable here — use the Status column (Paid/Partially Paid) to record a real payment, so Cash & Bank stays correct.
                           </p>
@@ -1170,6 +1192,35 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               {editingBusy ? 'Saving…' : 'Save changes'}
                             </button>
                             <button type="button" className="link-btn" onClick={() => { setEditingRowId(null); setEditError(null) }}>Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {assigningRowId === r.id && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 12, background: 'var(--panel-alt)' }}>
+                          <div className="login-footnote" style={{ margin: '0 0 8px', textTransform: 'uppercase', fontSize: 11 }}>
+                            Assign {r[numberField]}
+                          </div>
+                          {members.length === 0 && <p className="login-footnote">No firm members to assign yet — invite teammates from Users &amp; Permissions.</p>}
+                          {members.length > 0 && (
+                            <div className="chip-row">
+                              {members.map((m) => (
+                                <button
+                                  type="button" key={m.id}
+                                  className={`chip-btn ${assigningIds.includes(m.id) ? 'chip-btn--active' : ''}`}
+                                  onClick={() => setAssigningIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                                >
+                                  {m.full_name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                            <button className="btn-primary" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
+                              {assigningBusy ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" className="link-btn" onClick={() => setAssigningRowId(null)}>Cancel</button>
                           </div>
                         </td>
                       </tr>

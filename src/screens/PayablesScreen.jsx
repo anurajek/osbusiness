@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus, toISODate } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, toISODate, isResolved } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -145,9 +145,20 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
   }
 
   const todayISO = toISODate(new Date())
+  // Same "still actually owed" gate as Receivables/Invoice-PI Follow-up -
+  // a reminder stops counting as due once the bill it's about is paid off,
+  // cancelled, or manually resolved, whether or not it was ever dismissed.
+  const openSupplierIds = useMemo(
+    () => new Set(bills.filter((b) => !isResolved(b)).map((b) => b.supplier_id)),
+    [bills]
+  )
   const dueReminderSupplierIds = useMemo(
-    () => new Set(comms.filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO).map((c) => c.supplier_id)),
-    [comms, todayISO]
+    () => new Set(
+      comms
+        .filter((c) => c.remind_on && !c.reminder_done && c.remind_on <= todayISO && openSupplierIds.has(c.supplier_id))
+        .map((c) => c.supplier_id)
+    ),
+    [comms, todayISO, openSupplierIds]
   )
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedSupplierId)
