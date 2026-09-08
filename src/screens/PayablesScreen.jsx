@@ -33,7 +33,6 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
   const [supplierFilter, setSupplierFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('amount-desc')
-  const [search, setSearch] = useState('')
   const [selectedSupplierId, setSelectedSupplierId] = useState(null)
 
   // Arriving here from a click elsewhere (e.g. a supplier's name in
@@ -115,11 +114,6 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
       return { supplier: sup, count: relevant.length, amount, mostUrgent, lastComm: lastCommFor(sup.id) }
     }).filter((r) => r.count > 0)
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      result = result.filter((r) => r.supplier.name.toLowerCase().includes(q))
-    }
-
     if (sortBy === 'amount-desc') result.sort((a, b) => b.amount - a.amount)
     else if (sortBy === 'amount-asc') result.sort((a, b) => a.amount - b.amount)
     else if (sortBy === 'name-asc') result.sort((a, b) => a.supplier.name.localeCompare(b.supplier.name))
@@ -127,7 +121,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
 
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suppliers, tableBills, supplierFilter, sortBy, search, statusFilter, isPaidView, comms])
+  }, [suppliers, tableBills, supplierFilter, sortBy, statusFilter, isPaidView, comms])
 
   const totals = useMemo(() => {
     const billed = billsInPeriod.reduce((s, b) => s + b.amount, 0)
@@ -235,7 +229,6 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
       </div>
 
       <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: 'Search supplier name...' }}
         filters={[
           {
             label: 'Supplier', value: supplierFilter, onChange: setSupplierFilter, searchable: true,

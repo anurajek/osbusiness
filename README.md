@@ -1909,7 +1909,38 @@ No migration needed - UI-only.
   (Channel, Tag, Status, Period) where a search field would just be
   clutter.
 
+## Removed a redundant search box (Payables)
+
+No migration needed - UI-only.
+
+Payables' header "Search supplier name..." box did exactly one thing -
+filter the list by supplier name - which the Supplier filter dropdown now
+already does (and does better, since it's searchable *and* actually
+selects the supplier rather than just filtering the list). Removed the
+now-redundant search box and its state entirely.
+
+**Left alone on purpose:** Receivables' own search box looks the same at
+a glance, but isn't purely redundant - in its "By Document" view, search
+also matches against the document number, not just the customer name, so
+removing it there would lose that. Same story on Sales/Purchases,
+Quotations, and Credit/Debit Notes - each of those search boxes also
+matches a document number (invoice/bill/quote/note #), not just the
+party name, so they stay. Invoice/PI Follow-up's search is customer-name
+only like Payables' was, but that screen doesn't have a Customer filter
+dropdown to replace it with, so it stays too. Payables was the one place
+where the search box and the new dropdown search were doing exactly the
+same job.
+
 ## Status
+
+- [x] **Removed a redundant search box on Payables (Sep 2026):** its
+      "Search supplier name..." box did exactly what the now-searchable
+      Supplier filter dropdown already does, so the box (and its state)
+      is gone. Search boxes on other screens (Receivables, Sales/
+      Purchases, Quotations, Credit/Debit Notes) were kept - each of
+      those also matches a document number, not just a party name, so
+      they're not purely redundant with the dropdown search. See
+      "Removed a redundant search box (Payables)" above.
 
 - [x] **Remind date matches everywhere; searchable pickers (Sep 2026):**
       "Remind me on" now uses the same DatePicker as every other date
