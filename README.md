@@ -1790,7 +1790,33 @@ writing to it again.
   when it has an assignee (older reminders without one just don't show
   that line).
 
+## Dropdown menus sized down; row alignment
+
+No migration needed - UI-only.
+
+- **The floating dropdown menus (.mention-menu - Assign, Remind, @mention)
+  were noticeably oversized** relative to the small trigger buttons that
+  open them, especially the Assign flyout on Invoice/PI Follow-up on
+  mobile. Tightened padding, font-size, and min-width across the board,
+  and added a max-height with scroll so a menu with a lot of firm members
+  never grows unbounded tall either.
+- **Table rows now align content to the top of the cell** rather than the
+  default vertical-center, so a row with taller content in one cell (the
+  assignee badges under a customer's name, say) doesn't visually shift
+  where things like the Actions button sit in that row relative to
+  shorter rows around it.
+
 ## Status
+
+- [x] **Dropdown menus sized down; row alignment (Sep 2026):** the
+      floating context-menu-style dropdowns (Assign, Remind, @mention)
+      shrunk to a more proportionate size (tighter padding/font-size,
+      capped width, scrolls instead of growing unbounded tall) - was
+      especially oversized for the Assign flyout on mobile. Table rows
+      now top-align cell content instead of vertical-centering, so
+      variable-height content in one cell doesn't shift alignment of
+      things like the Actions button in that same row. See "Dropdown
+      menus sized down; row alignment" above.
 
 - [x] **Assign restored to the comm log, scoped as a reminder/task (Sep
       2026):** "Assign to" is back in the Update form, but now living

@@ -1034,7 +1034,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           {role === 'Owner' && <option value="delete">Delete</option>}
                         </select>
                         {assigningRowId === r.id && (
-                          <div className="mention-menu" style={{ left: 'auto', right: 0, minWidth: 220 }}>
+                          <div className="mention-menu" style={{ left: 'auto', right: 0 }}>
                             {members.length === 0 && <p className="login-footnote" style={{ padding: '4px 10px' }}>No firm members yet — invite teammates from Users &amp; Permissions.</p>}
                             {members.map((m) => (
                               <button
