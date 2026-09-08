@@ -294,7 +294,7 @@ export default function QuotationsScreen() {
             <div className="drawer__label" style={{ marginBottom: -4 }}>{editingId ? 'Editing quote' : 'New quote'}</div>
             <div className="add-comm-row">
               <Dropdown
-                value={formCustomerId} placeholder="Select customer"
+                value={formCustomerId} placeholder="Select customer" searchable
                 options={customers.map((c) => ({ value: c.id, label: c.name }))}
                 onChange={setFormCustomerId}
               />
@@ -349,7 +349,7 @@ export default function QuotationsScreen() {
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: 'Search quote # or customer...' }}
         filters={[
-          { label: 'Customer', value: customerFilter, onChange: setCustomerFilter, options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))] },
+          { label: 'Customer', value: customerFilter, onChange: setCustomerFilter, searchable: true, options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))] },
           { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: [{ value: 'all', label: 'All' }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))] },
         ]}
         period={{ value: period, onChange: setPeriod, customFrom, customTo, setCustomFrom, setCustomTo }}

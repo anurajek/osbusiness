@@ -238,7 +238,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
         search={{ value: search, onChange: setSearch, placeholder: 'Search supplier name...' }}
         filters={[
           {
-            label: 'Supplier', value: supplierFilter, onChange: setSupplierFilter,
+            label: 'Supplier', value: supplierFilter, onChange: setSupplierFilter, searchable: true,
             options: [{ value: 'all', label: 'All' }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))],
           },
           {

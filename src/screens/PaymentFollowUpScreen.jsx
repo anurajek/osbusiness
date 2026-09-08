@@ -919,7 +919,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           <form onSubmit={handleAddPi} className="add-comm-form" style={{ marginBottom: 16 }}>
             <div className="add-comm-row">
               <Dropdown
-                value={newPiCustomerId} placeholder="Select customer…"
+                value={newPiCustomerId} placeholder="Select customer…" searchable
                 options={customers.map((c) => ({ value: c.id, label: c.name }))}
                 onChange={setNewPiCustomerId}
               />
@@ -1210,7 +1210,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           </div>
                           <div className="add-comm-row">
                             <Dropdown
-                              value={editCustomerId} placeholder="Select customer…"
+                              value={editCustomerId} placeholder="Select customer…" searchable
                               options={customers.map((c) => ({ value: c.id, label: c.name }))}
                               onChange={setEditCustomerId}
                             />

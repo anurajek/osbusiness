@@ -305,12 +305,12 @@ export default function CreditDebitNoteScreen({ type }) {
           <form onSubmit={handleSubmit} className="add-comm-form" style={{ marginBottom: 16 }}>
             <div className="add-comm-row">
               <Dropdown
-                value={formPartyId} placeholder={isCredit ? 'Select customer' : 'Select supplier'}
+                value={formPartyId} placeholder={isCredit ? 'Select customer' : 'Select supplier'} searchable
                 options={parties.map((p) => ({ value: p.id, label: p.name }))}
                 onChange={setFormPartyId}
               />
               <Dropdown
-                value={formOriginalId} placeholder={isCredit ? 'Related invoice (optional)' : 'Related bill (optional)'}
+                value={formOriginalId} placeholder={isCredit ? 'Related invoice (optional)' : 'Related bill (optional)'} searchable
                 options={originalDocs.filter((d) => !formPartyId || d[partyJoinKey] === formPartyId).map((d) => ({ value: d.id, label: d[originalNumberField] }))}
                 onChange={setFormOriginalId}
               />

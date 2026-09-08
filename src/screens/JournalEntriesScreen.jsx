@@ -147,7 +147,7 @@ export default function JournalEntriesScreen() {
                     <tr key={i} className="ledger-row">
                       <td>
                         <Dropdown
-                          value={line.account_id} placeholder="Select account…"
+                          value={line.account_id} placeholder="Select account…" searchable
                           options={accounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))}
                           onChange={(v) => updateLine(i, { account_id: v })}
                         />

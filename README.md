@@ -1886,7 +1886,41 @@ log - that one was reviewed and approved separately with its own layout
 a few rounds back, and this request was scoped to the *other* date
 fields, not that one.
 
+## Remind date matches everywhere; searchable customer/party/account pickers
+
+No migration needed - UI-only.
+
+- **"Remind me on" now uses the same DatePicker as everywhere else.** It
+  was deliberately left native in the last round since it had been
+  reviewed and approved separately - now converted too, for full
+  consistency. Same value contract, same layout (still sits next to the
+  time field), just the same calendar flyout instead of the native input.
+- **Customer/supplier/account pickers are now searchable** - type to
+  filter instead of scrolling a long list to find one. Added an optional
+  `searchable` prop to the shared `Dropdown` component: when on, a search
+  field appears at the top of the flyout and the list filters as you
+  type (case-insensitive, matches anywhere in the name) - same idea as
+  the @mention autocomplete, just applied to Dropdown generally. Turned
+  on for every customer/supplier/party picker in the app (Add PI, Edit,
+  Sales/Purchases' new-document form, Quotations, Credit/Debit Notes) and
+  the Customer/Supplier filter dropdowns on Receivables, Payables,
+  Sales/Purchases, and Quotations, plus the account picker on General
+  Ledger journal entries. Left off for short fixed-option dropdowns
+  (Channel, Tag, Status, Period) where a search field would just be
+  clutter.
+
 ## Status
+
+- [x] **Remind date matches everywhere; searchable pickers (Sep 2026):**
+      "Remind me on" now uses the same DatePicker as every other date
+      field (was deliberately left native last round, now converted for
+      full consistency). Dropdown gained an optional `searchable` prop -
+      a type-to-filter search field at the top of the flyout - turned on
+      for every customer/supplier/party picker, the Customer/Supplier
+      filter dropdowns, and the General Ledger account picker, so a long
+      list is searchable instead of requiring a scroll. See "Remind date
+      matches everywhere; searchable customer/party/account pickers"
+      above.
 
 - [x] **Date picker, everywhere in the app (Sep 2026):** every date field
       (Issued/Due/Expected Date, payment/refund dates, journal entries,

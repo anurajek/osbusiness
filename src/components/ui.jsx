@@ -143,8 +143,9 @@ export function EmptyRow({ colSpan, children }) {
 // component with value="" (or any value matching no option) and an
 // onChange that fires the action and never stores the picked value back -
 // no separate component needed for that pattern.
-export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left' }) {
+export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left', searchable = false }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const normalized = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o))
   const current = normalized.find((o) => o.value === value)
   const label = current ? current.label : placeholder
@@ -153,29 +154,56 @@ export function Dropdown({ value, options, onChange, placeholder = 'Select…', 
   // override, not a visual one - applied to the wrapper too so it still
   // constrains the overall width, not just the button inside it.
   const extraClasses = className.split(' ').filter((c) => c !== 'select' && c !== 'select--sm').join(' ')
+  // For long lists (customers, suppliers, accounts) - type to filter
+  // instead of scrolling to find one. Off by default since it adds a
+  // search field nobody needs for a short fixed list like Channel/Tag.
+  const filtered = searchable && query.trim()
+    ? normalized.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : normalized
+
+  const toggle = () => setOpen((o) => { const next = !o; if (next) setQuery(''); return next })
 
   return (
     <div className={extraClasses || undefined} style={{ position: 'relative', flex: className.includes('select--sm') ? 1 : undefined }}>
       <button
         type="button" className={className} disabled={disabled}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: disabled ? 'default' : 'pointer', overflow: 'hidden' }}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
       {open && (
-        <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, minWidth: '100%' } : { minWidth: '100%' }}>
-          {normalized.map((o) => (
-            <button
-              type="button" key={o.value} className="mention-menu__item" disabled={o.disabled}
-              style={o.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
-              onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false) }}
-            >
-              <span className="mention-menu__item-icon">{o.value === value && <Check size={13} />}</span>
-              {o.label}
-            </button>
-          ))}
+        <div
+          className="mention-menu"
+          style={{
+            ...(menuAlign === 'right' ? { left: 'auto', right: 0 } : {}),
+            minWidth: '100%',
+            ...(searchable ? { maxHeight: 'none', overflow: 'visible' } : {}),
+          }}
+        >
+          {searchable && (
+            <input
+              type="text" className="text-input" autoFocus
+              style={{ marginBottom: 4, fontSize: 12.5, padding: '6px 8px' }}
+              placeholder="Type to search…" value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <div style={searchable ? { maxHeight: 220, overflowY: 'auto' } : undefined}>
+            {searchable && filtered.length === 0 && <p className="login-footnote" style={{ padding: '6px 8px' }}>No matches.</p>}
+            {filtered.map((o) => (
+              <button
+                type="button" key={o.value} className="mention-menu__item" disabled={o.disabled}
+                style={o.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
+                onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false) }}
+              >
+                <span className="mention-menu__item-icon">{o.value === value && <Check size={13} />}</span>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -197,7 +225,7 @@ const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 // className defaults to 'date-input' (the small inline variant); pass
 // 'text-input' for the full-width form-field variant - same as the two
 // classes the native inputs already used across the app.
-export function DatePicker({ value, onChange, className = 'date-input', placeholder = 'dd-mm-yyyy', disabled = false, allowClear = false, menuAlign = 'left', title }) {
+export function DatePicker({ value, onChange, className = 'date-input', placeholder = 'dd-mm-yyyy', disabled = false, allowClear = false, menuAlign = 'left', title, style }) {
   const [open, setOpen] = useState(false)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const todayISO = toISODate(today)
@@ -224,7 +252,7 @@ export function DatePicker({ value, onChange, className = 'date-input', placehol
   const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', width: className.includes('text-input') ? '100%' : undefined }}>
+    <div style={{ position: 'relative', display: 'inline-block', width: className.includes('text-input') ? '100%' : undefined, ...style }}>
       <button
         type="button" className={className} disabled={disabled} title={title}
         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, cursor: disabled ? 'default' : 'pointer' }}

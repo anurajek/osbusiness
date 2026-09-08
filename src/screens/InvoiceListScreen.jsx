@@ -580,7 +580,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
         search={{ value: search, onChange: setSearch, placeholder: isSales ? 'Search invoice # or customer...' : 'Search bill # or supplier...' }}
         filters={[
           {
-            label: isSales ? 'Customer' : 'Supplier', value: partyFilter, onChange: setPartyFilter,
+            label: isSales ? 'Customer' : 'Supplier', value: partyFilter, onChange: setPartyFilter, searchable: true,
             options: [{ value: 'all', label: 'All' }, ...parties.map((p) => ({ value: p.id, label: p.name }))],
           },
           {
@@ -620,7 +620,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
             </div>
             <div className="add-comm-row">
               <Dropdown
-                value={newDocPartyId} placeholder={isSales ? 'Select customer' : 'Select supplier'}
+                value={newDocPartyId} placeholder={isSales ? 'Select customer' : 'Select supplier'} searchable
                 options={parties.map((p) => ({ value: p.id, label: p.name }))}
                 onChange={setNewDocPartyId}
               />

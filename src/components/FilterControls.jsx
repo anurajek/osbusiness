@@ -53,7 +53,7 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
       {filters.map((f) => (
         <div key={f.label} className="filter-field">
           <label>{f.label}</label>
-          <Dropdown value={f.value} options={f.options} onChange={f.onChange} />
+          <Dropdown value={f.value} options={f.options} onChange={f.onChange} searchable={f.searchable} />
         </div>
       ))}
       {period && (

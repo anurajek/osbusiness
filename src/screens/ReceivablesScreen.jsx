@@ -486,7 +486,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
         search={{ value: search, onChange: setSearch, placeholder: 'Search customer name...' }}
         filters={[
           {
-            label: 'Customer', value: customerFilter, onChange: setCustomerFilter,
+            label: 'Customer', value: customerFilter, onChange: setCustomerFilter, searchable: true,
             options: [{ value: 'all', label: 'All' }, ...customers.map((c) => ({ value: c.id, label: c.name }))],
           },
           {

@@ -518,7 +518,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                 onClear={() => { setRemindOn(''); setRemindTime('') }}
               />
               <div className="chip-row" style={{ marginTop: 8 }}>
-                <input className="text-input" style={{ maxWidth: 160 }} type="date" value={remindOn} onChange={(e) => setRemindOn(e.target.value)} />
+                <DatePicker className="text-input" style={{ maxWidth: 160 }} value={remindOn} onChange={setRemindOn} />
                 <input className="text-input" style={{ maxWidth: 120 }} type="time" value={remindTime} onChange={(e) => setRemindTime(e.target.value)} disabled={!remindOn} title={remindOn ? 'Time (optional)' : 'Pick a date first'} />
               </div>
               {remindError && <p className="text-[12.5px]" style={{ color: 'var(--brick)', marginTop: 4 }}>{remindError}</p>}
