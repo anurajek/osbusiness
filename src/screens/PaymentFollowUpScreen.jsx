@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, StatCard } from '../components/ui'
+import { SectionHeader, EmptyRow, StatCard, Dropdown } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf, previewDocumentPdf, itemTaxFieldsFromRow } from '../lib/pdf'
@@ -918,10 +918,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
         {isPi && showAddPi && (
           <form onSubmit={handleAddPi} className="add-comm-form" style={{ marginBottom: 16 }}>
             <div className="add-comm-row">
-              <select className="select select--sm" value={newPiCustomerId} onChange={(e) => setNewPiCustomerId(e.target.value)}>
-                <option value="" disabled>Select customer…</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Dropdown
+                value={newPiCustomerId} placeholder="Select customer…"
+                options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={setNewPiCustomerId}
+              />
               <input
                 className="text-input" placeholder="PI number" value={newPiNumber}
                 onChange={(e) => setNewPiNumber(e.target.value)}
@@ -994,15 +995,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                         {overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? overdue : '—'}
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <select
-                          className="select select--sm"
+                        <Dropdown
                           value={r.is_cancelled ? 'Cancelled' : (r.manual_status || '')}
-                          onChange={(e) => handleStatusDropdownChange(r, e.target.value || null)}
-                        >
-                          <option value="">—</option>
-                          {MANUAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
+                          options={[{ value: '', label: '—' }, ...MANUAL_STATUSES.map((s) => ({ value: s, label: s })), { value: 'Cancelled', label: 'Cancelled' }]}
+                          onChange={(v) => handleStatusDropdownChange(r, v || null)}
+                        />
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <input
@@ -1012,24 +1009,24 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                         />
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
-                        <select
-                          className="select select--sm"
-                          value=""
-                          disabled={busy}
-                          onChange={(e) => { const action = e.target.value; if (action) handleAction(r, action) }}
-                        >
-                          <option value="" disabled>{busy ? 'Working…' : 'Actions…'}</option>
-                          <option value="preview">Preview</option>
-                          <option value="edit">Edit</option>
-                          <option value="assign">Assign…</option>
-                          <option value="send" disabled={r.reminders_paused}>Send reminder now</option>
-                          <option value="pause">{r.reminders_paused ? 'Resume reminders' : 'Pause reminders'}</option>
-                          <option value="update">Update</option>
-                          <option value="emails">Manage reminder emails</option>
-                          {isPi && <option value="convert">{r.linkedToInvoice ? `Already → ${r.linkedInvoiceNo}` : 'Move to Invoice…'}</option>}
-                          <option value="cancel">{`Cancel ${docLabel.toLowerCase()}`}</option>
-                          {role === 'Owner' && <option value="delete">Delete</option>}
-                        </select>
+                        <Dropdown
+                          value="" disabled={busy}
+                          placeholder={busy ? 'Working…' : 'Actions…'}
+                          options={[
+                            { value: 'preview', label: 'Preview' },
+                            { value: 'edit', label: 'Edit' },
+                            { value: 'assign', label: 'Assign…' },
+                            { value: 'send', label: 'Send reminder now', disabled: r.reminders_paused },
+                            { value: 'pause', label: r.reminders_paused ? 'Resume reminders' : 'Pause reminders' },
+                            { value: 'update', label: 'Update' },
+                            { value: 'emails', label: 'Manage reminder emails' },
+                            isPi && { value: 'convert', label: r.linkedToInvoice ? `Already → ${r.linkedInvoiceNo}` : 'Move to Invoice…' },
+                            { value: 'cancel', label: `Cancel ${docLabel.toLowerCase()}` },
+                            role === 'Owner' && { value: 'delete', label: 'Delete' },
+                          ].filter(Boolean)}
+                          onChange={(action) => { if (action) handleAction(r, action) }}
+                          menuAlign="right"
+                        />
                         {assigningRowId === r.id && (
                           <div className="mention-menu" style={{ left: 'auto', right: 0 }}>
                             {members.length === 0 && <p className="login-footnote" style={{ padding: '4px 10px' }}>No firm members yet — invite teammates from Users &amp; Permissions.</p>}
@@ -1118,10 +1115,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               className="text-input" type="number" step="0.01" placeholder="Amount received"
                               value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
                             />
-                            <select className="select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
-                              <option value="" disabled>Select account…</option>
-                              {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                            </select>
+                            <Dropdown
+                              className="select" value={payAccountId} placeholder="Select account…"
+                              options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
+                              onChange={setPayAccountId}
+                            />
                             <input
                               className="text-input" type="date"
                               value={payDate} onChange={(e) => setPayDate(e.target.value)}
@@ -1186,10 +1184,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                                     className="text-input" type="number" step="0.01" placeholder="Amount received"
                                     value={convertPayAmount} onChange={(e) => setConvertPayAmount(e.target.value)}
                                   />
-                                  <select className="select" value={convertPayAccountId} onChange={(e) => setConvertPayAccountId(e.target.value)}>
-                                    <option value="" disabled>Select account…</option>
-                                    {bankAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                  </select>
+                                  <Dropdown
+                                    className="select" value={convertPayAccountId} placeholder="Select account…"
+                                    options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
+                                    onChange={setConvertPayAccountId}
+                                  />
                                   <input
                                     className="text-input" type="date"
                                     value={convertPayDate} onChange={(e) => setConvertPayDate(e.target.value)}
@@ -1219,10 +1218,11 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                             Editing {r[numberField]}
                           </div>
                           <div className="add-comm-row">
-                            <select className="select select--sm" value={editCustomerId} onChange={(e) => setEditCustomerId(e.target.value)}>
-                              <option value="" disabled>Select customer…</option>
-                              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <Dropdown
+                              value={editCustomerId} placeholder="Select customer…"
+                              options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                              onChange={setEditCustomerId}
+                            />
                             <input
                               className="text-input" placeholder={`${docLabel} number`} value={editNumber}
                               onChange={(e) => setEditNumber(e.target.value)}

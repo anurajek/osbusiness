@@ -8,7 +8,7 @@ import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { StatusPill, SectionHeader, EmptyRow, SortableTh } from '../components/ui'
+import { StatusPill, SectionHeader, EmptyRow, SortableTh, Dropdown } from '../components/ui'
 
 // Full list of statuses a record can ever show as (computed live, not stored).
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
@@ -619,10 +619,11 @@ export default function InvoiceListScreen({ type, onNavigate }) {
               <span className="comm-tag">Status: {formPreviewStatus}</span>
             </div>
             <div className="add-comm-row">
-              <select className="select select--sm" value={newDocPartyId} onChange={(e) => setNewDocPartyId(e.target.value)}>
-                <option value="">{isSales ? 'Select customer' : 'Select supplier'}</option>
-                {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <Dropdown
+                value={newDocPartyId} placeholder={isSales ? 'Select customer' : 'Select supplier'}
+                options={parties.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={setNewDocPartyId}
+              />
               <input
                 className="text-input"
                 placeholder={isSales ? 'Invoice # (blank = auto-number)' : 'Bill # (e.g. PB-2240)'}
@@ -711,12 +712,22 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                     <td className="num mono">{inr(r.paid_amount)}</td>
                     <td className={`num mono ${balanceDue(r) > 0 ? 'amt-neg' : ''}`}>{inr(balanceDue(r))}</td>
                     <td><StatusPill status={status} /></td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <select
-                        className="select select--sm"
-                        value=""
-                        onChange={(e) => {
-                          const action = e.target.value
+                    <td style={{ whiteSpace: 'nowrap', position: 'relative' }}>
+                      <Dropdown
+                        value="" placeholder="Actions…"
+                        options={[
+                          !fullyPaid && !r.is_cancelled && { value: 'pay', label: 'Record payment' },
+                          { value: 'edit', label: 'Edit' },
+                          { value: 'preview', label: 'Preview' },
+                          { value: 'cancel', label: r.is_cancelled ? `Reinstate ${docLabel}` : `Cancel ${docLabel}` },
+                          isSales && { value: 'link-pi', label: r.linked_pi_id ? 'Change linked PI…' : 'Link to PI…' },
+                          onNavigate && isSales && { value: 'receivables', label: 'Receivables →' },
+                          onNavigate && !isSales && { value: 'payables', label: 'Payables →' },
+                          onNavigate && isSales && { value: 'invoice-followup', label: 'Invoice Follow-up →' },
+                          onNavigate && isSales && { value: 'pi-followup', label: 'PI Follow-up →' },
+                          role === 'Owner' && { value: 'delete', label: 'Delete' },
+                        ].filter(Boolean)}
+                        onChange={(action) => {
                           if (action === 'pay') openPayForm(r)
                           else if (action === 'edit') openEditForm(r)
                           else if (action === 'preview') handlePreviewPdf(r)
@@ -728,19 +739,8 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                           else if (action === 'invoice-followup') onNavigate?.('arap', 'invoice-followup', { customerId: r[partyJoinKey] })
                           else if (action === 'pi-followup') onNavigate?.('arap', 'pi-followup', { customerId: r[partyJoinKey] })
                         }}
-                      >
-                        <option value="" disabled>Actions…</option>
-                        {!fullyPaid && !r.is_cancelled && <option value="pay">Record payment</option>}
-                        <option value="edit">Edit</option>
-                        <option value="preview">Preview</option>
-                        <option value="cancel">{r.is_cancelled ? `Reinstate ${docLabel}` : `Cancel ${docLabel}`}</option>
-                        {isSales && <option value="link-pi">{r.linked_pi_id ? 'Change linked PI…' : 'Link to PI…'}</option>}
-                        {onNavigate && isSales && <option value="receivables">Receivables →</option>}
-                        {onNavigate && !isSales && <option value="payables">Payables →</option>}
-                        {onNavigate && isSales && <option value="invoice-followup">Invoice Follow-up →</option>}
-                        {onNavigate && isSales && <option value="pi-followup">PI Follow-up →</option>}
-                        {role === 'Owner' && <option value="delete">Delete</option>}
-                      </select>
+                        menuAlign="right"
+                      />
                     </td>
                   </tr>
                   {payingId === r.id && (
@@ -759,12 +759,12 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                             value={payDate} onChange={(e) => setPayDate(e.target.value)}
                             title="Date this payment actually happened"
                           />
-                          <select className="select select--sm pay-account-select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
-                            <option value="">{isSales ? 'Received into...' : 'Paid from...'}</option>
-                            {bankAccounts.map((a) => (
-                              <option key={a.id} value={a.id}>{a.name} {a.account_mask ? `(${a.account_mask})` : ''}</option>
-                            ))}
-                          </select>
+                          <Dropdown
+                            className="select select--sm pay-account-select" value={payAccountId}
+                            placeholder={isSales ? 'Received into...' : 'Paid from...'}
+                            options={bankAccounts.map((a) => ({ value: a.id, label: `${a.name} ${a.account_mask ? `(${a.account_mask})` : ''}` }))}
+                            onChange={setPayAccountId}
+                          />
                           <button className="btn-primary" disabled={payingBusy} onClick={() => handleRecordPayment(r)}>
                             {payingBusy ? 'Saving…' : 'Save payment'}
                           </button>
@@ -788,20 +788,20 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                             placeholder="Search PI # or customer..." value={linkSearch}
                             onChange={(e) => setLinkSearch(e.target.value)}
                           />
-                          <select className="select" value={selectedPiId} onChange={(e) => setSelectedPiId(e.target.value)}>
-                            <option value="" disabled>Select the Proforma Invoice this became…</option>
-                            {availablePis
+                          <Dropdown
+                            className="select" value={selectedPiId} placeholder="Select the Proforma Invoice this became…"
+                            options={availablePis
                               .filter((p) => {
                                 if (!linkSearch.trim()) return true
                                 const q = linkSearch.trim().toLowerCase()
                                 return p.pi_no.toLowerCase().includes(q) || partyName(p.customer_id).toLowerCase().includes(q)
                               })
-                              .map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.pi_no} · {partyName(p.customer_id)} · {toISODate(new Date(p.issued_date))} · {inr(p.amount)} ({inr(p.paid_amount)} paid)
-                                </option>
-                              ))}
-                          </select>
+                              .map((p) => ({
+                                value: p.id,
+                                label: `${p.pi_no} · ${partyName(p.customer_id)} · ${toISODate(new Date(p.issued_date))} · ${inr(p.amount)} (${inr(p.paid_amount)} paid)`,
+                              }))}
+                            onChange={setSelectedPiId}
+                          />
                           <button className="btn-primary" disabled={linkingBusy || availablePis.length === 0} onClick={() => handleLinkToPi(r)}>
                             {linkingBusy ? 'Linking…' : 'Link'}
                           </button>

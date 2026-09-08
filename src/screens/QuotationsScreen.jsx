@@ -7,7 +7,7 @@ import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, sortRows } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh, Dropdown } from '../components/ui'
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined', 'expired', 'converted']
 const STATUS_PILL = {
@@ -293,10 +293,11 @@ export default function QuotationsScreen() {
           <form onSubmit={handleSubmit} className="add-comm-form" style={{ marginBottom: 16 }}>
             <div className="drawer__label" style={{ marginBottom: -4 }}>{editingId ? 'Editing quote' : 'New quote'}</div>
             <div className="add-comm-row">
-              <select className="select select--sm" value={formCustomerId} onChange={(e) => setFormCustomerId(e.target.value)}>
-                <option value="">Select customer</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Dropdown
+                value={formCustomerId} placeholder="Select customer"
+                options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={setFormCustomerId}
+              />
               <input className="text-input" placeholder="Quote # (blank = auto-number)" value={formNumber} onChange={(e) => setFormNumber(e.target.value)} />
             </div>
             <div className="add-comm-row">

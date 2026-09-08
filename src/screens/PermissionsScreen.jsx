@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { SectionHeader } from '../components/ui'
+import { SectionHeader, Dropdown } from '../components/ui'
 
 // Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
 // Notes, and Ledger are hidden from this toggle grid (and from the nav in
@@ -427,9 +427,7 @@ export default function PermissionsScreen({ onChangePassword }) {
             <div className="add-comm-row">
               <input className="text-input" placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
               <input className="text-input" type="email" placeholder="Email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-              <select className="select select--sm" value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <Dropdown value={inviteRole} options={ROLES} onChange={setInviteRole} />
             </div>
             {inviteError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{inviteError}</p>}
             {inviteSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{inviteSuccess}</p>}

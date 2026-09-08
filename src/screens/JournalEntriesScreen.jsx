@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate } from '../lib/format'
+import { Dropdown } from '../components/ui'
 
 function emptyLine() { return { account_id: '', debit: '', credit: '', description: '' } }
 
@@ -145,10 +146,11 @@ export default function JournalEntriesScreen() {
                   {lines.map((line, i) => (
                     <tr key={i} className="ledger-row">
                       <td>
-                        <select className="select select--sm" value={line.account_id} onChange={(e) => updateLine(i, { account_id: e.target.value })}>
-                          <option value="">Select account…</option>
-                          {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-                        </select>
+                        <Dropdown
+                          value={line.account_id} placeholder="Select account…"
+                          options={accounts.map((a) => ({ value: a.id, label: `${a.code} - ${a.name}` }))}
+                          onChange={(v) => updateLine(i, { account_id: v })}
+                        />
                       </td>
                       <td><input className="text-input" value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} /></td>
                       <td className="num"><input type="number" step="0.01" min="0" className="text-input" style={{ textAlign: 'right' }} value={line.debit} onChange={(e) => updateLine(i, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} /></td>

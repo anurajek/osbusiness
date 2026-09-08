@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, isResolved, toISODate, isPlausibleDate, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { StatCard, EmptyRow, SortableTh } from '../components/ui'
+import { StatCard, EmptyRow, SortableTh, Dropdown } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
@@ -556,22 +556,21 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
                     : <span className="pill pill--neutral">No follow-up yet</span>}
                 </td>
                 <td className="mono">{r.lastComm ? new Date(r.lastComm.created_at).toLocaleDateString() : '—'}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <select
-                    className="select select--sm"
-                    value=""
-                    onChange={(e) => {
-                      const action = e.target.value
+                <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                  <Dropdown
+                    value="" placeholder="Actions…"
+                    options={[
+                      { value: 'view', label: 'View details' },
+                      onNavigate && { value: 'invoice-followup', label: 'Invoice Follow-up →' },
+                      onNavigate && { value: 'pi-followup', label: 'PI Follow-up →' },
+                    ].filter(Boolean)}
+                    onChange={(action) => {
                       if (action === 'view') setSelectedCustomerId(r.customer.id)
                       else if (action === 'invoice-followup') onNavigate?.('arap', 'invoice-followup', { customerId: r.customer.id })
                       else if (action === 'pi-followup') onNavigate?.('arap', 'pi-followup', { customerId: r.customer.id })
                     }}
-                  >
-                    <option value="" disabled>Actions…</option>
-                    <option value="view">View details</option>
-                    {onNavigate && <option value="invoice-followup">Invoice Follow-up →</option>}
-                    {onNavigate && <option value="pi-followup">PI Follow-up →</option>}
-                  </select>
+                    menuAlign="right"
+                  />
                 </td>
               </tr>
             ))}

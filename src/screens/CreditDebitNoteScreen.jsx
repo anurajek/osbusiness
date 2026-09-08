@@ -7,7 +7,7 @@ import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { EmptyRow, SortableTh } from '../components/ui'
+import { EmptyRow, SortableTh, Dropdown } from '../components/ui'
 
 // type: 'credit' (sales side - issued to a customer) or 'debit' (purchase
 // side - issued to a supplier).
@@ -304,16 +304,16 @@ export default function CreditDebitNoteScreen({ type }) {
         {showForm && (
           <form onSubmit={handleSubmit} className="add-comm-form" style={{ marginBottom: 16 }}>
             <div className="add-comm-row">
-              <select className="select select--sm" value={formPartyId} onChange={(e) => setFormPartyId(e.target.value)}>
-                <option value="">{isCredit ? 'Select customer' : 'Select supplier'}</option>
-                {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select className="select select--sm" value={formOriginalId} onChange={(e) => setFormOriginalId(e.target.value)}>
-                <option value="">{isCredit ? 'Related invoice (optional)' : 'Related bill (optional)'}</option>
-                {originalDocs.filter((d) => !formPartyId || d[partyJoinKey] === formPartyId).map((d) => (
-                  <option key={d.id} value={d.id}>{d[originalNumberField]}</option>
-                ))}
-              </select>
+              <Dropdown
+                value={formPartyId} placeholder={isCredit ? 'Select customer' : 'Select supplier'}
+                options={parties.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={setFormPartyId}
+              />
+              <Dropdown
+                value={formOriginalId} placeholder={isCredit ? 'Related invoice (optional)' : 'Related bill (optional)'}
+                options={originalDocs.filter((d) => !formPartyId || d[partyJoinKey] === formPartyId).map((d) => ({ value: d.id, label: d[originalNumberField] }))}
+                onChange={setFormOriginalId}
+              />
               <input className="text-input" placeholder="Note # (blank = auto-number)" value={formNumber} onChange={(e) => setFormNumber(e.target.value)} />
             </div>
             <div className="add-comm-row">
@@ -394,12 +394,12 @@ export default function CreditDebitNoteScreen({ type }) {
                             value={refundDate} onChange={(e) => setRefundDate(e.target.value)}
                             title="Date this refund actually happened"
                           />
-                          <select className="select select--sm pay-account-select" value={refundAccountId} onChange={(e) => setRefundAccountId(e.target.value)}>
-                            <option value="">{isCredit ? 'Paid out from...' : 'Received into...'}</option>
-                            {bankAccounts.map((a) => (
-                              <option key={a.id} value={a.id}>{a.name} {a.account_mask ? `(${a.account_mask})` : ''}</option>
-                            ))}
-                          </select>
+                          <Dropdown
+                            className="select select--sm pay-account-select" value={refundAccountId}
+                            placeholder={isCredit ? 'Paid out from...' : 'Received into...'}
+                            options={bankAccounts.map((a) => ({ value: a.id, label: `${a.name} ${a.account_mask ? `(${a.account_mask})` : ''}` }))}
+                            onChange={setRefundAccountId}
+                          />
                           <button className="btn-primary" disabled={refundBusy} onClick={() => handleRecordRefund(r)}>
                             {refundBusy ? 'Saving…' : 'Save refund'}
                           </button>

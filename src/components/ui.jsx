@@ -1,4 +1,5 @@
-import { ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { inr } from '../lib/format'
 
 export function Stamp({ ok }) {
@@ -119,5 +120,64 @@ export function EmptyRow({ colSpan, children }) {
     <tr>
       <td colSpan={colSpan} className="empty-state">{children}</td>
     </tr>
+  )
+}
+
+// Every dropdown in the app now goes through this one component (Sep 2026)
+// rather than a native <select> - opens the same context-menu-style
+// flyout (.mention-menu, shared with @mention/Assign/Remind) instead of
+// the browser's own list, for one consistent feel everywhere.
+//
+// Deliberately kept to the exact same box as what it replaces: same
+// className (so `.select`/`.select--sm` sizing/flex behavior is
+// unchanged), same position in the layout - only which kind of menu
+// opens on click is different, never the size or alignment.
+//
+// options: array of plain strings, OR array of { value, label, disabled }
+// for cases needing a different display label than the stored value, a
+// per-option disabled state, or a dynamically-built list (conditionally
+// including/excluding entries with .filter(Boolean) before passing in).
+//
+// An "action menu" (a picker that always resets rather than keeping a
+// selection, e.g. every "Actions..." menu in the app) is just this same
+// component with value="" (or any value matching no option) and an
+// onChange that fires the action and never stores the picked value back -
+// no separate component needed for that pattern.
+export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left' }) {
+  const [open, setOpen] = useState(false)
+  const normalized = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o))
+  const current = normalized.find((o) => o.value === value)
+  const label = current ? current.label : placeholder
+  // Any class beyond the base select/select--sm ones (e.g. a one-off
+  // max-width like .pay-account-select) is almost always a sizing
+  // override, not a visual one - applied to the wrapper too so it still
+  // constrains the overall width, not just the button inside it.
+  const extraClasses = className.split(' ').filter((c) => c !== 'select' && c !== 'select--sm').join(' ')
+
+  return (
+    <div className={extraClasses || undefined} style={{ position: 'relative', flex: className.includes('select--sm') ? 1 : undefined }}>
+      <button
+        type="button" className={className} disabled={disabled}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: disabled ? 'default' : 'pointer', overflow: 'hidden' }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
+      </button>
+      {open && (
+        <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, minWidth: '100%' } : { minWidth: '100%' }}>
+          {normalized.map((o) => (
+            <button
+              type="button" key={o.value} className="mention-menu__item" disabled={o.disabled}
+              style={o.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
+              onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false) }}
+            >
+              <span className="mention-menu__item-icon">{o.value === value && <Check size={13} />}</span>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

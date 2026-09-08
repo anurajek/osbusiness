@@ -1,4 +1,5 @@
 import { Search, X, Plus } from 'lucide-react'
+import { Dropdown } from './ui'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
@@ -7,9 +8,7 @@ export function PeriodSelector({ period, setPeriod, customFrom, customTo, setCus
     <div className="period-bar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div className="filter-field" style={{ minWidth: 160 }}>
         <label>Period</label>
-        <select className="select select--sm" value={period} onChange={(e) => setPeriod(e.target.value)}>
-          {PERIOD_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <Dropdown value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
       </div>
       {period === 'Custom' && (
         <span className="period-custom">
@@ -54,17 +53,13 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
       {filters.map((f) => (
         <div key={f.label} className="filter-field">
           <label>{f.label}</label>
-          <select className="select select--sm" value={f.value} onChange={(e) => f.onChange(e.target.value)}>
-            {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <Dropdown value={f.value} options={f.options} onChange={f.onChange} />
         </div>
       ))}
       {period && (
         <div className="filter-field">
           <label>Period</label>
-          <select className="select select--sm" value={period.value} onChange={(e) => period.onChange(e.target.value)}>
-            {PERIOD_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <Dropdown value={period.value} options={PERIOD_OPTIONS} onChange={period.onChange} />
           {period.value === 'Custom' && (
             <span className="period-custom" style={{ marginTop: 6 }}>
               <input type="date" className="date-input" value={period.customFrom} onChange={(e) => period.setCustomFrom(e.target.value)} />
@@ -77,30 +72,25 @@ export function FilterBar({ addAction, search, filters, period, sort, exportOpti
       {sort && (
         <div className="filter-field filter-field--sort">
           <label>Sort by</label>
-          <select className="select select--sm" value={sort.value} onChange={(e) => sort.onChange(e.target.value)}>
-            {sort.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <Dropdown value={sort.value} options={sort.options} onChange={sort.onChange} />
         </div>
       )}
       {exportOptions && (
         <div className="filter-field">
           <label>Export as</label>
-          <select
-            className="select select--sm"
-            value=""
-            disabled={exportOptions.disabled}
-            onChange={(e) => {
-              const v = e.target.value
+          <Dropdown
+            value="" placeholder="Export as…" disabled={exportOptions.disabled}
+            options={[
+              { value: 'excel', label: 'Excel' },
+              { value: 'pdf', label: 'PDF' },
+              { value: 'word', label: 'Word' },
+            ]}
+            onChange={(v) => {
               if (v === 'excel') exportOptions.onExcel?.()
               else if (v === 'pdf') exportOptions.onPdf?.()
               else if (v === 'word') exportOptions.onWord?.()
             }}
-          >
-            <option value="" disabled>Export as…</option>
-            <option value="excel">Excel</option>
-            <option value="pdf">PDF</option>
-            <option value="word">Word</option>
-          </select>
+          />
         </div>
       )}
       {addAction && (

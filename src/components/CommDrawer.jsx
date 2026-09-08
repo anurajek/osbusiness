@@ -1,7 +1,7 @@
 import { useState, useRef, Fragment } from 'react'
 import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate } from '../lib/format'
-import { StatusPill } from './ui'
+import { StatusPill, Dropdown } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
 // 'No response' removed (Sep 2026) - a follow-up that genuinely got no
@@ -135,40 +135,6 @@ function TaskAssignDropdown({ members, selectedIds, onToggle }) {
             <span className="mention-menu__item-icon" />
             Done
           </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// A single-select that keeps the exact same box (same classes, same width
-// within a flex row) as the native <select> it replaces, but opens the
-// same context-menu-style flyout as everywhere else instead of the
-// browser's native list - used for Channel/Tag here so the whole Update
-// section has one consistent dropdown feel, not native selects sitting
-// next to styled ones. flex: 1 on the wrapper (not the button) reproduces
-// exactly what .select--sm's own flex: 1 did when it was a direct flex
-// child of .add-comm-row.
-function Dropdown({ value, options, onChange, className = 'select select--sm' }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ position: 'relative', flex: 1 }}>
-      <button
-        type="button" className={className}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', overflow: 'hidden' }}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-        <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
-      </button>
-      {open && (
-        <div className="mention-menu" style={{ minWidth: '100%' }}>
-          {options.map((o) => (
-            <button type="button" key={o} className="mention-menu__item" onClick={() => { onChange(o); setOpen(false) }}>
-              <span className="mention-menu__item-icon">{o === value && <Check size={13} />}</span>
-              {o}
-            </button>
-          ))}
         </div>
       )}
     </div>
@@ -426,10 +392,11 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                     <td><StatusPill status={d.statusLabel} /></td>
                     {onSetStatus && (
                       <td>
-                        <select className="select select--sm" value={d.manualStatus || ''} onChange={(e) => handleTagChange(d, e.target.value || null)}>
-                          <option value="">—</option>
-                          {manualStatusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <Dropdown
+                          value={d.manualStatus || ''}
+                          options={[{ value: '', label: '—' }, ...manualStatusOptions.map((s) => ({ value: s, label: s }))]}
+                          onChange={(v) => handleTagChange(d, v || null)}
+                        />
                       </td>
                     )}
                   </tr>
@@ -441,10 +408,11 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                         </div>
                         <div className="add-comm-row">
                           <input className="text-input" type="number" step="0.01" placeholder="Amount received" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-                          <select className="select" value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)}>
-                            <option value="" disabled>Select account…</option>
-                            {(bankAccounts ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                          </select>
+                          <Dropdown
+                            className="select" value={payAccountId} placeholder="Select account…"
+                            options={(bankAccounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
+                            onChange={setPayAccountId}
+                          />
                           <input className="text-input" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
                         </div>
                         {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{payError}</p>}

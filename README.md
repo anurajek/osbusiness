@@ -1825,7 +1825,50 @@ No migration needed - UI-only.
   columns, etc.) are unchanged for now - a bigger, separate undertaking
   if wanted next.
 
+## Dropdown look, everywhere in the app
+
+No migration needed - UI-only, but this one touches nearly every screen.
+
+Every native `<select>` in the app - Sales/Purchases, Quotations, Credit/
+Debit Notes, Import, Chart of Accounts, Users & Permissions, General
+Ledger, and every Period/Status/Sort/Export filter across all of them - now
+opens the same context-menu-style flyout as Assign/Remind/@mention,
+instead of the browser's own native list. One consistent dropdown feel
+everywhere, not a styled few sitting next to native ones.
+
+**How, without touching size or alignment anywhere:** built a single
+shared `Dropdown` component (`src/components/ui.jsx`) - `value` +
+`options` (plain strings, or `{ value, label, disabled }` for a different
+display label, a disabled entry, or a dynamically-built list) + `onChange`.
+It renders with the *exact same className* the native select had
+(`select`/`select--sm`, plus any one-off sizing class like
+`.pay-account-select`), so every existing CSS rule for size, flex
+behavior, and position still applies unchanged - only the element that
+opens (a styled flyout instead of the OS's native list) is different.
+`FilterControls.jsx` (Period/filters/Sort/Export - used by nearly every
+screen) went through this once, which is why the look changed almost
+everywhere at once rather than screen by screen.
+
+An "Actions…" menu (Invoice/PI Follow-up, Receivables, Sales/Purchases)
+is just this same component used with `value=""` and an `onChange` that
+fires the action and never stores a selection back - no separate
+component needed for that pattern; per-option `disabled` (e.g. "Send
+reminder now" while reminders are paused) and conditionally-included
+options (`isPi &&`, `role === 'Owner' &&`) both carry over via the
+options array.
+
 ## Status
+
+- [x] **Dropdown look, everywhere in the app (Sep 2026):** every native
+      `<select>` across the whole app (Sales/Purchases, Quotations,
+      Credit/Debit Notes, Import, Chart of Accounts, Permissions, General
+      Ledger, and every filter bar) now opens the same context-menu-style
+      flyout as Assign/Remind/@mention, via one new shared `Dropdown`
+      component (`src/components/ui.jsx`). Built to keep the exact same
+      className, size, and position as whatever native select it
+      replaced - only which kind of menu opens is different. "Actions…"
+      menus are the same component with an always-empty value. See
+      "Dropdown look, everywhere in the app" above.
 
 - [x] **Linked-PI hint removed; Channel/Tag match the dropdown style
       (Sep 2026):** removed the "ⓘ" tooltip icon next to a linked PI's

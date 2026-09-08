@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, computeStatus, statusForStorage } from '../lib/format'
 import { parseCsvFile, guessMapping, parseFlexibleDate, parseAmount } from '../lib/importParsing'
-import { SectionHeader } from '../components/ui'
+import { SectionHeader, Dropdown } from '../components/ui'
 
 const PARTY_FIELDS = [
   { key: 'name', label: 'Name', required: true },
@@ -482,9 +482,11 @@ export default function ImportScreen() {
         <div className="filter-bar" style={{ marginBottom: 4 }}>
           <div className="filter-field">
             <label>Import type</label>
-            <select className="select select--sm" value={target} onChange={(e) => handleTargetChange(e.target.value)}>
-              {Object.entries(TARGETS).map(([key, t]) => <option key={key} value={key}>{t.label}</option>)}
-            </select>
+            <Dropdown
+              value={target}
+              options={Object.entries(TARGETS).map(([key, t]) => ({ value: key, label: t.label }))}
+              onChange={handleTargetChange}
+            />
           </div>
         </div>
 
@@ -515,14 +517,11 @@ export default function ImportScreen() {
                     <tr key={f.key} className="ledger-row">
                       <td>{f.label}{f.required && <span style={{ color: 'var(--brick)' }}> *</span>}</td>
                       <td>
-                        <select
-                          className="select select--sm"
+                        <Dropdown
                           value={mapping[f.key] || ''}
-                          onChange={(e) => setMapping((m) => ({ ...m, [f.key]: e.target.value }))}
-                        >
-                          <option value="">— Don't import —</option>
-                          {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                          options={[{ value: '', label: "— Don't import —" }, ...headers.map((h) => ({ value: h, label: h }))]}
+                          onChange={(v) => setMapping((m) => ({ ...m, [f.key]: v }))}
+                        />
                       </td>
                     </tr>
                   ))}

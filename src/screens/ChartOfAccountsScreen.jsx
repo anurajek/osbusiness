@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
+import { Dropdown } from '../components/ui'
 
 const TYPES = [
   { key: 'asset', label: 'Assets' },
@@ -95,9 +96,11 @@ export default function ChartOfAccountsScreen() {
             <div className="add-comm-row">
               <input className="text-input" placeholder="Code (e.g. 1200)" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
               <input className="text-input" placeholder="Name (e.g. Petty Cash)" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-              <select className="select select--sm" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-                {TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
+              <Dropdown
+                value={form.type}
+                options={TYPES.map((t) => ({ value: t.key, label: t.label }))}
+                onChange={(v) => setForm((f) => ({ ...f, type: v }))}
+              />
             </div>
             {formError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{formError}</p>}
             <div style={{ display: 'flex', gap: 10 }}>
