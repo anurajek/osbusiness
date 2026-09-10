@@ -43,6 +43,17 @@ const FIELD_SYNONYMS = {
   amount: ['total'],
   item_description: ['item name', 'item desc'],
   item_rate: ['item price', 'unit price', 'price'],
+  // "Item Total" listed ahead of the field's own label on purpose - a real
+  // gotcha found importing an actual Zoho Estimates export: Zoho's own
+  // "SubTotal" column is document-level (the same value repeated on every
+  // line of a multi-line document, same as "Total"), while "Item Total" is
+  // the genuinely per-line pre-tax amount. FinoPilo's Sub Total field is
+  // summed across a merged group's lines to reconstruct the document
+  // subtotal (see SUMMABLE_ITEM_FIELDS below) - mapping it to Zoho's
+  // SubTotal would sum that same repeated document total once per line
+  // instead of once total, inflating it by the line count. "Item Total"
+  // is tried first so that's what actually gets picked.
+  subtotal: ['item total'],
   discount_amount: ['discount amount', 'item discount'],
   cgst_amount: ['cgst'],
   sgst_amount: ['sgst'],
@@ -77,7 +88,13 @@ export function guessMapping(headers, fields) {
 
   const mapping = {}
   for (const field of fields) {
-    const candidates = [field.label, ...(FIELD_SYNONYMS[field.key] || [])]
+    // Synonyms tried before the field's own label, not after - a synonym
+    // only exists here because it's a *better, more specific* match for a
+    // known export-format gotcha (see the subtotal/"Item Total" comment
+    // above); trying the plain label first would let a same-named-but-
+    // wrong-level column (like Zoho's own "SubTotal") win the exact-match
+    // check before the synonym ever got a chance to be tried at all.
+    const candidates = [...(FIELD_SYNONYMS[field.key] || []), field.label]
     let match = null
     for (const c of candidates) {
       match = findMatch(c)

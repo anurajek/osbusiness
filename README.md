@@ -2073,7 +2073,44 @@ Invoice/PI/Bill imports, plus a visual divider separating the
 document-level fields from the optional per-line-item ones, so the
 distinction is visible before mapping starts, not just when it breaks.
 
+## Fixed: Sub Total mapping was inflating merged documents
+
+No migration needed - UI/logic-only.
+
+Real bug, caught against Anuraj's own Estimate.csv before importing: for a
+multi-line document, Sub Total was auto-matching Zoho's own "SubTotal"
+column - which turns out to be document-level (the same number repeated
+on every line, same as "Total") - not "Item Total," which is the
+genuinely per-line pre-tax amount. Since FinoPilo's Sub Total field gets
+*summed* across a merged group's lines to reconstruct the document
+subtotal, mapping it to a value that was already the full document total
+repeated on every row meant that total got summed once per line instead
+of once total - a 3-line document's ₹1,05,000 subtotal was coming out as
+₹3,15,000.
+
+Fixed at the matching-priority level: a field's synonyms are now tried
+*before* its own label, not after - the synonym list exists specifically
+for known cases like this one, so it needs the chance to win before an
+exact-but-wrong-level name match (Sub Total ↔ SubTotal) grabs it first.
+Re-verified against the real file: Sub Total now correctly matches "Item
+Total," and every other field's mapping is unchanged. Discount picked up
+a small unrelated improvement from the same reordering - it now prefers
+the unambiguous "Discount Amount" column over the plain "Discount" one
+(which could be either a percentage or an amount depending on the
+export's own Discount Type setting).
+
 ## Status
+
+- [x] **Fixed: Sub Total mapping was inflating merged documents (Sep
+      2026):** Sub Total was auto-matching Zoho's document-level
+      "SubTotal" (repeated per line) instead of the genuinely per-line
+      "Item Total," so merging summed the same repeated total once per
+      line instead of once - a 3-line ₹1,05,000 document came out as
+      ₹3,15,000. Fixed by trying a field's synonyms before its own label
+      match, so the synonym list can actually win these known-ambiguous
+      cases. Re-verified against Anuraj's real export - correct now, no
+      other field's mapping changed. See "Fixed: Sub Total mapping was
+      inflating merged documents" above.
 
 - [x] **Fixed toISODate's timezone bug; smarter import mapping (Sep
       2026):** `toISODate()` was converting through UTC before reading
