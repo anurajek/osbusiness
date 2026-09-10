@@ -8,6 +8,7 @@ import ResetPasswordScreen from './screens/ResetPasswordScreen'
 import AcceptInviteScreen from './screens/AcceptInviteScreen'
 import AppShell from './components/AppShell'
 import DashboardScreen from './screens/DashboardScreen'
+import AssignedTasksScreen from './screens/AssignedTasksScreen'
 import InvoiceListScreen from './screens/InvoiceListScreen'
 import QuotationsScreen from './screens/QuotationsScreen'
 import CreditDebitNotesScreen from './screens/CreditDebitNotesScreen'
@@ -126,7 +127,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 
   if (!firmId) return <NoFirmMessage userEmail={userEmail} onCreateFirm={onCreateFirm} onSignOut={onSignOut} initialError={initialError} />
 
-  const allowed = role === 'Owner' ? { dashboard: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, quotes: true, notes: true, import: true, permissions: true } : (permissions || {})
+  const allowed = role === 'Owner' ? { dashboard: true, tasks: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, quotes: true, notes: true, import: true, permissions: true } : (permissions || {})
 
   const renderModule = () => {
     if (!allowed[activeModule]) {
@@ -134,6 +135,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
     }
     switch (activeModule) {
       case 'dashboard': return <DashboardScreen onNavigate={goToModule} />
+      case 'tasks': return <AssignedTasksScreen onNavigate={goToModule} />
       case 'sales': return <InvoiceListScreen type="sales" onNavigate={goToModule} />
       case 'purchases': return <InvoiceListScreen type="purchases" onNavigate={goToModule} />
       case 'quotes': return <QuotationsScreen />

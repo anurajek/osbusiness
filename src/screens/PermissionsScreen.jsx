@@ -10,6 +10,7 @@ import { SectionHeader, Dropdown } from '../components/ui'
 // visible module list is trimmed.
 const MODULES = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'tasks', label: 'Assigned Tasks' },
   { key: 'sales', label: 'Sales' },
   { key: 'purchases', label: 'Purchases' },
   { key: 'arap', label: 'AR / AP' },
@@ -18,8 +19,8 @@ const MODULES = [
 ]
 
 const ROLES = ['Accountant', 'Viewer']
-const OWNER_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, import: true, permissions: true }
-const DEFAULT_PERMISSIONS = { dashboard: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, import: false, permissions: false }
+const OWNER_PERMISSIONS = { dashboard: true, tasks: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: true, import: true, permissions: true }
+const DEFAULT_PERMISSIONS = { dashboard: true, tasks: true, sales: true, purchases: true, quotes: true, notes: true, arap: true, cashbank: true, ledger: false, import: false, permissions: false }
 
 export default function PermissionsScreen({ onChangePassword }) {
   const { firmId, role: myRole, firm, membershipId, refreshMemberships } = useFirm()

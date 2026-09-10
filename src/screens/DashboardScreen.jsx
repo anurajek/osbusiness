@@ -5,7 +5,7 @@ import {
 import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, computeStatus, isResolved, toISODate, getFiscalYearRange } from '../lib/format'
+import { inr, computeStatus, toISODate, getFiscalYearRange } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
@@ -81,9 +81,6 @@ export default function DashboardScreen({ onNavigate }) {
   const [error, setError] = useState(null)
   const [cashFlowPeriod, setCashFlowPeriod] = useState('Last 12 Months')
   const [periodMenuOpen, setPeriodMenuOpen] = useState(false)
-  const [resolvingRemId, setResolvingRemId] = useState(null)
-  const [resolveNote, setResolveNote] = useState('')
-  const [resolving, setResolving] = useState(false)
 
   useEffect(() => {
     if (!firmId) return
@@ -93,51 +90,33 @@ export default function DashboardScreen({ onNavigate }) {
       setLoading(true)
       setError(null)
 
-      const todayISO = toISODate(new Date())
-
       const [
         { data: accounts, error: accErr },
         { data: invoices, error: invErr },
         { data: bills, error: billErr },
-        { data: pis, error: piErr },
         { data: activity, error: actErr },
         { data: bankTxns, error: txnErr },
-        { data: custs, error: custErr },
-        { data: sups, error: supErr },
-        { data: members, error: memberErr },
-        { data: arReminders, error: arRemErr },
-        { data: apReminders, error: apRemErr },
+        { count: arTaskCount, error: arCountErr },
+        { count: apTaskCount, error: apCountErr },
       ] = await Promise.all([
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
-        supabase.from('sales_invoices').select('id, customer_id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-        supabase.from('purchase_bills').select('id, supplier_id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-        // Only fetched here to know which customers still have an open PI
-        // (not counted in totalAR/arAgeing - those stay Sales-Invoice-only,
-        // unchanged - just used below to decide whether a customer's
-        // reminder still belongs on "My reminders today").
-        supabase.from('proforma_invoices').select('id, customer_id, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
+        supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
+        supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
         supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
-        supabase.from('customers').select('id, name').eq('firm_id', firmId),
-        supabase.from('suppliers').select('id, name').eq('firm_id', firmId),
-        // Only fetched to resolve assigned_to_ids on each reminder below to
-        // real names for display ("who" a task is assigned to).
-        supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId),
-        // "My reminders today" - self-set reminders (from the comm log's
-        // Remind-me-on field) assigned to the person currently looking at
-        // this Dashboard, whose date has arrived and isn't dismissed yet.
-        // Separate from the automatic email-reminder machinery entirely -
-        // see migration_comm_followup_reminders.sql.
+        // Just a count for the "My Tasks" summary card below - the full,
+        // balance-aware breakdown (Overdue/Today/Pending/Upcoming) lives on
+        // its own Assigned Tasks screen now, not duplicated here.
         membershipId
-          ? supabase.from('ar_comms').select('id, customer_id, note, remind_on, remind_time, assigned_to_ids').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
-          : Promise.resolve({ data: [], error: null }),
+          ? supabase.from('ar_comms').select('id', { count: 'exact', head: true }).eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false)
+          : Promise.resolve({ count: 0, error: null }),
         membershipId
-          ? supabase.from('supplier_comms').select('id, supplier_id, note, remind_on, remind_time, assigned_to_ids').eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false).not('remind_on', 'is', null).lte('remind_on', todayISO)
-          : Promise.resolve({ data: [], error: null }),
+          ? supabase.from('supplier_comms').select('id', { count: 'exact', head: true }).eq('firm_id', firmId).contains('assigned_to_ids', [membershipId]).eq('reminder_done', false)
+          : Promise.resolve({ count: 0, error: null }),
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || piErr || actErr || txnErr || custErr || supErr || memberErr || arRemErr || apRemErr
+      const err = accErr || invErr || billErr || actErr || txnErr || arCountErr || apCountErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
@@ -146,25 +125,6 @@ export default function DashboardScreen({ onNavigate }) {
       const totalAR = openInvoices.reduce((s, i) => s + (i.amount - i.paid_amount), 0)
       const totalAP = openBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
 
-      const customerName = (id) => (custs ?? []).find((c) => c.id === id)?.name || '—'
-      const supplierName = (id) => (sups ?? []).find((s) => s.id === id)?.name || '—'
-      const assigneeNames = (ids) => (members ?? []).filter((m) => (ids ?? []).includes(m.id)).map((m) => m.full_name).join(', ')
-      // Same "still actually owed" gate used on Receivables/Payables/
-      // Invoice-PI Follow-up - a reminder only belongs on this list while
-      // the customer/supplier it's about still has an open balance.
-      // Checks both Sales Invoices and PIs for a customer (a PI-only
-      // balance still counts, even though PIs aren't part of totalAR/
-      // arAgeing above), and Purchase Bills for a supplier.
-      const openCustomerIds = new Set([
-        ...openInvoices.map((i) => i.customer_id),
-        ...(pis ?? []).filter((p) => !isResolved(p)).map((p) => p.customer_id),
-      ])
-      const openSupplierIds = new Set(openBills.map((b) => b.supplier_id))
-      const myReminders = [
-        ...(arReminders ?? []).filter((r) => openCustomerIds.has(r.customer_id)).map((r) => ({ id: r.id, kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
-        ...(apReminders ?? []).filter((r) => openSupplierIds.has(r.supplier_id)).map((r) => ({ id: r.id, kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
-      ].sort((a, b) => a.remindOn.localeCompare(b.remindOn))
-
       setData({
         totalCash, totalAR, totalAP,
         accountCount: (accounts ?? []).length,
@@ -172,7 +132,7 @@ export default function DashboardScreen({ onNavigate }) {
         apAgeing: buildAgeing(openBills),
         activity: activity ?? [],
         bankTxns: bankTxns ?? [],
-        myReminders,
+        myTaskCount: (arTaskCount ?? 0) + (apTaskCount ?? 0),
       })
       setLoading(false)
     }
@@ -180,21 +140,6 @@ export default function DashboardScreen({ onNavigate }) {
     load()
     return () => { cancelled = true }
   }, [firmId, membershipId])
-
-  // Dismisses one of "my" reminders from the Dashboard list directly, with
-  // an optional note on what happened - updates optimistically rather than
-  // re-running the whole load, since this is the one thing on this screen
-  // a person is likely to do repeatedly first thing in the morning.
-  const resolveReminder = async (rem) => {
-    const table = rem.kind === 'ar' ? 'ar_comms' : 'supplier_comms'
-    setResolving(true)
-    const { error: err } = await supabase.from(table).update({ reminder_done: true, resolution_note: resolveNote.trim() || null }).eq('id', rem.id)
-    setResolving(false)
-    if (err) { alert(`Couldn't resolve that reminder: ${err.message}`); return }
-    setData((d) => (d ? { ...d, myReminders: d.myReminders.filter((m) => m.id !== rem.id) } : d))
-    setResolvingRemId(null)
-    setResolveNote('')
-  }
 
   const cashFlow = useMemo(() => {
     if (!data) return null
@@ -218,51 +163,13 @@ export default function DashboardScreen({ onNavigate }) {
         <StatCard label="Net position" value={inr(data.totalCash + data.totalAR - data.totalAP)} sub="cash + AR − AP" />
       </div>
 
-      <div className="card">
-        <div className="section-header" style={{ marginBottom: 8 }}><h2>My reminders today</h2></div>
-        {data.myReminders.length === 0 && <p className="empty-state">Nothing due — you're clear.</p>}
-        {data.myReminders.length > 0 && (
-          <ul className="activity-list">
-            {data.myReminders.map((rem) => (
-              <li key={rem.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
-                <div className="activity-row" style={{ justifyContent: 'space-between', gap: 10 }}>
-                  <span className="activity-dot" style={{ background: 'var(--brick)' }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <button
-                      className="link-btn" style={{ padding: 0 }}
-                      onClick={() => onNavigate('arap', rem.kind === 'ar' ? 'receivables' : 'payables', rem.kind === 'ar' ? { customerId: rem.partyId } : { supplierId: rem.partyId })}
-                    >
-                      {rem.partyName}
-                    </button>
-                    {' — '}{rem.note}
-                    {rem.assignees && (
-                      <span style={{ display: 'block', fontSize: 11, color: 'var(--paper-dim)', marginTop: 2 }}>
-                        Assigned to: {rem.assignees}
-                      </span>
-                    )}
-                  </span>
-                  <span className="activity-when">{rem.remindOn}{rem.remindTime ? `, ${rem.remindTime.slice(0, 5)}` : ''}</span>
-                  {resolvingRemId !== rem.id && (
-                    <button type="button" className="link-btn" onClick={() => setResolvingRemId(rem.id)}>Mark done</button>
-                  )}
-                </div>
-                {resolvingRemId === rem.id && (
-                  <div className="resolve-form">
-                    <textarea
-                      className="textarea" rows={2}
-                      placeholder="Optional — what happened? Leave blank to just dismiss."
-                      value={resolveNote}
-                      onChange={(e) => setResolveNote(e.target.value)}
-                    />
-                    <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                      <button className="btn-primary" disabled={resolving} onClick={() => resolveReminder(rem)}>{resolving ? 'Saving…' : 'Save & resolve'}</button>
-                      <button type="button" className="link-btn" onClick={() => { setResolvingRemId(null); setResolveNote('') }}>Cancel</button>
-                    </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+      <div className="card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('tasks')}>
+        <div className="section-header" style={{ marginBottom: 4 }}><h2>My Tasks</h2></div>
+        {data.myTaskCount === 0 && <p className="empty-state">Nothing assigned to you right now — you're clear.</p>}
+        {data.myTaskCount > 0 && (
+          <p className="text-[13px]" style={{ color: 'var(--paper-dim)' }}>
+            {data.myTaskCount} task{data.myTaskCount !== 1 ? 's' : ''} assigned to you — <span className="link-btn" style={{ padding: 0 }}>view Assigned Tasks →</span>
+          </p>
         )}
       </div>
 

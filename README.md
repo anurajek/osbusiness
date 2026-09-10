@@ -2146,7 +2146,50 @@ so all four match now. Also added a `style` override to the shared
 `Dropdown` component while doing this, matching what `DatePicker`
 already had, for any future case that needs the same kind of fix.
 
+## Assigned Tasks - its own screen, split into four buckets
+
+No migration needed - built entirely on the assigned_to_ids/remind_on/
+reminder_done columns from earlier migrations.
+
+"My reminders today" is no longer a list embedded in the Dashboard - it's
+its own screen now, **Assigned Tasks**, in the sidebar (right under
+Dashboard). Shows every not-yet-resolved comm-log task assigned to you,
+split into four sections:
+
+- **Overdue** - has a remind date, and it's in the past
+- **Today's Tasks** - remind date is today
+- **Pending Tasks** - assigned to you with *no* remind date set at all
+- **Upcoming Tasks** - remind date is in the future
+
+Pending is a genuinely new bucket, not just a rename - a task can be
+assigned without ever being given a specific date ("get to this at some
+point"), and the old Dashboard query required a remind date to be set at
+all (`.not('remind_on', 'is', null)`), so date-less assigned tasks were
+invisible everywhere before this. Each section keeps the same "still
+actually owed" gate every other reminder surface already uses (a task
+drops off once the customer/supplier it's about is fully paid,
+cancelled, or manually resolved) and the same Mark-done-with-optional-
+note flow as the Dashboard version had.
+
+The Dashboard itself now shows a small "My Tasks" summary card (a count,
+linking to the full page) instead of the detailed list - same spirit as
+the Cash/AR/AP stat cards, not a duplicate of the new screen.
+
+Added `tasks` to `PermissionsScreen.jsx`'s per-member module toggle grid
+and to the Owner/default permission sets, same as any other module - on
+by default for both new roles.
+
 ## Status
+
+- [x] **Assigned Tasks as its own screen (Sep 2026):** "My reminders
+      today" moved out of the Dashboard into a dedicated sidebar screen,
+      showing every not-yet-resolved task assigned to you split into
+      Overdue / Today's Tasks / Pending Tasks (no date set - a genuinely
+      new bucket, previously invisible everywhere) / Upcoming Tasks.
+      Dashboard now shows a compact "My Tasks" count card linking to it
+      instead of the full list. Added to Permissions' module toggle grid.
+      See "Assigned Tasks - its own screen, split into four buckets"
+      above.
 
 - [x] **Fixed: Record Payment row's field widths (Sep 2026):** Amount and
       Date both used `width: 100%` classes, so they fought each other

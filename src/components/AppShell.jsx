@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
-  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon,
+  ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon, ListChecks,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
@@ -14,6 +14,7 @@ import { useFirm } from '../context/FirmContext'
 // "Scope: AR/AP focus" section for the full reasoning.
 const MODULES = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'tasks', label: 'Assigned Tasks', icon: ListChecks },
   { key: 'sales', label: 'Sales', icon: ShoppingCart },
   { key: 'purchases', label: 'Purchases', icon: Package },
   { key: 'arap', label: 'AR / AP', icon: TrendingUp },
