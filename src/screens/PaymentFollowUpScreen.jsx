@@ -56,7 +56,7 @@ function AssignDropdown({ members, selectedIds, onToggle }) {
 }
 
 export default function PaymentFollowUpScreen({ docType, navParams, clearNavParams }) {
-  const { firmId, firm, role } = useFirm()
+  const { firmId, firm, role, membershipId } = useFirm()
   const isPi = docType === 'pi'
   const table = isPi ? 'proforma_invoices' : 'sales_invoices'
   const numberField = isPi ? 'pi_no' : 'invoice_no'
@@ -170,7 +170,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
         .select(`id, customer_id, ${numberField}, issued_date, amount, paid_amount, reminders_paused, last_reminder_stage, last_reminder_sent_date, expected_payment_date, manual_status, is_cancelled, assigned_to_ids, item_description, item_quantity, item_rate, subtotal, discount_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, igst_rate, igst_amount`)
         .eq('firm_id', firmId).order('issued_date', { ascending: false }),
       supabase.from('customers').select('id, name, email, address, gstin').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, created_by, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
       // Once a PI is linked to an invoice (Move to Invoice / Link to PI),
@@ -806,7 +806,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const addComm = async ({ channel, tag, note, assignedIds, remindOn, remindTime, mentionedIds }) => {
     setSaving(true)
     const { error: insertErr } = await supabase.from('ar_comms').insert({
-      firm_id: firmId, customer_id: selectedCustomerId, channel, tag, note,
+      firm_id: firmId, customer_id: selectedCustomerId, channel, tag, note, created_by: membershipId,
       assigned_to_ids: assignedIds ?? [], remind_on: remindOn ?? null, remind_time: remindTime ?? null,
       mentioned_member_ids: mentionedIds ?? [],
     })

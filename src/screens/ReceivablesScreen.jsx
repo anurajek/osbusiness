@@ -17,7 +17,7 @@ import { downloadListDocx } from '../lib/exportDocx'
 const SALES_STATUSES = ['Sent', 'Partial', 'Due today', 'Overdue', 'Paid']
 
 export default function ReceivablesScreen({ navParams, clearNavParams, onNavigate }) {
-  const { firmId, firm } = useFirm()
+  const { firmId, firm, membershipId } = useFirm()
 
   const [customers, setCustomers] = useState([])
   const [invoices, setInvoices] = useState([])
@@ -66,7 +66,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
       supabase.from('customers').select('id, name').eq('firm_id', firmId).order('name'),
       supabase.from('sales_invoices').select('id, customer_id, invoice_no, issued_date, due_date, expected_payment_date, amount, paid_amount, status, is_cancelled, manual_status').eq('firm_id', firmId),
       supabase.from('proforma_invoices').select('id, customer_id, pi_no, issued_date, expected_payment_date, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
-      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
+      supabase.from('ar_comms').select('id, customer_id, channel, tag, note, created_at, created_by, assigned_to_ids, remind_on, remind_time, reminder_done, resolution_note, mentioned_member_ids').eq('firm_id', firmId).order('created_at', { ascending: false }),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId).order('full_name'),
       supabase.from('bank_accounts').select('id, name, balance').eq('firm_id', firmId).order('name'),
     ])
@@ -329,7 +329,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     const { error: insertErr } = await supabase.from('ar_comms').insert({
       firm_id: firmId,
       customer_id: selectedCustomerId,
-      channel, tag, note,
+      channel, tag, note, created_by: membershipId,
       assigned_to_ids: assignedIds ?? [], remind_on: remindOn ?? null, remind_time: remindTime ?? null,
       mentioned_member_ids: mentionedIds ?? [],
     })

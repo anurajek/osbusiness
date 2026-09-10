@@ -215,8 +215,9 @@ function renderNoteWithMentions(note, members) {
 //
 // members: optional [{ id, full_name }] - firm members, used for the
 // @mention autocomplete, the multi-person "Assign to" chips, and resolving
-// assigned_to_ids/mentioned_member_ids back to display names. When omitted
-// (or empty), the mention/assign features simply don't render.
+// assigned_to_ids/mentioned_member_ids/created_by back to display names.
+// When omitted (or empty), the mention/assign features simply don't
+// render, and the timeline just won't show who logged an entry.
 //
 // onResolveReminder: optional (commId, note|null) => void - called when
 // someone dismisses a pending "Remind me on" tag, with an optional note
@@ -439,13 +440,14 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
             {comms.length === 0 && <p className="login-footnote">No follow-ups logged yet.</p>}
             {comms.map((c) => {
               const assignedMembers = memberList.filter((m) => (c.assigned_to_ids ?? []).includes(m.id))
+              const author = memberList.find((m) => m.id === c.created_by)
               const due = isReminderDue(c.remind_on)
               const timeLabel = formatTime(c.remind_time)
               return (
                 <div key={c.id} className="comm-item">
                   <div className="comm-item__top">
                     <span className="comm-tag">{c.tag}</span>
-                    <span className="comm-when">{relativeTime(c.created_at)}</span>
+                    <span className="comm-when">{author ? `${author.full_name} · ` : ''}{relativeTime(c.created_at)}</span>
                   </div>
                   <p className="comm-text">{renderNoteWithMentions(c.note, memberList)}</p>
                   <div className="comm-meta-row">

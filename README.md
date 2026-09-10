@@ -2113,7 +2113,27 @@ mechanisms share the same underlying sort state, so using one keeps the
 other in sync. Document numbers sort using a numeric-aware string
 compare, so "EST/9" sorts before "EST/10" rather than after it.
 
+## Comm log now shows who logged each entry
+
+**Run `migration_comm_log_author.sql` before deploying this one.**
+
+The comm log tracked who a follow-up is assigned to and who's @mentioned
+in it, but never who actually wrote a given entry. Added `created_by`
+(references `firm_members`, same as assigned_to_ids/mentioned_member_ids)
+- set automatically to whoever's logged in the moment they save an
+update, no picker involved. Shows in the Communication Timeline as
+"{name} · 2 days ago" next to each entry. Older entries logged before
+this migration just show the relative time with no name, same as
+anything else this feature backfills gracefully rather than guessing.
+
 ## Status
+
+- [x] **Comm log shows who logged each entry (Sep 2026):** new
+      `created_by` column on `ar_comms`/`supplier_comms`, set
+      automatically to whoever's logged in when they save an update.
+      Shown in the Communication Timeline as "{name} · 2 days ago".
+      Requires `migration_comm_log_author.sql`. See "Comm log now shows
+      who logged each entry" above.
 
 - [x] **Clickable column headers on Invoice/PI Follow-up (Sep 2026):**
       "Proforma Invoice #"/"Invoice #" and "Issued" are now sortable
