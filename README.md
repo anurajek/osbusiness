@@ -2126,7 +2126,36 @@ update, no picker involved. Shows in the Communication Timeline as
 this migration just show the relative time with no name, same as
 anything else this feature backfills gracefully rather than guessing.
 
+## Fixed: Record Payment row's field widths
+
+No migration needed - UI-only.
+
+Real cause: Amount and Date both used `.text-input` (`width: 100%`), so
+each one wanted the *entire* row's width on its own; the account
+Dropdown had no such pull, so it just got squeezed into whatever was
+left. Sales/Purchases' own Record Payment row never had this problem, it
+turns out - it already used a different, better set of classes:
+`.pay-amount-input` (caps the amount field at 140px) and
+`select--sm pay-account-select` on the Dropdown (gets a fair flex share,
+capped at 220px so it doesn't balloon either), with Date left at its
+default compact size instead of being forced to `.text-input`. Applied
+that same combination to the other three Amount+Account+Date rows that
+didn't have it (Invoice/PI Follow-up's status-triggered payment and its
+Move-to-Invoice payment sub-form, and the comm drawer's Record Payment)
+so all four match now. Also added a `style` override to the shared
+`Dropdown` component while doing this, matching what `DatePicker`
+already had, for any future case that needs the same kind of fix.
+
 ## Status
+
+- [x] **Fixed: Record Payment row's field widths (Sep 2026):** Amount and
+      Date both used `width: 100%` classes, so they fought each other
+      for the whole row while the account Dropdown got squeezed with
+      whatever was left. Matched to the already-correct pattern
+      Sales/Purchases used (`.pay-amount-input` cap, `select--sm
+      pay-account-select` on the Dropdown, Date at its default compact
+      size) across the other three Amount+Account+Date rows in the app.
+      See "Fixed: Record Payment row's field widths" above.
 
 - [x] **Comm log shows who logged each entry (Sep 2026):** new
       `created_by` column on `ar_comms`/`supplier_comms`, set

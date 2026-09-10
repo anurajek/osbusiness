@@ -143,7 +143,7 @@ export function EmptyRow({ colSpan, children }) {
 // component with value="" (or any value matching no option) and an
 // onChange that fires the action and never stores the picked value back -
 // no separate component needed for that pattern.
-export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left', searchable = false }) {
+export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left', searchable = false, style }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const normalized = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o))
@@ -164,7 +164,7 @@ export function Dropdown({ value, options, onChange, placeholder = 'Select…', 
   const toggle = () => setOpen((o) => { const next = !o; if (next) setQuery(''); return next })
 
   return (
-    <div className={extraClasses || undefined} style={{ position: 'relative', flex: className.includes('select--sm') ? 1 : undefined }}>
+    <div className={extraClasses || undefined} style={{ position: 'relative', flex: className.includes('select--sm') ? 1 : undefined, ...style }}>
       <button
         type="button" className={className} disabled={disabled}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: disabled ? 'default' : 'pointer', overflow: 'hidden' }}

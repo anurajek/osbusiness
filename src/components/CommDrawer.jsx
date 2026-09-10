@@ -408,13 +408,13 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                           Record payment — marking {payTargetStatus}
                         </div>
                         <div className="add-comm-row">
-                          <input className="text-input" type="number" step="0.01" placeholder="Amount received" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                          <input className="text-input pay-amount-input" type="number" step="0.01" placeholder="Amount received" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
                           <Dropdown
-                            className="select" value={payAccountId} placeholder="Select account…"
+                            className="select select--sm pay-account-select" value={payAccountId} placeholder="Select account…"
                             options={(bankAccounts ?? []).map((a) => ({ value: a.id, label: a.name }))}
                             onChange={setPayAccountId}
                           />
-                          <DatePicker className="text-input" value={payDate} onChange={setPayDate} />
+                          <DatePicker value={payDate} onChange={setPayDate} />
                         </div>
                         {payError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{payError}</p>}
                         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>

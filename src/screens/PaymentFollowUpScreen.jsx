@@ -1123,15 +1123,15 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           </div>
                           <div className="add-comm-row">
                             <input
-                              className="text-input" type="number" step="0.01" placeholder="Amount received"
+                              className="text-input pay-amount-input" type="number" step="0.01" placeholder="Amount received"
                               value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
                             />
                             <Dropdown
-                              className="select" value={payAccountId} placeholder="Select account…"
+                              className="select select--sm pay-account-select" value={payAccountId} placeholder="Select account…"
                               options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
                               onChange={setPayAccountId}
                             />
-                            <DatePicker className="text-input" value={payDate} onChange={setPayDate} />
+                            <DatePicker value={payDate} onChange={setPayDate} />
                           </div>
                           {bankAccounts.length === 0 && (
                             <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>No bank/cash accounts set up yet — add one in Cash & Bank first.</p>
@@ -1186,15 +1186,15 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                               {convertPaymentReceived && (
                                 <div className="add-comm-row" style={{ marginTop: 8 }}>
                                   <input
-                                    className="text-input" type="number" step="0.01" placeholder="Amount received"
+                                    className="text-input pay-amount-input" type="number" step="0.01" placeholder="Amount received"
                                     value={convertPayAmount} onChange={(e) => setConvertPayAmount(e.target.value)}
                                   />
                                   <Dropdown
-                                    className="select" value={convertPayAccountId} placeholder="Select account…"
+                                    className="select select--sm pay-account-select" value={convertPayAccountId} placeholder="Select account…"
                                     options={bankAccounts.map((a) => ({ value: a.id, label: a.name }))}
                                     onChange={setConvertPayAccountId}
                                   />
-                                  <DatePicker className="text-input" value={convertPayDate} onChange={setConvertPayDate} />
+                                  <DatePicker value={convertPayDate} onChange={setConvertPayDate} />
                                 </div>
                               )}
                             </>
