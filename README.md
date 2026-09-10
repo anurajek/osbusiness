@@ -2179,7 +2179,53 @@ Added `tasks` to `PermissionsScreen.jsx`'s per-member module toggle grid
 and to the Owner/default permission sets, same as any other module - on
 by default for both new roles.
 
+## Dates now display as DD-MM-YYYY everywhere
+
+No migration needed - display-only, nothing about how dates are stored,
+compared, or sorted changed anywhere.
+
+Every date shown to a person - table columns, date pickers, export files,
+dropdown labels that embed a date - now reads DD-MM-YYYY instead of the
+ISO YYYY-MM-DD format used internally. Added one new helper,
+`formatDateDisplay()` in `format.js`, that turns an ISO date string into
+DD-MM-YYYY for display; `toISODate()` itself is untouched and still the
+only thing every comparison, sort, and database write uses - this was
+kept to a display-layer change specifically so nothing about date *logic*
+anywhere in the app needed to change, only what gets printed to the
+screen.
+
+**Highest-leverage single change:** `DatePicker`'s own trigger button now
+shows the formatted date - since every editable date field in the app
+already goes through that one shared component, this alone fixed every
+form's date input at once. Beyond that, went through every screen with
+its own date columns or exports one at a time: Receivables (By Document),
+Payables, Sales/Purchases (including its PI-linking picker), Invoice/PI
+Follow-up, Quotations, Credit/Debit Notes, Cash & Bank, General Ledger's
+journal entries, Import Data's Recent Imports, Assigned Tasks, the
+Dashboard's Cash Flow card, and the comm log's Communication Timeline -
+plus every CSV/PDF/Word export that includes a date column, so a
+downloaded file matches what's on screen.
+
+**Left as ISO on purpose:** anything that's a plain internal value rather
+than a printed date - `useState` initializers feeding a DatePicker,
+`todayISO` variables used only for comparisons, values passed straight to
+Supabase. Those were already correct and changing them would only be
+extra risk for zero visible difference. Recent Activity's timestamps
+(which include a time, not just a date) were left on the browser's
+default locale formatting for now - a different, larger design question
+than table date columns; flag it if that should change too.
+
 ## Status
+
+- [x] **Dates display as DD-MM-YYYY everywhere (Sep 2026):** new
+      `formatDateDisplay()` helper converts the ISO date every field is
+      still stored/compared/sorted as into DD-MM-YYYY for display only -
+      `toISODate()` and every comparison/sort using it are untouched.
+      `DatePicker`'s trigger button covers every editable date field at
+      once; went through every screen's own date columns and CSV/PDF/
+      Word exports individually on top of that. Recent Activity's
+      timestamps (date+time) intentionally left as-is for now. See
+      "Dates now display as DD-MM-YYYY everywhere" above.
 
 - [x] **Assigned Tasks as its own screen (Sep 2026):** "My reminders
       today" moved out of the Dashboard into a dedicated sidebar screen,

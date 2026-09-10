@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronRight, ChevronDown, ChevronLeft, Check, CalendarDays } from 'lucide-react'
-import { inr, toISODate } from '../lib/format'
+import { inr, toISODate, formatDateDisplay } from '../lib/format'
 
 export function Stamp({ ok }) {
   return (
@@ -259,7 +259,7 @@ export function DatePicker({ value, onChange, className = 'date-input', placehol
         onClick={openCalendar}
       >
         <CalendarDays size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'inherit' : 'var(--paper-dim)' }}>{value || placeholder}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'inherit' : 'var(--paper-dim)' }}>{value ? formatDateDisplay(value) : placeholder}</span>
       </button>
       {open && (
         <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, padding: 8, minWidth: 240, maxWidth: 260 } : { padding: 8, minWidth: 240, maxWidth: 260 }}>

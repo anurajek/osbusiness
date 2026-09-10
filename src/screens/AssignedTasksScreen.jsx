@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { toISODate, isResolved } from '../lib/format'
+import { toISODate, isResolved, formatDateDisplay } from '../lib/format'
 import { SectionHeader } from '../components/ui'
 
 // Pending (no remind_on set at all) is its own bucket rather than folded
@@ -164,7 +164,7 @@ export default function AssignedTasksScreen({ onNavigate }) {
                       )}
                     </span>
                     {task.remindOn && (
-                      <span className="activity-when">{task.remindOn}{task.remindTime ? `, ${task.remindTime.slice(0, 5)}` : ''}</span>
+                      <span className="activity-when">{formatDateDisplay(task.remindOn)}{task.remindTime ? `, ${task.remindTime.slice(0, 5)}` : ''}</span>
                     )}
                     {resolvingId !== task.id && (
                       <button type="button" className="link-btn" onClick={() => setResolvingId(task.id)}>Mark done</button>

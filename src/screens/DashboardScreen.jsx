@@ -5,7 +5,7 @@ import {
 import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, computeStatus, toISODate, getFiscalYearRange } from '../lib/format'
+import { inr, computeStatus, toISODate, getFiscalYearRange, formatDateDisplay } from '../lib/format'
 import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
@@ -240,7 +240,7 @@ export default function DashboardScreen({ onNavigate }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--brass)', display: 'inline-block' }} />
-                <span className="stat-card__label" style={{ margin: 0 }}>Cash as on {toISODate(cashFlow.asOfDate)}</span>
+                <span className="stat-card__label" style={{ margin: 0 }}>Cash as on {formatDateDisplay(toISODate(cashFlow.asOfDate))}</span>
               </div>
               <div className="stat-card__value" style={{ fontSize: 16 }}>{inr(cashFlow.finalBalance)}</div>
             </div>

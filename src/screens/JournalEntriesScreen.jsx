@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate } from '../lib/format'
+import { inr, toISODate, formatDateDisplay } from '../lib/format'
 import { Dropdown, DatePicker } from '../components/ui'
 
 function emptyLine() { return { account_id: '', debit: '', credit: '', description: '' } }
@@ -200,7 +200,7 @@ export default function JournalEntriesScreen() {
               {entries.map((entry) => (
                 <Fragment key={entry.id}>
                   <tr className="ledger-row" style={{ cursor: 'pointer' }} onClick={() => toggleExpand(entry.id)}>
-                    <td>{entry.entry_date}</td>
+                    <td>{formatDateDisplay(entry.entry_date)}</td>
                     <td>{entry.reference || <span className="login-footnote" style={{ margin: 0 }}>—</span>}</td>
                     <td>{entry.status === 'posted' ? <span className="pill pill--ok">Posted</span> : <span className="pill pill--warn">Draft</span>}</td>
                     <td className="num" onClick={(e) => e.stopPropagation()}>

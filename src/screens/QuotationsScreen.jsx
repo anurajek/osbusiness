@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate } from '../lib/format'
+import { inr, getPeriodRange, toISODate, formatDateDisplay } from '../lib/format'
 import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -100,7 +100,7 @@ export default function QuotationsScreen() {
     downloadCsv(
       'quotations',
       ['Quote #', 'Customer', 'Issued', 'Valid Until', 'Total', 'Status'],
-      filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, r.valid_until || '', r.total.toFixed(2), displayStatus(r)])
+      filtered.map((r) => [r.quote_no, customerName(r.customer_id), formatDateDisplay(r.issued_date), r.valid_until ? formatDateDisplay(r.valid_until) : '', r.total.toFixed(2), displayStatus(r)])
     )
   }
 
@@ -112,7 +112,7 @@ export default function QuotationsScreen() {
       columns: [
         { label: 'Quote #' }, { label: 'Customer' }, { label: 'Issued' }, { label: 'Total', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, inr(r.total), displayStatus(r)]),
+      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), formatDateDisplay(r.issued_date), inr(r.total), displayStatus(r)]),
     })
   }
 
@@ -124,7 +124,7 @@ export default function QuotationsScreen() {
       columns: [
         { label: 'Quote #' }, { label: 'Customer' }, { label: 'Issued' }, { label: 'Total', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), r.issued_date, inr(r.total), displayStatus(r)]),
+      rows: filtered.map((r) => [r.quote_no, customerName(r.customer_id), formatDateDisplay(r.issued_date), inr(r.total), displayStatus(r)]),
     })
   }
 
@@ -368,7 +368,7 @@ export default function QuotationsScreen() {
                   <tr key={r.id} className="ledger-row">
                       <td className="mono">{r.quote_no}</td>
                       <td>{customerName(r.customer_id)}</td>
-                      <td className="mono">{toISODate(new Date(r.issued_date))}</td>
+                      <td className="mono">{formatDateDisplay(r.issued_date)}</td>
                       <td className="num mono">{inr(r.total)}</td>
                       <td><span className={STATUS_PILL[status]}>{status}</span></td>
                       <td style={{ whiteSpace: 'nowrap' }}>

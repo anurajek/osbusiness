@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { UploadCloud, Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, computeStatus, statusForStorage } from '../lib/format'
+import { inr, toISODate, computeStatus, statusForStorage, formatDateDisplay } from '../lib/format'
 import { parseCsvFile, guessMapping, parseFlexibleDate, parseAmount } from '../lib/importParsing'
 import { SectionHeader, Dropdown } from '../components/ui'
 
@@ -632,7 +632,7 @@ export default function ImportScreen() {
                     <td>{TARGETS[b.target_type]?.label || b.target_type}</td>
                     <td>{b.source_filename || '—'}</td>
                     <td className="num mono">{b.row_count}</td>
-                    <td className="mono">{toISODate(new Date(b.created_at))}</td>
+                    <td className="mono">{formatDateDisplay(toISODate(new Date(b.created_at)))}</td>
                     <td>
                       <button className="link-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--brick)' }} disabled={undoingId === b.id} onClick={() => handleUndo(b)}>
                         <Undo2 size={12} /> {undoingId === b.id ? 'Undoing…' : 'Undo'}

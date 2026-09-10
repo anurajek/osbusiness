@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, statusForStorage, formatDateDisplay } from '../lib/format'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
 import { downloadCsv } from '../lib/exportCsv'
@@ -186,7 +186,7 @@ export default function CashBankScreen() {
       'cash-bank-transactions',
       ['Date', 'Account', 'Description', 'Amount', 'Type'],
       filtered.map((t) => [
-        toISODate(new Date(t.txn_date)),
+        formatDateDisplay(t.txn_date),
         accountName(t.bank_account_id),
         t.description,
         Math.abs(t.amount).toFixed(2),
@@ -205,7 +205,7 @@ export default function CashBankScreen() {
         { label: 'Amount', align: 'right' }, { label: 'Type' },
       ],
       rows: filtered.map((t) => [
-        toISODate(new Date(t.txn_date)),
+        formatDateDisplay(t.txn_date),
         accountName(t.bank_account_id),
         t.description,
         inr(Math.abs(t.amount)),
@@ -224,7 +224,7 @@ export default function CashBankScreen() {
         { label: 'Amount', align: 'right' }, { label: 'Type' },
       ],
       rows: filtered.map((t) => [
-        toISODate(new Date(t.txn_date)),
+        formatDateDisplay(t.txn_date),
         accountName(t.bank_account_id),
         t.description,
         inr(Math.abs(t.amount)),
@@ -332,7 +332,7 @@ export default function CashBankScreen() {
           <tbody>
             {filtered.map((t) => (
               <tr key={t.id} className="ledger-row">
-                <td className="mono">{toISODate(new Date(t.txn_date))}</td>
+                <td className="mono">{formatDateDisplay(t.txn_date)}</td>
                 <td>{accountName(t.bank_account_id)}</td>
                 <td>{t.description}</td>
                 <td className={`num mono ${t.amount > 0 ? 'amt-pos' : 'amt-neg'}`}>

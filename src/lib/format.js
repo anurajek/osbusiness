@@ -75,6 +75,20 @@ export function toISODate(d) {
   return `${year}-${month}-${day}`;
 }
 
+// Every date is still stored, compared, and sorted as a plain ISO
+// "YYYY-MM-DD" string throughout the app (toISODate above) - that stays
+// unchanged, since rewriting every comparison/sort to a different format
+// would be a much bigger, riskier change for no real benefit. This is
+// purely the display layer: takes that same ISO string and renders it the
+// way the person actually wants to read it, DD-MM-YYYY. Used by DatePicker
+// (see ui.jsx) for its trigger button, and anywhere else a date gets
+// printed to the screen rather than fed back into a comparison.
+export function formatDateDisplay(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}-${m}-${y}`;
+}
+
 // India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.
 export function getFiscalYearRange(offset, today) {
   const fyStartCalendarYear = (today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1) + offset;

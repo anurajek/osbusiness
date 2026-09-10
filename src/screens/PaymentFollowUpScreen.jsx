@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, Fragment } from 'react'
 import { Plus, Bell, Check, ChevronDown, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
+import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES, formatDateDisplay } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -999,9 +999,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                         )}
                       </td>
                       <td className="mono">{r[numberField]}</td>
-                      <td className="mono">{toISODate(new Date(r.issued_date))}</td>
+                      <td className="mono">{formatDateDisplay(r.issued_date)}</td>
                       <td className="num mono">{inr(balanceDue(r))}</td>
-                      <td className="mono">{toISODate(dueDate)}</td>
+                      <td className="mono">{formatDateDisplay(toISODate(dueDate))}</td>
                       <td className="num mono" style={{ color: overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? 'var(--brick)' : 'inherit' }}>
                         {overdue > 0 && !r.is_cancelled && balanceDue(r) > 0 ? overdue : '—'}
                       </td>

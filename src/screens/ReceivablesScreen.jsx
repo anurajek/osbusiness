@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, computeStatus, isResolved, toISODate, isPlausibleDate, MANUAL_STATUSES } from '../lib/format'
+import { inr, getPeriodRange, computeStatus, isResolved, toISODate, isPlausibleDate, MANUAL_STATUSES, formatDateDisplay } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
 import { StatCard, EmptyRow, SortableTh, Dropdown } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
@@ -369,7 +369,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
   const handleExportCsv = () => {
     if (viewMode === 'document') {
-      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '', r.expectedDate || '', r.amount.toFixed(2), r.status])
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, formatDateDisplay(r.issuedDate), r.dueDate ? formatDateDisplay(r.dueDate) : '', r.expectedDate ? formatDateDisplay(r.expectedDate) : '', r.amount.toFixed(2), r.status])
       if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', '', documentTotal.toFixed(2), ''])
       downloadCsv(
         'receivables-by-document',
@@ -393,7 +393,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
   const handleExportPdf = () => {
     if (viewMode === 'document') {
-      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '—', r.expectedDate || '—', inr(r.amount), r.status])
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, formatDateDisplay(r.issuedDate), r.dueDate ? formatDateDisplay(r.dueDate) : '—', r.expectedDate ? formatDateDisplay(r.expectedDate) : '—', inr(r.amount), r.status])
       if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', '', inr(documentTotal), ''])
       downloadListPdf({
         title: isPaidView ? 'Receivables — Paid, by Document' : 'Receivables — Pending, by Document',
@@ -428,7 +428,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
 
   const handleExportWord = () => {
     if (viewMode === 'document') {
-      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, r.issuedDate, r.dueDate || '—', r.expectedDate || '—', inr(r.amount), r.status])
+      const docRows = documentRows.map((r) => [r.customer, r.type, r.number, formatDateDisplay(r.issuedDate), r.dueDate ? formatDateDisplay(r.dueDate) : '—', r.expectedDate ? formatDateDisplay(r.expectedDate) : '—', inr(r.amount), r.status])
       if (documentRows.length > 0) docRows.push(['Total', '', '', '', '', '', inr(documentTotal), ''])
       downloadListDocx({
         title: isPaidView ? 'Receivables — Paid, by Document' : 'Receivables — Pending, by Document',
@@ -591,9 +591,9 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
                 </td>
                 <td>{r.type}</td>
                 <td className="mono">{r.number}</td>
-                <td className="mono">{toISODate(new Date(r.issuedDate))}</td>
-                <td className="mono">{r.dueDate ? toISODate(new Date(r.dueDate)) : '—'}</td>
-                <td className="mono">{r.expectedDate ? toISODate(new Date(r.expectedDate)) : '—'}</td>
+                <td className="mono">{formatDateDisplay(r.issuedDate)}</td>
+                <td className="mono">{r.dueDate ? formatDateDisplay(r.dueDate) : '—'}</td>
+                <td className="mono">{r.expectedDate ? formatDateDisplay(r.expectedDate) : '—'}</td>
                 <td className="num mono">{inr(r.amount)}</td>
                 <td>{r.status}</td>
               </tr>

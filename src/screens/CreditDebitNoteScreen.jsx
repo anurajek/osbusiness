@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Plus, Download } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate } from '../lib/format'
+import { inr, getPeriodRange, toISODate, formatDateDisplay } from '../lib/format'
 import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -101,7 +101,7 @@ export default function CreditDebitNoteScreen({ type }) {
     downloadCsv(
       isCredit ? 'credit-notes' : 'debit-notes',
       ['Note #', isCredit ? 'Customer' : 'Supplier', 'Issued', 'Reason', 'Amount', 'Status'],
-      filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, r.reason || '', r.amount.toFixed(2), r.status])
+      filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), formatDateDisplay(r.issued_date), r.reason || '', r.amount.toFixed(2), r.status])
     )
   }
 
@@ -114,7 +114,7 @@ export default function CreditDebitNoteScreen({ type }) {
         { label: 'Note #' }, { label: isCredit ? 'Customer' : 'Supplier' }, { label: 'Issued' },
         { label: 'Amount', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, inr(r.amount), r.status]),
+      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), formatDateDisplay(r.issued_date), inr(r.amount), r.status]),
     })
   }
 
@@ -127,7 +127,7 @@ export default function CreditDebitNoteScreen({ type }) {
         { label: 'Note #' }, { label: isCredit ? 'Customer' : 'Supplier' }, { label: 'Issued' },
         { label: 'Amount', align: 'right' }, { label: 'Status' },
       ],
-      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), r.issued_date, inr(r.amount), r.status]),
+      rows: filtered.map((r) => [r.note_no, partyName(r[partyJoinKey]), formatDateDisplay(r.issued_date), inr(r.amount), r.status]),
     })
   }
 
@@ -366,7 +366,7 @@ export default function CreditDebitNoteScreen({ type }) {
                   <tr className="ledger-row">
                     <td className="mono">{r.note_no}</td>
                     <td>{partyName(r[partyJoinKey])}</td>
-                    <td className="mono">{toISODate(new Date(r.issued_date))}</td>
+                    <td className="mono">{formatDateDisplay(r.issued_date)}</td>
                     <td>{r.reason || '—'}</td>
                     <td className="num mono">{inr(r.amount)}</td>
                     <td><span className={r.status === 'refunded' ? 'pill pill--ok' : 'pill pill--warn'}>{r.status === 'refunded' ? 'Refunded' : 'Open'}</span></td>

@@ -1,6 +1,6 @@
 import { useState, useRef, Fragment } from 'react'
 import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
-import { inr, toISODate, isPlausibleDate } from '../lib/format'
+import { inr, toISODate, isPlausibleDate, formatDateDisplay } from '../lib/format'
 import { StatusPill, Dropdown, DatePicker } from './ui'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
@@ -62,7 +62,7 @@ function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
   const options = buildRemindOptions(nearestDueDate)
 
   const matched = options.find((o) => o.date === remindOn)
-  const label = matched ? matched.label : (remindOn || 'Remind me on…')
+  const label = matched ? matched.label : (remindOn ? formatDateDisplay(remindOn) : 'Remind me on…')
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
@@ -388,7 +388,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                 <Fragment key={d.id}>
                   <tr className="ledger-row">
                     <td className="mono">{d.number}</td>
-                    <td className="mono">{toISODate(new Date(d.issued_date))}</td>
+                    <td className="mono">{formatDateDisplay(d.issued_date)}</td>
                     <td className="num mono">{inr(d.amountDue)}</td>
                     <td><StatusPill status={d.statusLabel} /></td>
                     {onSetStatus && (
@@ -455,7 +455,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
                     {assignedMembers.map((m) => <span key={m.id} className="pill pill--neutral">→ {m.full_name}</span>)}
                     {c.remind_on && (
                       <span className={`pill ${c.reminder_done ? 'pill--ok' : due ? 'pill--bad' : 'pill--warn'}`}>
-                        {c.reminder_done ? '✓ Reminded' : 'Remind'} {c.remind_on}{timeLabel ? `, ${timeLabel}` : ''}
+                        {c.reminder_done ? '✓ Reminded' : 'Remind'} {formatDateDisplay(c.remind_on)}{timeLabel ? `, ${timeLabel}` : ''}
                       </span>
                     )}
                     {c.remind_on && !c.reminder_done && onResolveReminder && resolvingId !== c.id && (

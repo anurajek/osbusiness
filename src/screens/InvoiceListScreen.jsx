@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage, balanceDue, isPlausibleDate } from '../lib/format'
+import { inr, getPeriodRange, toISODate, computeStatus, statusForStorage, balanceDue, isPlausibleDate, formatDateDisplay } from '../lib/format'
 import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -216,8 +216,8 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     const rows = filtered.map((r) => [
       r[numberField],
       partyName(r[partyJoinKey]),
-      r.issued_date,
-      r.due_date || '',
+      formatDateDisplay(r.issued_date),
+      r.due_date ? formatDateDisplay(r.due_date) : '',
       r.amount.toFixed(2),
       r.paid_amount.toFixed(2),
       balanceDue(r).toFixed(2),
@@ -235,7 +235,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     const rows = filtered.map((r) => [
       r[numberField],
       partyName(r[partyJoinKey]),
-      r.issued_date,
+      formatDateDisplay(r.issued_date),
       inr(r.amount),
       inr(r.paid_amount),
       inr(balanceDue(r)),
@@ -258,7 +258,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     const rows = filtered.map((r) => [
       r[numberField],
       partyName(r[partyJoinKey]),
-      r.issued_date,
+      formatDateDisplay(r.issued_date),
       inr(r.amount),
       inr(r.paid_amount),
       inr(balanceDue(r)),
@@ -699,7 +699,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                         </button>
                       ) : partyName(r[partyJoinKey])}
                     </td>
-                    <td className="mono">{r.issued_date ? toISODate(new Date(r.issued_date)) : '—'}</td>
+                    <td className="mono">{r.issued_date ? formatDateDisplay(r.issued_date) : '—'}</td>
                     <td className="num mono">{inr(r.amount)}</td>
                     <td className="num mono">{inr(r.paid_amount)}</td>
                     <td className={`num mono ${balanceDue(r) > 0 ? 'amt-neg' : ''}`}>{inr(balanceDue(r))}</td>
@@ -789,7 +789,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
                               })
                               .map((p) => ({
                                 value: p.id,
-                                label: `${p.pi_no} · ${partyName(p.customer_id)} · ${toISODate(new Date(p.issued_date))} · ${inr(p.amount)} (${inr(p.paid_amount)} paid)`,
+                                label: `${p.pi_no} · ${partyName(p.customer_id)} · ${formatDateDisplay(p.issued_date)} · ${inr(p.amount)} (${inr(p.paid_amount)} paid)`,
                               }))}
                             onChange={setSelectedPiId}
                           />
