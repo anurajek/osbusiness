@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
   ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon, ListChecks,
+  PanelLeft, PanelTop,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
@@ -23,43 +24,62 @@ const MODULES = [
   { key: 'permissions', label: 'Users & Permissions', icon: ShieldCheck },
 ]
 
-export default function AppShell({ activeModule, onNavigate, onSignOut, theme, toggleTheme, children }) {
+// navLayout is a pure display preference (see useLayoutPref.js) - doesn't
+// touch which modules a person can see (still role/permissions), only
+// whether the nav renders as the original left-hand column ('sidebar') or
+// a horizontal bar under the header ('topbar'). 'sidebar' keeps its own
+// mobile hamburger/slide-out behavior unchanged; 'topbar' just scrolls
+// horizontally on a narrow screen instead, the same way filter bars and
+// wide tables already do elsewhere in the app - no second slide-out
+// mechanism to build and keep in sync with the first.
+export default function AppShell({ activeModule, onNavigate, onSignOut, theme, toggleTheme, navLayout, toggleNavLayout, children }) {
   const { memberships, firmId, setFirmId, firm, role, permissions } = useFirm()
   const [navOpen, setNavOpen] = useState(false)
   const [firmMenuOpen, setFirmMenuOpen] = useState(false)
 
   const visibleModules = role === 'Owner' ? MODULES : MODULES.filter((m) => permissions?.[m.key])
+  const isTopbar = navLayout === 'topbar'
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${navOpen ? 'sidebar--open' : ''}`}>
-        <div className="sidebar__brand">
-          <Landmark size={18} /> <span>FinoPilo Flow</span>
-        </div>
-        <nav className="sidebar__nav">
-          {visibleModules.map((m) => {
-            const Icon = m.icon
-            return (
-              <button
-                key={m.key}
-                className={`nav-item ${activeModule === m.key ? 'nav-item--active' : ''}`}
-                onClick={() => { onNavigate(m.key); setNavOpen(false) }}
-              >
-                <Icon size={16} /> <span>{m.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-        <button className="nav-item nav-item--logout" onClick={onSignOut}>
-          <LogOut size={16} /> <span>Sign out</span>
-        </button>
-      </aside>
+      {!isTopbar && (
+        <aside className={`sidebar ${navOpen ? 'sidebar--open' : ''}`}>
+          <div className="sidebar__brand">
+            <Landmark size={18} /> <span>FinoPilo Flow</span>
+          </div>
+          <nav className="sidebar__nav">
+            {visibleModules.map((m) => {
+              const Icon = m.icon
+              return (
+                <button
+                  key={m.key}
+                  className={`nav-item ${activeModule === m.key ? 'nav-item--active' : ''}`}
+                  onClick={() => { onNavigate(m.key); setNavOpen(false) }}
+                >
+                  <Icon size={16} /> <span>{m.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+          <button className="nav-item nav-item--logout" onClick={onSignOut}>
+            <LogOut size={16} /> <span>Sign out</span>
+          </button>
+        </aside>
+      )}
 
       <div className="main-col">
         <header className="topbar">
-          <button className="hamburger" onClick={() => setNavOpen((v) => !v)}>
-            {navOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+          {!isTopbar && (
+            <button className="hamburger" onClick={() => setNavOpen((v) => !v)}>
+              {navOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          )}
+
+          {isTopbar && (
+            <div className="sidebar__brand" style={{ padding: '4px 8px 4px 0' }}>
+              <Landmark size={18} /> <span>FinoPilo Flow</span>
+            </div>
+          )}
 
           <div style={{ position: 'relative' }}>
             <button className="topbar__firm" onClick={() => setFirmMenuOpen((v) => !v)}>
@@ -89,6 +109,14 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
           <div className="topbar__user">
             <button
               className="theme-toggle"
+              onClick={toggleNavLayout}
+              title={isTopbar ? 'Switch to left-side navigation' : 'Switch to top navigation'}
+              aria-label={isTopbar ? 'Switch to left-side navigation' : 'Switch to top navigation'}
+            >
+              {isTopbar ? <PanelLeft size={16} /> : <PanelTop size={16} />}
+            </button>
+            <button
+              className="theme-toggle"
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -96,8 +124,31 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
             <span className="role-badge">{role}</span>
+            {isTopbar && (
+              <button className="theme-toggle" onClick={onSignOut} title="Sign out" aria-label="Sign out">
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </header>
+
+        {isTopbar && (
+          <nav className="topnav">
+            {visibleModules.map((m) => {
+              const Icon = m.icon
+              return (
+                <button
+                  key={m.key}
+                  className={`nav-item nav-item--horizontal ${activeModule === m.key ? 'nav-item--active' : ''}`}
+                  onClick={() => onNavigate(m.key)}
+                >
+                  <Icon size={15} /> <span>{m.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        )}
+
         <main className="main-content">{children}</main>
       </div>
     </div>

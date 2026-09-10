@@ -2215,7 +2215,40 @@ extra risk for zero visible difference. Recent Activity's timestamps
 default locale formatting for now - a different, larger design question
 than table date columns; flag it if that should change too.
 
+## Sidebar/Topbar layout toggle
+
+No migration needed - a pure client-side display preference.
+
+A new small toggle next to the light/dark switch lets you pick between
+the original left-hand sidebar navigation and a new horizontal topbar
+layout - a `PanelLeft`/`PanelTop` icon button, same styling and same
+persistence pattern as the theme toggle (`useLayoutPref.js`, saved to
+`localStorage` under `finopilo-nav-layout`, so it's remembered across
+visits the same way dark mode is).
+
+In topbar mode, the module nav (Dashboard, Assigned Tasks, Sales,
+Purchases, AR/AP, Cash & Bank, Import Data, Users & Permissions) moves
+into a horizontal bar directly under the header instead of the left
+column, the "FinoPilo Flow" brand moves into the header itself, and Sign
+Out becomes an icon button next to the theme/layout toggles instead of
+sitting at the bottom of the sidebar. On a narrow screen, the topbar nav
+just scrolls horizontally rather than getting its own slide-out/hamburger
+mechanism - same pattern already used for wide tables and filter bars
+elsewhere in the app, so there's only one mobile-nav mechanism to
+maintain, not two. This is purely a layout preference - it doesn't
+change which modules a person can see; that's still governed by role and
+Permissions exactly as before.
+
 ## Status
+
+- [x] **Sidebar/Topbar layout toggle (Sep 2026):** new icon toggle next
+      to the theme switch lets you pick left-sidebar nav (original) or a
+      horizontal topbar nav - same persistence pattern as dark mode
+      (`localStorage`, `useLayoutPref.js`). Topbar mode moves the brand
+      into the header and Sign Out into an icon button; nav scrolls
+      horizontally on mobile rather than getting its own hamburger.
+      Doesn't affect which modules are visible - role/Permissions still
+      govern that. See "Sidebar/Topbar layout toggle" above.
 
 - [x] **Dates display as DD-MM-YYYY everywhere (Sep 2026):** new
       `formatDateDisplay()` helper converts the ISO date every field is

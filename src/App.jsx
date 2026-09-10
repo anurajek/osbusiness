@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { useTheme } from './hooks/useTheme'
+import { useLayoutPref } from './hooks/useLayoutPref'
 import { FirmProvider, useFirm } from './context/FirmContext'
 import LoginScreen from './screens/LoginScreen'
 import SignupScreen from './screens/SignupScreen'
@@ -84,7 +85,7 @@ function NoFirmMessage({ userEmail, onCreateFirm, onSignOut, initialError }) {
   )
 }
 
-function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme }) {
+function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme, navLayout, toggleNavLayout }) {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [arapTab, setArapTab] = useState('receivables')
 
@@ -102,12 +103,14 @@ function AuthenticatedApp({ memberships, refreshMemberships, userEmail, onCreate
         onChangePassword={onChangePassword}
         theme={theme}
         toggleTheme={toggleTheme}
+        navLayout={navLayout}
+        toggleNavLayout={toggleNavLayout}
       />
     </FirmProvider>
   )
 }
 
-function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme }) {
+function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userEmail, onCreateFirm, initialError, onSignOut, onChangePassword, theme, toggleTheme, navLayout, toggleNavLayout }) {
   const { permissions, firmId, role } = useFirm()
   const [navParams, setNavParams] = useState(null)
 
@@ -150,7 +153,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
   }
 
   return (
-    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut} theme={theme} toggleTheme={toggleTheme}>
+    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut} theme={theme} toggleTheme={toggleTheme} navLayout={navLayout} toggleNavLayout={toggleNavLayout}>
       {renderModule()}
     </AppShell>
   )
@@ -158,6 +161,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 
 export default function App() {
   const { theme, toggleTheme } = useTheme()
+  const { navLayout, toggleNavLayout } = useLayoutPref()
   const { session, memberships, loading, provisioning, error, signIn, signUpWithFirm, createFirmForSession, acceptInvite, refreshMemberships, signOut, passwordRecovery, requestPasswordReset, completePasswordReset, changeOwnPassword } = useAuth()
   const [authMode, setAuthMode] = useState('login')
 
@@ -223,6 +227,8 @@ export default function App() {
       onChangePassword={changeOwnPassword}
       theme={theme}
       toggleTheme={toggleTheme}
+      navLayout={navLayout}
+      toggleNavLayout={toggleNavLayout}
     />
   )
 }
