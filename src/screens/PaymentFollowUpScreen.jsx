@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker } from '../components/ui'
+import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf, previewDocumentPdf, itemTaxFieldsFromRow } from '../lib/pdf'
@@ -256,6 +256,13 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     .sort((a, b) => {
       if (sortBy === 'overdue-desc') return daysOverdue(b.issued_date) - daysOverdue(a.issued_date)
       if (sortBy === 'amount-desc') return (b.amount - b.paid_amount) - (a.amount - a.paid_amount)
+      // Document numbers (e.g. "EST/286/26-27") compare naturally as
+      // strings here since the sequential part is what varies between two
+      // numbers from the same series/year, and localeCompare's numeric
+      // option handles the embedded digits correctly either way.
+      if (sortBy === 'number-asc') return a[numberField].localeCompare(b[numberField], undefined, { numeric: true })
+      if (sortBy === 'number-desc') return b[numberField].localeCompare(a[numberField], undefined, { numeric: true })
+      if (sortBy === 'date-asc') return new Date(a.issued_date) - new Date(b.issued_date)
       return new Date(b.issued_date) - new Date(a.issued_date)
     })
 
@@ -961,7 +968,9 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           <table className="ledger-table">
             <thead>
               <tr>
-                <th>Customer</th><th>{docLabel} #</th><th>Issued</th>
+                <th>Customer</th>
+                <SortableTh label={`${docLabel} #`} ascValue="number-asc" descValue="number-desc" sortBy={sortBy} onSort={setSortBy} />
+                <SortableTh label="Issued" ascValue="date-asc" descValue="date-desc" sortBy={sortBy} onSort={setSortBy} defaultDesc />
                 <th className="num">Amount Pending</th><th>Due Date</th><th className="num">Days Overdue</th>
                 <th>Status</th><th>Expected Date</th><th>Actions</th>
               </tr>

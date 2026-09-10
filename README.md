@@ -2099,7 +2099,29 @@ the unambiguous "Discount Amount" column over the plain "Discount" one
 (which could be either a percentage or an amount depending on the
 export's own Discount Type setting).
 
+## Clickable column headers on Invoice/PI Follow-up
+
+No migration needed - UI-only.
+
+"Proforma Invoice #" and "Issued" are now clickable column headers -
+click once to sort ascending, click again for descending (the same
+`SortableTh` component and interaction Receivables/Sales/Purchases/
+Quotations already use), instead of only being reachable through the
+"Sort by" dropdown. The dropdown itself is unchanged (still has Most
+overdue first / Amount pending / Newest issued first) - the two
+mechanisms share the same underlying sort state, so using one keeps the
+other in sync. Document numbers sort using a numeric-aware string
+compare, so "EST/9" sorts before "EST/10" rather than after it.
+
 ## Status
+
+- [x] **Clickable column headers on Invoice/PI Follow-up (Sep 2026):**
+      "Proforma Invoice #"/"Invoice #" and "Issued" are now sortable
+      headers (click to sort ascending, click again for descending),
+      same `SortableTh` pattern as other screens - shares the same sort
+      state as the existing "Sort by" dropdown, so either one stays in
+      sync with the other. See "Clickable column headers on Invoice/PI
+      Follow-up" above.
 
 - [x] **Fixed: Sub Total mapping was inflating merged documents (Sep
       2026):** Sub Total was auto-matching Zoho's document-level
