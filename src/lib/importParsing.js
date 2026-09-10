@@ -19,21 +19,72 @@ export async function parseCsvFile(file) {
   })
 }
 
-// Guesses which uploaded column matches each target field by normalizing
-// both to lowercase-alphanumeric-only and checking for a substring match in
-// either direction. Good enough to save re-picking every column by hand for
-// an obviously-named export (e.g. "Customer Name" -> customer_name), while
-// every guess stays fully editable before anything is imported.
+// Guesses which uploaded column matches each target field. Two passes:
+// an exact match first (after normalizing to lowercase alphanumeric
+// tokens), then a looser "every word in the shorter phrase appears in
+// the longer one" match - but only for candidates with 2+ words. A
+// single generic word like "Rate" or "Discount" would otherwise happily
+// match totally wrong columns like "Exchange Rate" or "Discount Type"
+// (both genuinely present in real exports) just because the word
+// appears somewhere in them - real, wrong guesses that would go
+// unnoticed until the imported numbers came out wrong. Each header can
+// only be claimed by one field, so two FinoPilo fields never end up
+// silently pointing at the same column.
+//
+// FIELD_SYNONYMS covers the common cases where an export's own wording
+// diverges from FinoPilo's field labels entirely (Zoho calls the PI/
+// invoice date "Estimate Date"/"Invoice Date", the number "Estimate
+// Number", the document total just "Total", not "Amount") - tried in
+// order, first candidate that matches anything wins.
+const FIELD_SYNONYMS = {
+  doc_no: ['estimate number', 'invoice number', 'bill number', 'reference number', 'document number'],
+  issued_date: ['estimate date', 'invoice date', 'bill date', 'document date'],
+  due_date: ['expiry date', 'payment due date', 'due date'],
+  amount: ['total'],
+  item_description: ['item name', 'item desc'],
+  item_rate: ['item price', 'unit price', 'price'],
+  discount_amount: ['discount amount', 'item discount'],
+  cgst_amount: ['cgst'],
+  sgst_amount: ['sgst'],
+  igst_amount: ['igst'],
+}
+
+function tokenize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean)
+}
+
 export function guessMapping(headers, fields) {
-  const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const headerInfo = headers.map((h) => ({ header: h, tokens: tokenize(h) }))
+  const used = new Set()
+
+  const findMatch = (candidate) => {
+    const candTokens = tokenize(candidate)
+    const candKey = candTokens.join('')
+    // Pass 1: exact match, whole phrase.
+    let hit = headerInfo.find((h) => !used.has(h.header) && h.tokens.join('') === candKey)
+    if (hit) return hit.header
+    // Pass 2: every word of the shorter phrase appears in the longer one -
+    // skipped for single-word candidates to avoid the false-positive risk
+    // described above.
+    if (candTokens.length < 2) return null
+    hit = headerInfo.find((h) => {
+      if (used.has(h.header) || h.tokens.length < 2) return false
+      const [shorter, longer] = candTokens.length <= h.tokens.length ? [candTokens, h.tokens] : [h.tokens, candTokens]
+      return shorter.every((t) => longer.includes(t))
+    })
+    return hit ? hit.header : null
+  }
+
   const mapping = {}
   for (const field of fields) {
-    const fieldNorm = normalize(field.label)
-    const match = headers.find((h) => {
-      const hNorm = normalize(h)
-      return hNorm === fieldNorm || hNorm.includes(fieldNorm) || fieldNorm.includes(hNorm)
-    })
+    const candidates = [field.label, ...(FIELD_SYNONYMS[field.key] || [])]
+    let match = null
+    for (const c of candidates) {
+      match = findMatch(c)
+      if (match) break
+    }
     mapping[field.key] = match || ''
+    if (match) used.add(match)
   }
   return mapping
 }

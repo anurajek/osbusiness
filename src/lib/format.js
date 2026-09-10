@@ -60,8 +60,19 @@ export function getPeriodRange(period, customFrom, customTo) {
   return null;
 }
 
+// Was `d.toISOString().slice(0, 10)` - that converts through UTC first,
+// which silently shifts the date backward by a day for anyone in a
+// timezone ahead of UTC (India included) whenever the Date object
+// represents local midnight - exactly what "pick the 5th, get the 4th"
+// in the calendar was. Every caller of this function wants the calendar
+// date the browser's local clock is showing, never a UTC-shifted one, so
+// this reads the local year/month/day directly instead of going through
+// UTC at all.
 export function toISODate(d) {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // India's fiscal year runs April -> March. offset 0 = current FY, -1 = previous FY.

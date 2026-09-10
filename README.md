@@ -2030,7 +2030,65 @@ scrollbar. Nothing else using `.mention-menu` (Assign, @mention, the
 calendar itself when opened elsewhere) changed - only Period's own outer
 wrapper.
 
+## Fixed a real date bug (toISODate/timezone); import mapping got much smarter
+
+No migration needed - UI/logic-only.
+
+**The "pick the 5th, get the 4th" bug was real and systemic, not just the
+calendar.** `toISODate()` - the one function nearly every date field in
+the app runs through, 78 call sites across 13 files - was converting
+through UTC (`d.toISOString().slice(0, 10)`) before extracting the date.
+For anyone in a timezone ahead of UTC (India included), that silently
+shifts a local-midnight date back by a day. The new DatePicker just made
+this **visible** by constructing a lot of local-midnight Date objects for
+calendar cells; the underlying bug was already there, affecting anything
+built on this function. Fixed at the source - reads the local year/month/
+day directly instead of going through UTC at all, which is what every
+caller actually wants (a calendar date, not a UTC-shifted one). Full
+rebuild/lint pass came back clean across all 78 call sites.
+
+**Import Data's column mapping now auto-matches far more intelligently.**
+The old guesser did raw substring matching, which is exactly why fields
+like "Rate" and "Discount" - genuinely dangerous, generic words - could
+silently latch onto the wrong column in a real export (Zoho's "Exchange
+Rate" or "CGST Rate %" instead of "Item Price"; "Discount Type" instead
+of the actual discount amount) while fields with real wording mismatches
+("PI #" vs Zoho's "Estimate Number", "Issued Date" vs "Estimate Date",
+"Amount" vs "Total") matched nothing at all and sat on "— Don't
+import —". Rewrote it: exact match first, then a safer whole-word match
+for multi-word fields only (single generic words never fall back to
+loose matching), plus a synonym list for the common Zoho/Tally naming
+gaps. Tested against Anuraj's real Estimate.csv export: 15 of 16 fields
+now match correctly out of the box, including the one that actually
+matters for merging - Amount now correctly finds "Total", not
+"Item Total".
+
+**The merge behavior is now explained upfront, not discovered via a
+wall of errors.** Multi-line exports (Zoho's "one row per line item"
+shape) only merge correctly if Amount maps to the document's *overall*
+total, not a per-line figure - get that wrong and every row comes back
+flagged as "disagreeing," which is confusing without knowing the rule
+behind it. Added that explanation directly on the mapping screen for
+Invoice/PI/Bill imports, plus a visual divider separating the
+document-level fields from the optional per-line-item ones, so the
+distinction is visible before mapping starts, not just when it breaks.
+
 ## Status
+
+- [x] **Fixed toISODate's timezone bug; smarter import mapping (Sep
+      2026):** `toISODate()` was converting through UTC before reading
+      the date, silently shifting local-midnight dates back a day for
+      anyone ahead of UTC (India included) - fixed at the source, reads
+      local year/month/day directly, no UTC involved. Affects all 78 call
+      sites across the app, not just the new calendar. Also: Import
+      Data's column-mapping guesser rewritten to avoid false substring
+      matches (Rate/Discount were landing on wrong columns) and added
+      Zoho/Tally naming synonyms - 15 of 16 fields auto-match correctly
+      against a real export now, versus most sitting unmapped before.
+      The multi-line merge requirement (Amount must be the document
+      total, not a per-line figure) is now explained on the mapping
+      screen itself. See "Fixed a real date bug (toISODate/timezone);
+      import mapping got much smarter" above.
 
 - [x] **Fixed: Period popup clipping its own calendar (Sep 2026):** the
       Period popup inherited the shared 260px height cap meant for long

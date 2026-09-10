@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { UploadCloud, Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
@@ -507,23 +507,39 @@ export default function ImportScreen() {
         {step === 'map' && (
           <div style={{ marginTop: 16 }}>
             <p className="login-footnote" style={{ marginBottom: 12 }}>
-              <strong>{fileName}</strong> — {rawRows.length} row{rawRows.length !== 1 ? 's' : ''} found. Match each field below to a column from your file.
+              <strong>{fileName}</strong> — {rawRows.length} row{rawRows.length !== 1 ? 's' : ''} found. Fields below are pre-matched to your file's columns where the names line up closely enough to guess safely — double-check each one, especially any still on "— Don't import —".
             </p>
+            {def.kind === 'doc' && (
+              <p className="login-footnote" style={{ marginBottom: 12, padding: 10, background: 'var(--panel-alt)', borderRadius: 8 }}>
+                Some exports (Zoho among them) put one row per line item, repeating the {def.docLabel} and its total on every row for that document — that's normal, not an error. <strong>Amount must map to the document's overall total</strong> (the value that repeats identically on every line for the same {def.docLabel}), not a per-line item amount — rows sharing the same {def.docLabel} get merged into one document using that shared total, and if the "amount" you mapped actually varies line to line, the merge will flag every row as disagreeing instead of combining them.
+              </p>
+            )}
             <div className="table-scroll">
               <table className="ledger-table">
                 <thead><tr><th>Field</th><th>Column in your file</th></tr></thead>
                 <tbody>
                   {def.fields.map((f) => (
-                    <tr key={f.key} className="ledger-row">
-                      <td>{f.label}{f.required && <span style={{ color: 'var(--brick)' }}> *</span>}</td>
-                      <td>
-                        <Dropdown
-                          value={mapping[f.key] || ''}
-                          options={[{ value: '', label: "— Don't import —" }, ...headers.map((h) => ({ value: h, label: h }))]}
-                          onChange={(v) => setMapping((m) => ({ ...m, [f.key]: v }))}
-                        />
-                      </td>
-                    </tr>
+                    <Fragment key={f.key}>
+                      {f.key === 'item_description' && (
+                        <tr className="ledger-row">
+                          <td colSpan={2} style={{ paddingTop: 16 }}>
+                            <div className="login-footnote" style={{ textTransform: 'uppercase', fontSize: 11 }}>
+                              Line item detail (optional) — one row's worth, even for a multi-line document above
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr className="ledger-row">
+                        <td>{f.label}{f.required && <span style={{ color: 'var(--brick)' }}> *</span>}</td>
+                        <td>
+                          <Dropdown
+                            value={mapping[f.key] || ''}
+                            options={[{ value: '', label: "— Don't import —" }, ...headers.map((h) => ({ value: h, label: h }))]}
+                            onChange={(v) => setMapping((m) => ({ ...m, [f.key]: v }))}
+                          />
+                        </td>
+                      </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
