@@ -130,7 +130,15 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
 
   if (!firmId) return <NoFirmMessage userEmail={userEmail} onCreateFirm={onCreateFirm} onSignOut={onSignOut} initialError={initialError} />
 
-  const allowed = role === 'Owner' ? { dashboard: true, tasks: true, sales: true, purchases: true, arap: true, cashbank: true, ledger: true, quotes: true, notes: true, import: true, permissions: true } : (permissions || {})
+  // An Owner's module access now actually reads their own stored
+  // permissions (same column every other role uses) instead of being
+  // hardcoded to "everything on" - see migration_owner_permissions_toggle.sql
+  // for why that's safe to flip (the migration backfills every existing
+  // Owner's permissions to include every module first). "permissions"
+  // itself is always forced true regardless of what's stored, no matter
+  // what - there's no way to toggle yourself out of the one screen that
+  // lets you fix a mistake.
+  const allowed = role === 'Owner' ? { ...(permissions || {}), permissions: true } : (permissions || {})
 
   const renderModule = () => {
     if (!allowed[activeModule]) {

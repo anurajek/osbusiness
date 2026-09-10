@@ -140,7 +140,13 @@ export default function PermissionsScreen({ onChangePassword }) {
   useEffect(() => { load() }, [firmId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = async (member, moduleKey) => {
-    if (!isOwner || member.role === 'Owner') return
+    if (!isOwner) return
+    // An Owner can toggle their own row too now, with one exception: the
+    // "permissions" module itself can never be turned off for an Owner -
+    // that's the one screen that lets a mistake here get fixed, and
+    // there's no reason a person should ever be able to lock themselves
+    // out of it.
+    if (member.role === 'Owner' && moduleKey === 'permissions') return
     const updated = { ...member.permissions, [moduleKey]: !member.permissions?.[moduleKey] }
     setSavingId(member.id)
     setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, permissions: updated } : m)))
@@ -149,7 +155,14 @@ export default function PermissionsScreen({ onChangePassword }) {
     if (err) {
       alert(`Couldn't save that change: ${err.message}`)
       setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, permissions: member.permissions } : m)))
+      return
     }
+    // Toggling my own row needs to update the nav/routing immediately, not
+    // just this table - refreshMemberships reloads FirmContext's own
+    // `permissions`, which is what AppShell's nav and App.jsx's routing
+    // guard actually read. Toggling someone else's row doesn't need this -
+    // it only affects what they see next time they load the app.
+    if (member.id === membershipId) refreshMemberships?.()
   }
 
   const handleChangePassword = async (e) => {
@@ -424,11 +437,9 @@ export default function PermissionsScreen({ onChangePassword }) {
         <div className="card">
           <div className="section-header" style={{ marginBottom: 8 }}><h2>Invite a teammate</h2></div>
           <form onSubmit={handleInvite} className="add-comm-form">
-            <div className="add-comm-row">
-              <input className="text-input" placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
-              <input className="text-input" type="email" placeholder="Email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-              <Dropdown value={inviteRole} options={ROLES} onChange={setInviteRole} />
-            </div>
+            <input className="text-input" placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+            <input className="text-input" type="email" placeholder="Email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            <Dropdown value={inviteRole} options={ROLES} onChange={setInviteRole} />
             {inviteError && <p className="text-[12.5px]" style={{ color: 'var(--brick)' }}>{inviteError}</p>}
             {inviteSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{inviteSuccess}</p>}
             <button className="btn-primary" disabled={inviting}>{inviting ? 'Inviting…' : 'Send invite'}</button>
@@ -458,8 +469,13 @@ export default function PermissionsScreen({ onChangePassword }) {
                   <td><span className="pill pill--neutral">{member.role}</span></td>
                   <td>{pending ? <span className="pill pill--warn">Pending</span> : <span className="pill pill--ok">Active</span>}</td>
                   {MODULES.map((m) => {
-                    const locked = pending || member.role === 'Owner' || !isOwner
-                    const on = member.role === 'Owner' ? true : !!member.permissions?.[m.key]
+                    // "permissions" is force-locked on for an Owner's own
+                    // row specifically - see the toggle() comment above,
+                    // same self-lockout guard. Every other cell, for every
+                    // role including Owner, now genuinely reflects (and
+                    // can change) the stored value.
+                    const locked = pending || !isOwner || (member.role === 'Owner' && m.key === 'permissions')
+                    const on = !!member.permissions?.[m.key]
                     return (
                       <td key={m.key} className="num">
                         <button

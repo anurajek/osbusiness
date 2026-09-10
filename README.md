@@ -2265,7 +2265,51 @@ on the existing memberships query, no schema change.
   each other, using the horizontal space on a wider screen instead of
   wasting it.
 
+## Invite form stacked vertically; Owner permissions now actually toggle
+
+**Run `migration_owner_permissions_toggle.sql` before deploying this
+one.** This one touches real access-control logic - read this in full
+before running it.
+
+- **Invite a teammate's fields are stacked vertically** now (Name, then
+  Email, then Role) instead of three fields crammed into one row - that
+  row layout was designed for a full-width card and looked cramped once
+  Firm Details and Invite a Teammate went side-by-side last round.
+
+- **An Owner's own module toggles now actually work**, matching every
+  other role instead of being hardcoded to "always on, can't be
+  changed." The real risk here: an Owner's stored `permissions` JSONB
+  has never included every module (missing `tasks` and `import`
+  specifically) because the app never actually needed to read it for an
+  Owner before - it was hardcoded. If the toggles started reading that
+  incomplete data with no migration, every existing Owner would have
+  lost access to Assigned Tasks and Import Data the moment this shipped.
+  The migration backfills every existing Owner's permissions to include
+  every module (additive only - fills gaps, never touches a value
+  that's already set) and updates `create_firm_with_owner` so new firms
+  get the complete set from day one.
+- **One toggle is permanently protected**: "permissions" can never be
+  turned off for an Owner's own row, in the UI or the routing check
+  itself (`App.jsx` forces it true regardless of what's stored) - no way
+  to lock yourself out of the one screen that fixes a mistake here.
+- Toggling your own row now also calls `refreshMemberships()` so the nav
+  updates immediately rather than only after a refresh - toggling
+  someone else's row doesn't need this, it only affects what they see
+  next time they load the app.
+
 ## Status
+
+- [x] **Invite form vertical; Owner permissions actually toggle (Sep
+      2026):** Invite a teammate's fields stacked vertically to fit the
+      narrower side-by-side card. An Owner's own module toggles now
+      genuinely work (previously hardcoded always-on) - required a
+      backfill migration first so no existing Owner silently lost access
+      to a module their stored permissions were missing (`tasks`/
+      `import`). "permissions" itself stays permanently force-on for an
+      Owner, in both the UI and the routing check, so self-lockout isn't
+      possible. Requires `migration_owner_permissions_toggle.sql`. See
+      "Invite form stacked vertically; Owner permissions now actually
+      toggle" above.
 
 - [x] **Sign Out fixed top-right; Profile dropdown; Permissions layout
       (Sep 2026):** Sign Out now lives only in the header's top-right

@@ -42,7 +42,10 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
   const [firmMenuOpen, setFirmMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
 
-  const visibleModules = role === 'Owner' ? MODULES : MODULES.filter((m) => permissions?.[m.key])
+  // Same "respect the Owner's own stored permissions, but permissions
+  // itself is never actually hideable" reasoning as App.jsx's routing
+  // guard - see migration_owner_permissions_toggle.sql.
+  const visibleModules = MODULES.filter((m) => (role === 'Owner' && m.key === 'permissions') || permissions?.[m.key])
   const isTopbar = navLayout === 'topbar'
 
   return (
