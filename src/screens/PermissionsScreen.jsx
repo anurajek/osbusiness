@@ -323,6 +323,7 @@ export default function PermissionsScreen({ onChangePassword }) {
       )}
 
       {isOwner && (
+        <div className="grid-2">
         <div className="card">
           <div className="section-header" style={{ marginBottom: 8 }}>
             <h2>Firm details</h2>
@@ -419,9 +420,7 @@ export default function PermissionsScreen({ onChangePassword }) {
           )}
           {passwordSuccess && !editingPassword && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>Password updated.</p>}
         </div>
-      )}
 
-      {isOwner && (
         <div className="card">
           <div className="section-header" style={{ marginBottom: 8 }}><h2>Invite a teammate</h2></div>
           <form onSubmit={handleInvite} className="add-comm-form">
@@ -434,6 +433,7 @@ export default function PermissionsScreen({ onChangePassword }) {
             {inviteSuccess && <p className="text-[12.5px]" style={{ color: 'var(--teal)' }}>{inviteSuccess}</p>}
             <button className="btn-primary" disabled={inviting}>{inviting ? 'Inviting…' : 'Send invite'}</button>
           </form>
+        </div>
         </div>
       )}
 

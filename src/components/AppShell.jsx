@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
   ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon, ListChecks,
-  PanelLeft, PanelTop,
+  PanelLeft, PanelTop, CircleUserRound,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 
@@ -32,10 +32,15 @@ const MODULES = [
 // horizontally on a narrow screen instead, the same way filter bars and
 // wide tables already do elsewhere in the app - no second slide-out
 // mechanism to build and keep in sync with the first.
-export default function AppShell({ activeModule, onNavigate, onSignOut, theme, toggleTheme, navLayout, toggleNavLayout, children }) {
-  const { memberships, firmId, setFirmId, firm, role, permissions } = useFirm()
+//
+// Sign Out lives in exactly one place regardless of layout - the header's
+// top-right corner - rather than moving to the bottom of the sidebar in
+// that layout and back for topbar. One fixed location, always findable.
+export default function AppShell({ activeModule, onNavigate, onSignOut, theme, toggleTheme, navLayout, toggleNavLayout, userEmail, children }) {
+  const { memberships, firmId, setFirmId, firm, role, memberName, permissions } = useFirm()
   const [navOpen, setNavOpen] = useState(false)
   const [firmMenuOpen, setFirmMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const visibleModules = role === 'Owner' ? MODULES : MODULES.filter((m) => permissions?.[m.key])
   const isTopbar = navLayout === 'topbar'
@@ -61,9 +66,6 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
               )
             })}
           </nav>
-          <button className="nav-item nav-item--logout" onClick={onSignOut}>
-            <LogOut size={16} /> <span>Sign out</span>
-          </button>
         </aside>
       )}
 
@@ -123,12 +125,26 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <span className="role-badge">{role}</span>
-            {isTopbar && (
-              <button className="theme-toggle" onClick={onSignOut} title="Sign out" aria-label="Sign out">
-                <LogOut size={16} />
+            <div style={{ position: 'relative' }}>
+              <button
+                className="theme-toggle"
+                onClick={() => setProfileOpen((v) => !v)}
+                title="Profile"
+                aria-label="Profile"
+              >
+                <CircleUserRound size={16} />
               </button>
-            )}
+              {profileOpen && (
+                <div className="mention-menu" style={{ left: 'auto', right: 0, padding: 12, minWidth: 220 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{memberName || 'Unnamed member'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--paper-dim)', marginBottom: 3 }}>Designation: {role}</div>
+                  <div style={{ fontSize: 12, color: 'var(--paper-dim)' }}>Mail ID: {userEmail || '—'}</div>
+                </div>
+              )}
+            </div>
+            <button className="theme-toggle" onClick={onSignOut} title="Sign out" aria-label="Sign out">
+              <LogOut size={16} />
+            </button>
           </div>
         </header>
 

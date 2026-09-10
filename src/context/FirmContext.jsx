@@ -24,6 +24,10 @@ export function FirmProvider({ memberships, refreshMemberships, children }) {
     setFirmId,
     firm: current?.firms ?? null,
     role: current?.role ?? null,
+    // This user's own display name for the selected firm, for the header's
+    // Profile dropdown (Name/Designation/Mail ID) - same firm_members row
+    // membershipId below already points to.
+    memberName: current?.full_name ?? null,
     permissions: current?.permissions ?? {},
     // This user's own firm_members row id for the selected firm - lets a
     // screen tell "my own membership row" apart from everyone else's (e.g.

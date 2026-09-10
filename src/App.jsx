@@ -153,7 +153,7 @@ function RoutedShell({ activeModule, setActiveModule, arapTab, setArapTab, userE
   }
 
   return (
-    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut} theme={theme} toggleTheme={toggleTheme} navLayout={navLayout} toggleNavLayout={toggleNavLayout}>
+    <AppShell activeModule={activeModule} onNavigate={goToModule} onSignOut={onSignOut} theme={theme} toggleTheme={toggleTheme} navLayout={navLayout} toggleNavLayout={toggleNavLayout} userEmail={userEmail}>
       {renderModule()}
     </AppShell>
   )

@@ -2239,7 +2239,45 @@ maintain, not two. This is purely a layout preference - it doesn't
 change which modules a person can see; that's still governed by role and
 Permissions exactly as before.
 
+## Sign Out fixed top-right; Profile dropdown; Users & Permissions layout
+
+No migration needed - mostly UI, plus one added select column (`full_name`)
+on the existing memberships query, no schema change.
+
+- **Sign Out now lives in exactly one place** - the header's top-right
+  corner - regardless of which nav layout is active. It no longer moves
+  to the bottom of the sidebar in sidebar mode; that separate spot is
+  gone.
+- **The plain "Owner"/"Accountant"/"Viewer" badge is now a Profile
+  button**, styled the same as the theme/layout toggles next to it.
+  Clicking it opens the same floating-menu style used everywhere else in
+  the app (Assign, Remind, @mention), showing Name, Designation (the
+  role, same value the badge used to show), and Mail ID. Needed two
+  small additions to get real data here: `full_name` added to the
+  `firm_members` select `useAuth.js` already runs (exposed as
+  `memberName` via `FirmContext`), and the signed-in user's email
+  (`userEmail`, already loaded elsewhere) threaded down into `AppShell`
+  for the first time.
+- **Users & Permissions: Firm Details and Invite a Teammate are now
+  side by side** (`grid-2`, the same responsive 2-column pattern used
+  elsewhere in the app - collapses back to one column on a narrow
+  screen) instead of two separate full-width cards stacked on top of
+  each other, using the horizontal space on a wider screen instead of
+  wasting it.
+
 ## Status
+
+- [x] **Sign Out fixed top-right; Profile dropdown; Permissions layout
+      (Sep 2026):** Sign Out now lives only in the header's top-right
+      corner regardless of nav layout - no longer moves to the sidebar's
+      bottom. The role badge became a Profile button opening a
+      floating-menu (same style as Assign/Remind/@mention) with Name,
+      Designation, and Mail ID - needed `full_name` added to the
+      `firm_members` select and `userEmail` threaded into `AppShell` for
+      the first time. Users & Permissions' Firm Details and Invite a
+      Teammate are now side by side instead of stacked full-width cards.
+      See "Sign Out fixed top-right; Profile dropdown; Users &
+      Permissions layout" above.
 
 - [x] **Sidebar/Topbar layout toggle (Sep 2026):** new icon toggle next
       to the theme switch lets you pick left-sidebar nav (original) or a
