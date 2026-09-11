@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, computeStatus, toISODate, getFiscalYearRange, formatDateDisplay } from '../lib/format'
-import { SectionHeader, StatCard, CardLinkHeader, AgingBar } from '../components/ui'
+import { SectionHeader, StatCard, CardLinkHeader, AgingBar, SkeletonRows } from '../components/ui'
 
 const AGE_BUCKETS = ['Current', '1–30 days', '31–60 days', '61–90 days', '90+ days']
 const CASH_FLOW_PERIODS = ['This Fiscal Year', 'Previous Fiscal Year', 'Last 12 Months']
@@ -143,7 +143,7 @@ export default function DashboardScreen({ onNavigate }) {
     return buildCashFlowSeries(data.bankTxns, cashFlowPeriod, data.totalCash)
   }, [data, cashFlowPeriod])
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
   if (!data) return null
 

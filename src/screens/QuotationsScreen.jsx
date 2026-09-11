@@ -7,7 +7,7 @@ import { downloadQuotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, sortRows } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker, SkeletonRows } from '../components/ui'
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined', 'expired', 'converted']
 const STATUS_PILL = {
@@ -257,7 +257,7 @@ export default function QuotationsScreen() {
     })
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

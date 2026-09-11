@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, statusForStorage, formatDateDisplay } from '../lib/format'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, SortableTh } from '../components/ui'
+import { SectionHeader, EmptyRow, SortableTh, SkeletonRows } from '../components/ui'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
@@ -233,7 +233,7 @@ export default function CashBankScreen() {
     })
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

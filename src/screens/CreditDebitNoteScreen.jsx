@@ -7,7 +7,7 @@ import { downloadNotePdf, downloadListPdf } from '../lib/pdf'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
+import { EmptyRow, SortableTh, Dropdown, DatePicker, SkeletonRows } from '../components/ui'
 
 // type: 'credit' (sales side - issued to a customer) or 'debit' (purchase
 // side - issued to a supplier).
@@ -276,7 +276,7 @@ export default function CreditDebitNoteScreen({ type }) {
     })
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

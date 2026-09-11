@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, formatDateDisplay } from '../lib/format'
-import { Dropdown, DatePicker } from '../components/ui'
+import { Dropdown, DatePicker, SkeletonRows } from '../components/ui'
 
 function emptyLine() { return { account_id: '', debit: '', credit: '', description: '' } }
 
@@ -117,7 +117,7 @@ export default function JournalEntriesScreen() {
     load()
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

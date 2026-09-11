@@ -123,6 +123,30 @@ export function EmptyRow({ colSpan, children }) {
   )
 }
 
+// Pulsing placeholder shapes standing in for "Loading…" text while a
+// screen's first fetch is in flight - rough approximation of what's
+// about to land (a handful of bars per row) so the layout doesn't jump
+// once real content replaces it. Two forms: SkeletonBlock for a single
+// shape (a stat card, a chart), SkeletonRows for a stack of table-row-
+// shaped placeholders.
+export function SkeletonBlock({ width = '100%', height = 14, style }) {
+  return <div className="skeleton-block" style={{ width, height, ...style }} />
+}
+
+export function SkeletonRows({ rows = 5, columns = 3 }) {
+  return (
+    <div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div className="skeleton-row" key={i}>
+          {Array.from({ length: columns }).map((_, j) => (
+            <SkeletonBlock key={j} width={j === 0 ? '30%' : `${70 / (columns - 1)}%`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Every dropdown in the app now goes through this one component (Sep 2026)
 // rather than a native <select> - opens the same context-menu-style
 // flyout (.mention-menu, shared with @mention/Assign/Remind) instead of

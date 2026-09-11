@@ -7,8 +7,9 @@ import { previewDocumentPdf, downloadListPdf, itemTaxFieldsFromRow } from '../li
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
+import { celebrate } from '../lib/celebrate'
 import { FilterBar, SORT_OPTIONS_DATE_AMOUNT, sortRows } from '../components/FilterControls'
-import { StatusPill, SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker } from '../components/ui'
+import { StatusPill, SectionHeader, EmptyRow, SortableTh, Dropdown, DatePicker, SkeletonRows } from '../components/ui'
 
 // Full list of statuses a record can ever show as (computed live, not stored).
 const ALL_STATUSES = ['Paid', 'Partial', 'Due today', 'Overdue'] // base status (Sent/Approved) added per-type below
@@ -461,6 +462,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     }
 
     setPayingId(null)
+    celebrate(`${row[numberField]} payment recorded!`)
     load()
   }
 
@@ -537,7 +539,7 @@ export default function InvoiceListScreen({ type, onNavigate }) {
     load()
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

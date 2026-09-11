@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, isResolved } from '../lib/format'
 import { PeriodSelector } from '../components/FilterControls'
-import { SectionHeader, StatCard } from '../components/ui'
+import { SectionHeader, StatCard, SkeletonRows } from '../components/ui'
 
 function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
 function monthLabel(d) { return d.toLocaleString('en-IN', { month: 'short', year: '2-digit' }) }
@@ -139,7 +139,7 @@ export default function CollectionsTrendScreen() {
   const totalKnown = trend.reduce((s, t) => s + t.knownDateCount, 0)
   const totalFullyPaid = trend.reduce((s, t) => s + t.fullyPaidCount, 0)
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

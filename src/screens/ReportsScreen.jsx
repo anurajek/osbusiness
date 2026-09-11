@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getFiscalYearRange } from '../lib/format'
-import { DatePicker } from '../components/ui'
+import { DatePicker, SkeletonRows } from '../components/ui'
 
 const REPORTS = ['Trial Balance', 'Profit & Loss', 'Balance Sheet']
 
@@ -106,7 +106,7 @@ export default function ReportsScreen() {
     return totals
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

@@ -170,7 +170,9 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
           </nav>
         )}
 
-        <main className="main-content">{children}</main>
+        <main className="main-content">
+          <div key={activeModule} className="page-transition">{children}</div>
+        </main>
       </div>
     </div>
   )

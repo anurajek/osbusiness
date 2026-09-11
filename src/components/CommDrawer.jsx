@@ -2,6 +2,7 @@ import { useState, useRef, Fragment } from 'react'
 import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate, formatDateDisplay } from '../lib/format'
 import { StatusPill, Dropdown, DatePicker } from './ui'
+import { celebrate } from '../lib/celebrate'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
 // 'No response' removed (Sep 2026) - a follow-up that genuinely got no
@@ -367,6 +368,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
     setResolving(false)
     setResolvingId(null)
     setResolveNote('')
+    celebrate('Task done!')
   }
 
   return (

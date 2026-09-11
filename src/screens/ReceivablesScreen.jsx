@@ -4,11 +4,12 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, isResolved, toISODate, isPlausibleDate, MANUAL_STATUSES, formatDateDisplay } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { StatCard, EmptyRow, SortableTh, Dropdown } from '../components/ui'
+import { StatCard, EmptyRow, SortableTh, Dropdown, SkeletonRows } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
+import { celebrate } from '../lib/celebrate'
 
 // "Paid" sits alongside the open statuses in the same dropdown now, rather
 // than living in a separate report - selecting it just changes what this
@@ -321,6 +322,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     }
 
     await loadAll()
+    celebrate(`${doc.number} payment recorded!`)
     return { ok: true }
   }
 
@@ -461,7 +463,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
     })
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

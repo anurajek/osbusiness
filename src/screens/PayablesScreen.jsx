@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, getPeriodRange, computeStatus, toISODate, isResolved } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { StatCard, StatusPill, EmptyRow, SortableTh } from '../components/ui'
+import { StatCard, StatusPill, EmptyRow, SortableTh, SkeletonRows } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf } from '../lib/pdf'
@@ -217,7 +217,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
     })
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

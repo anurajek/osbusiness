@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { SectionHeader, Dropdown } from '../components/ui'
+import { SectionHeader, Dropdown, SkeletonRows } from '../components/ui'
+import { celebrate } from '../lib/celebrate'
 
 // Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
 // Notes, and Ledger are hidden from this toggle grid (and from the nav in
@@ -247,6 +248,7 @@ export default function PermissionsScreen({ onChangePassword }) {
     setInviteName('')
     setInviteEmail('')
     setInviteRole('Accountant')
+    celebrate(`${inviteEmail.trim() || 'Teammate'} invited!`)
     load()
   }
 
@@ -299,7 +301,7 @@ export default function PermissionsScreen({ onChangePassword }) {
     setMembers((prev) => prev.filter((m) => m.id !== member.id))
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

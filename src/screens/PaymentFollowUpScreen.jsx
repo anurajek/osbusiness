@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES, formatDateDisplay } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh } from '../components/ui'
+import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh, SkeletonRows } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf, previewDocumentPdf, itemTaxFieldsFromRow } from '../lib/pdf'
 import { downloadListDocx } from '../lib/exportDocx'
 import PdfPreviewModal from '../components/PdfPreviewModal'
+import { celebrate } from '../lib/celebrate'
 
 const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due notice', overdue: 'Overdue notice' }
 
@@ -681,6 +682,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
     }
 
     setPayingRowId(null)
+    celebrate(`${row[numberField]} marked ${payTargetStatus}!`)
     load()
   }
 
@@ -866,7 +868,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   const handleExportPdf = () => downloadListPdf({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRowsWithTotal })
   const handleExportWord = () => downloadListDocx({ title: `${docLabel} Follow-up`, firm, filename: `${docType}-followup`, columns: exportColumns.map((c) => ({ label: c })), rows: exportRowsWithTotal })
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

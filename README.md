@@ -2380,7 +2380,46 @@ screens that use it (Invoice/PI Follow-up, Receivables, Payables), since
 the drawer didn't previously know which firm member was the one looking
 at it.
 
+## Motion pass - micro-interactions, page transitions, celebrations, skeletons
+
+No migration needed - client-side only.
+
+Adds movement across the app without touching the existing theme - every
+color used is one of the existing CSS variables (--brass/--teal/--brick/
+--panel/etc.), nothing about the palette, fonts, or layout changed.
+
+- **Micro-interactions**: buttons, nav items, links, dropdowns, table
+  rows, cards, and date/select inputs all got hover/press transitions
+  (a slight lift, scale-down on click, smoother color fades) instead of
+  changing instantly.
+- **Page transitions**: switching modules (Dashboard -> Sales -> etc.)
+  now fades/slides the new screen in (`.page-transition` in AppShell.jsx,
+  keyed on the active module so it retriggers on every switch) instead
+  of hard-cutting.
+- **Completion celebrations**: a brief confetti burst + toast
+  (`src/lib/celebrate.js` - plain DOM nodes, no animation library, built
+  from the theme's own colors) on the moments that actually mark
+  something done: recording a payment (Invoice/PI Follow-up, Sales/
+  Purchases, Receivables' comm drawer), resolving a task (Assigned
+  Tasks' Mark done/Unassign me, the comm drawer's Mark done), and
+  successfully inviting a teammate. Respects `prefers-reduced-motion` -
+  skips the confetti (keeps the toast) for anyone with that
+  accessibility setting on.
+- **Loading polish**: every screen's plain "Loading…" text replaced
+  with `SkeletonRows` - pulsing placeholder bars roughly shaped like the
+  table about to load, so the layout doesn't jump once real data
+  arrives (new `SkeletonBlock`/`SkeletonRows` components in `ui.jsx`).
+
 ## Status
+
+- [x] **Motion pass across the app (Sep 2026):** micro-interactions on
+      buttons/nav/rows/dropdowns, fade/slide page transitions on module
+      switch, confetti+toast celebrations on payment recorded/task done/
+      teammate invited (`src/lib/celebrate.js`, no library, theme's own
+      colors, respects prefers-reduced-motion), and skeleton loaders
+      replacing every screen's plain "Loading…" text. See "Motion pass -
+      micro-interactions, page transitions, celebrations, skeletons"
+      above.
 
 - [x] **Update form defaults to assigning yourself (Sep 2026):** "Assign
       this reminder as a task to" always started empty, meaning an

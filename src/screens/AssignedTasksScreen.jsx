@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { toISODate, isResolved, formatDateDisplay } from '../lib/format'
-import { SectionHeader } from '../components/ui'
+import { SectionHeader, SkeletonRows } from '../components/ui'
+import { celebrate } from '../lib/celebrate'
 
 // Pending (no remind_on set at all) is its own bucket rather than folded
 // into Upcoming/Overdue - a task can be assigned without a specific date
@@ -134,6 +135,7 @@ export default function AssignedTasksScreen({ onNavigate }) {
       : await supabase.from(task.table).update({ reminder_done: true, resolution_note: resolveNote.trim() || null }).eq('id', task.id)
     setResolving(false)
     if (err) { alert(`Couldn't resolve that task: ${err.message}`); return }
+    celebrate(isDocumentTask(task) ? 'Unassigned' : 'Task done!')
     setBuckets((b) => {
       if (!b) return b
       const next = {}
@@ -144,7 +146,7 @@ export default function AssignedTasksScreen({ onNavigate }) {
     setResolveNote('')
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
   if (!buckets) return null
 

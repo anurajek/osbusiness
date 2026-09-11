@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, computeStatus, statusForStorage, formatDateDisplay } from '../lib/format'
 import { parseCsvFile, guessMapping, parseFlexibleDate, parseAmount } from '../lib/importParsing'
-import { SectionHeader, Dropdown } from '../components/ui'
+import { SectionHeader, Dropdown, SkeletonRows } from '../components/ui'
 
 const PARTY_FIELDS = [
   { key: 'name', label: 'Name', required: true },
@@ -621,7 +621,7 @@ export default function ImportScreen() {
       <div className="card">
         <div className="section-header" style={{ marginBottom: 8 }}><h2>Recent Imports</h2></div>
         {loadingBatches ? (
-          <div className="empty-state">Loading…</div>
+          <SkeletonRows rows={3} columns={5} />
         ) : (
           <div className="table-scroll">
             <table className="ledger-table">

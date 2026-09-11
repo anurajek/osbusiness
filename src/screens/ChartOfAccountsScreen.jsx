@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
-import { Dropdown } from '../components/ui'
+import { Dropdown, SkeletonRows } from '../components/ui'
 
 const TYPES = [
   { key: 'asset', label: 'Assets' },
@@ -82,7 +82,7 @@ export default function ChartOfAccountsScreen() {
     load()
   }
 
-  if (loading) return <div className="empty-state">Loading…</div>
+  if (loading) return <SkeletonRows rows={6} columns={4} />
   if (error) return <div className="empty-state">Couldn't load this data: {error}</div>
 
   return (

@@ -16,17 +16,40 @@ export default function NotificationBell({ onNavigate }) {
 
   const load = async () => {
     if (!firmId) return
-    const [{ data: notifs }, { data: act }] = await Promise.all([
+    const [{ data: notifs, error: notifErr }, { data: act, error: actErr }] = await Promise.all([
       membershipId
         ? supabase.from('notifications').select('id, message, party_kind, party_id, read, created_at').eq('member_id', membershipId).order('created_at', { ascending: false }).limit(20)
         : Promise.resolve({ data: [] }),
       supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(10),
     ])
+    // Errors here were previously silent - `data` alone would just come
+    // back null and get treated the same as "nothing yet," with no way to
+    // tell "genuinely no notifications" apart from "the query itself
+    // failed" (e.g. migration_notifications.sql was never run, so the
+    // table doesn't exist). Logging it at least makes that visible in the
+    // browser console instead of just looking like an empty inbox.
+    if (notifErr) console.error('Failed to load notifications:', notifErr.message)
+    if (actErr) console.error('Failed to load activity log:', actErr.message)
     setNotifications(notifs ?? [])
     setActivity(act ?? [])
   }
 
   useEffect(() => { load() }, [firmId, membershipId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The badge/dropdown only reflected whatever was true at the moment the
+  // page first loaded - if you were already logged in when someone
+  // assigned you something, nothing showed up until a full page reload.
+  // Refetching every time the dropdown opens means it's never more than
+  // "as of your last click" stale, without needing a poll or a realtime
+  // subscription running in the background the whole time you're on the
+  // page.
+  const toggleOpen = () => {
+    setOpen((v) => {
+      const next = !v
+      if (next) load()
+      return next
+    })
+  }
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -55,7 +78,7 @@ export default function NotificationBell({ onNavigate }) {
     <div style={{ position: 'relative' }}>
       <button
         className="theme-toggle" style={{ position: 'relative' }}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         title="Notifications" aria-label="Notifications"
       >
         <Bell size={16} />
