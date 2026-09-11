@@ -2448,7 +2448,43 @@ misfire the moment someone clicked into the nested calendar (a portalled
 child isn't a DOM descendant of its parent panel, even though it's a
 React one).
 
+## Fixed a real regression from the last update - dropdowns invisible behind the drawer/modal
+
+No migration needed - client-side only.
+
+The floating-menu rewrite from last round shipped a real bug: the
+portaled menu's z-index (20) was *lower* than the drawer/modal overlays
+it can open from within (`.drawer-backdrop` at 40, `.modal-backdrop` at
+50) - so any dropdown or the calendar, opened from inside the Update
+drawer specifically, rendered behind that drawer's own overlay. Visually
+invisible, and unclickable, even though the menu was technically present
+in the page. That's what broke the Update section entirely.
+
+Fixed by raising `.mention-menu` to z-index 60 - now always above both
+overlay types, and everything else it was already above. Also hardened
+one fragile spot found while tracking this down: Invoice/PI Follow-up's
+per-row Assign… flyout was passing FloatingPanel a brand-new `{ current:
+... }` wrapper object on every render instead of a stable ref, which
+defeats the positioning hook's memoization - replaced with one real,
+stable ref-shaped object per row (a getter that always reads the live
+DOM node, but keeps the same identity across renders) so it can't
+silently end up measuring a stale or empty reference.
+
+Apologies for shipping this with the last round without catching it
+first - z-index conflicts with modals/drawers specifically weren't part
+of what I tested before delivering.
+
 ## Status
+
+- [x] **Fixed regression: dropdowns invisible behind drawer/modal (Sep
+      2026):** last round's floating-menu rewrite gave `.mention-menu`
+      z-index 20 - lower than `.drawer-backdrop` (40) and `.modal-
+      backdrop` (50), so any dropdown/calendar opened from inside the
+      Update drawer rendered behind its own overlay, invisible and
+      unclickable. Raised to z-index 60. Also hardened a fragile inline
+      ref-wrapper in Invoice/PI Follow-up's Assign… flyout to a stable
+      one. See "Fixed a real regression from the last update - dropdowns
+      invisible behind the drawer/modal" above.
 
 - [x] **Fixed: dropdown menus clipped inside scrollable containers (Sep
       2026):** every dropdown opened `position: absolute` inside its own

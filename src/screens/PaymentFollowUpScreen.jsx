@@ -110,6 +110,21 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // to - a plain object keyed by row id rather than a single ref, since
   // every row's Actions cell needs its own independent anchor point.
   const actionsCellRefs = useRef({})
+  // FloatingPanel needs a stable ref *object* to anchor to, not a fresh
+  // object built inline on every render ({ current: actionsCellRefs.
+  // current[r.id] } would be a brand-new identity each time, which
+  // defeats useFloatingPosition's memoization and can leave it measuring
+  // a stale/undefined element) - this caches one real ref-shaped object
+  // per row id, whose `current` getter always reads live from the map
+  // above, so the object identity itself never changes across renders
+  // while the value it points to always stays current.
+  const actionsCellRefObjs = useRef({})
+  const getActionsCellRef = (id) => {
+    if (!actionsCellRefObjs.current[id]) {
+      actionsCellRefObjs.current[id] = { get current() { return actionsCellRefs.current[id] } }
+    }
+    return actionsCellRefObjs.current[id]
+  }
   const [assigningIds, setAssigningIds] = useState([])
   const [assigningBusy, setAssigningBusy] = useState(false)
 
@@ -1045,7 +1060,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           menuAlign="right"
                         />
                         <FloatingPanel
-                          triggerRef={{ current: actionsCellRefs.current[r.id] }} open={assigningRowId === r.id}
+                          triggerRef={getActionsCellRef(r.id)} open={assigningRowId === r.id}
                           onClose={() => setAssigningRowId(null)} align="right"
                           menuHeight={Math.min(members.length * 34 + 90, 320)}
                         >
