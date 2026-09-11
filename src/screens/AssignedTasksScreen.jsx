@@ -43,9 +43,9 @@ export default function AssignedTasksScreen({ onNavigate }) {
       { data: arTasks, error: arErr },
       { data: apTasks, error: apErr },
     ] = await Promise.all([
-      supabase.from('sales_invoices').select('id, customer_id, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
+      supabase.from('sales_invoices').select('id, customer_id, invoice_no, amount, paid_amount, is_cancelled, manual_status, assigned_to_ids').eq('firm_id', firmId),
       supabase.from('purchase_bills').select('id, supplier_id, amount, paid_amount, is_cancelled').eq('firm_id', firmId),
-      supabase.from('proforma_invoices').select('id, customer_id, amount, paid_amount, is_cancelled, manual_status').eq('firm_id', firmId),
+      supabase.from('proforma_invoices').select('id, customer_id, pi_no, amount, paid_amount, is_cancelled, manual_status, assigned_to_ids').eq('firm_id', firmId),
       supabase.from('customers').select('id, name').eq('firm_id', firmId),
       supabase.from('suppliers').select('id, name').eq('firm_id', firmId),
       supabase.from('firm_members').select('id, full_name').eq('firm_id', firmId),
@@ -82,10 +82,24 @@ export default function AssignedTasksScreen({ onNavigate }) {
     const allTasks = [
       ...(arTasks ?? [])
         .filter((r) => openCustomerIds.has(r.customer_id))
-        .map((r) => ({ id: r.id, table: 'ar_comms', kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
+        .map((r) => ({ id: r.id, table: 'ar_comms', kind: 'ar', partyId: r.customer_id, partyName: customerName(r.customer_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids), assigneeIds: r.assigned_to_ids ?? [] })),
       ...(apTasks ?? [])
         .filter((r) => openSupplierIds.has(r.supplier_id))
-        .map((r) => ({ id: r.id, table: 'supplier_comms', kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids) })),
+        .map((r) => ({ id: r.id, table: 'supplier_comms', kind: 'ap', partyId: r.supplier_id, partyName: supplierName(r.supplier_id), note: r.note, remindOn: r.remind_on, remindTime: r.remind_time, assignees: assigneeNames(r.assigned_to_ids), assigneeIds: r.assigned_to_ids ?? [] })),
+      // Document-level assignment (Add PI, or the Actions -> Assign… action
+      // on Invoice/PI Follow-up) sets assigned_to_ids directly on the
+      // invoice/PI itself - no comm-log entry, no note, no remind_on. That
+      // used to mean it was invisible here entirely, for anyone. It never
+      // has a date, so it belongs in Pending - "assigned, no date given" is
+      // exactly what that bucket already means for a comm-log task with no
+      // remind_on; this is the same situation from the other assignment
+      // path.
+      ...(membershipId ? (invoices ?? [])
+        .filter((i) => !isResolved(i) && (i.assigned_to_ids ?? []).includes(membershipId))
+        .map((i) => ({ id: i.id, table: 'sales_invoices', kind: 'ar', partyId: i.customer_id, partyName: customerName(i.customer_id), note: `Assigned to Invoice ${i.invoice_no}`, remindOn: null, remindTime: null, assignees: assigneeNames(i.assigned_to_ids), assigneeIds: i.assigned_to_ids ?? [] })) : []),
+      ...(membershipId ? (pis ?? [])
+        .filter((p) => !isResolved(p) && (p.assigned_to_ids ?? []).includes(membershipId))
+        .map((p) => ({ id: p.id, table: 'proforma_invoices', kind: 'ar', partyId: p.customer_id, partyName: customerName(p.customer_id), note: `Assigned to PI ${p.pi_no}`, remindOn: null, remindTime: null, assignees: assigneeNames(p.assigned_to_ids), assigneeIds: p.assigned_to_ids ?? [] })) : []),
     ]
 
     const grouped = { overdue: [], today: [], pending: [], upcoming: [] }
@@ -106,9 +120,18 @@ export default function AssignedTasksScreen({ onNavigate }) {
 
   useEffect(() => { load() }, [firmId, membershipId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isDocumentTask = (task) => task.table === 'sales_invoices' || task.table === 'proforma_invoices'
+
   const resolveTask = async (task) => {
     setResolving(true)
-    const { error: err } = await supabase.from(task.table).update({ reminder_done: true, resolution_note: resolveNote.trim() || null }).eq('id', task.id)
+    // Document-level assignment has no reminder_done/resolution_note
+    // concept to resolve (there's no comm-log row here at all) - "done"
+    // for this kind of task means removing yourself from that document's
+    // assigned_to_ids instead, the same as unchecking yourself in the
+    // Assign… action.
+    const { error: err } = isDocumentTask(task)
+      ? await supabase.from(task.table).update({ assigned_to_ids: task.assigneeIds.filter((id) => id !== membershipId) }).eq('id', task.id)
+      : await supabase.from(task.table).update({ reminder_done: true, resolution_note: resolveNote.trim() || null }).eq('id', task.id)
     setResolving(false)
     if (err) { alert(`Couldn't resolve that task: ${err.message}`); return }
     setBuckets((b) => {
@@ -167,10 +190,15 @@ export default function AssignedTasksScreen({ onNavigate }) {
                       <span className="activity-when">{formatDateDisplay(task.remindOn)}{task.remindTime ? `, ${task.remindTime.slice(0, 5)}` : ''}</span>
                     )}
                     {resolvingId !== task.id && (
-                      <button type="button" className="link-btn" onClick={() => setResolvingId(task.id)}>Mark done</button>
+                      <button
+                        type="button" className="link-btn"
+                        onClick={() => (isDocumentTask(task) ? resolveTask(task) : setResolvingId(task.id))}
+                      >
+                        {isDocumentTask(task) ? 'Unassign me' : 'Mark done'}
+                      </button>
                     )}
                   </div>
-                  {resolvingId === task.id && (
+                  {resolvingId === task.id && !isDocumentTask(task) && (
                     <div className="resolve-form">
                       <textarea
                         className="textarea" rows={2}

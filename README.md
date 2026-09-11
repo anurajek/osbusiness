@@ -2338,7 +2338,39 @@ comm-log feature was built for. Assign stays exactly as it was -
 genuinely optional, since not every reminder needs a specific person
 attached to it.
 
+## Fixed: document-level assignment invisible on Assigned Tasks
+
+No migration needed - UI/logic-only.
+
+Real cause of "self-assigned tasks aren't showing": Assigned Tasks only
+ever queried `ar_comms`/`supplier_comms` (comm-log tasks - a note plus a
+reminder date). Document-level assignment (Add PI, or the Actions ->
+Assign… action on Invoice/PI Follow-up) sets `assigned_to_ids` directly
+on the invoice/PI itself - no comm-log entry, no note, no remind_on at
+all - so it was invisible on this screen entirely, for anyone, not
+specifically for self-assignment. It just happened to surface while
+testing self-assign, since that's most likely which path was being
+tested.
+
+Now pulled in as its own source, alongside comm-log tasks - and since
+this kind of assignment never has a date, it lands in **Pending Tasks**,
+exactly the bucket that already exists for "assigned, no date given."
+Since there's no `reminder_done`/`resolution_note` concept at the
+document level (no comm-log row to resolve), "Mark done" becomes
+"Unassign me" for these specifically - removes you from that document's
+`assigned_to_ids` directly, no note prompt (there's nothing to attach a
+note to).
+
 ## Status
+
+- [x] **Fixed: document-level assignment invisible on Assigned Tasks
+      (Sep 2026):** Add PI/Assign… assignment (no comm-log entry, no
+      date) was never queried by this screen at all - not a self-assign
+      bug specifically, just never included. Now shows up in Pending
+      Tasks (the existing "no date given" bucket); "Mark done" becomes
+      "Unassign me" for these since there's no comm-log row to resolve.
+      See "Fixed: document-level assignment invisible on Assigned Tasks"
+      above.
 
 - [x] **"Remind me on" made mandatory (Sep 2026):** logging an update now
       requires a reminder date - saving without one is blocked with a
