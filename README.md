@@ -2410,7 +2410,57 @@ color used is one of the existing CSS variables (--brass/--teal/--brick/
   table about to load, so the layout doesn't jump once real data
   arrives (new `SkeletonBlock`/`SkeletonRows` components in `ui.jsx`).
 
+## Fixed: dropdown menus clipped inside scrollable containers
+
+No migration needed - client-side only.
+
+Real cause: every dropdown/flyout in the app opened as `position:
+absolute` inside its own trigger's wrapper - fine almost everywhere, but
+a trigger that lives inside a scrollable table (Invoice/PI Follow-up's
+Actions menu, sitting near the bottom of a short list) had its menu
+clipped by that table's own scroll boundary. Not a matter of screen
+space - the menu was being cut off by the table container, not the
+browser window.
+
+Built a proper fix and applied it everywhere, not just the one spot:
+
+- **`useFloatingPosition`** (new hook) measures a trigger's real,
+  current position and decides whether to open the menu below or above
+  it based on actual available space - opens upward automatically when
+  there isn't room below and there's more room above, the same behavior
+  a spreadsheet's cell-comment popup or a browser's native `<select>`
+  already has.
+- **`FloatingPanel`** (new component) renders the menu into a React
+  portal straight to `document.body` instead of inline - so it escapes
+  *any* scrolling ancestor's clipping entirely, not just the one table
+  that happened to surface the bug.
+
+Migrated every dropdown/flyout in the app to this: `Dropdown` and
+`DatePicker` (covers the large majority of menus app-wide on their own,
+since virtually everything goes through these two), `PeriodField`, the
+comm-log's Remind/Assign-to-task flyouts, Invoice/PI Follow-up's
+document-level Assign… flyout, and the header's Firm-switcher, Profile,
+and Notifications dropdowns. Also picked up click-outside-to-close along
+the way for most of these (they didn't have it before) - the one
+exception is `PeriodField`, left as click-to-toggle only, since it nests
+two DatePickers of its own and an outside-click check there would
+misfire the moment someone clicked into the nested calendar (a portalled
+child isn't a DOM descendant of its parent panel, even though it's a
+React one).
+
 ## Status
+
+- [x] **Fixed: dropdown menus clipped inside scrollable containers (Sep
+      2026):** every dropdown opened `position: absolute` inside its own
+      trigger, so one anchored inside a scrollable table got clipped by
+      that table's own scroll boundary. New `useFloatingPosition` hook +
+      `FloatingPanel` component (portals to `document.body`, flips to
+      open upward when there's no room below) fixes this at the root and
+      is now used by every dropdown/flyout in the app - Dropdown,
+      DatePicker, PeriodField, comm-log Remind/Assign, Invoice/PI
+      Follow-up's Assign…, and the header's Firm/Profile/Notifications
+      menus. See "Fixed: dropdown menus clipped inside scrollable
+      containers" above.
 
 - [x] **Motion pass across the app (Sep 2026):** micro-interactions on
       buttons/nav/rows/dropdowns, fade/slide page transitions on module

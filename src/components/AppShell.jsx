@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, Landmark, TrendingUp,
   ShieldCheck, LogOut, ChevronDown, Menu, X, Building2, UploadCloud, Sun, Moon, ListChecks,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
 import NotificationBell from './NotificationBell'
+import { FloatingPanel } from './ui'
 
 // Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
 // Notes, and the General Ledger are deliberately hidden from nav, not
@@ -42,6 +43,8 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
   const [navOpen, setNavOpen] = useState(false)
   const [firmMenuOpen, setFirmMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const firmTriggerRef = useRef(null)
+  const profileTriggerRef = useRef(null)
 
   // Same "respect the Owner's own stored permissions, but permissions
   // itself is never actually hideable" reasoning as App.jsx's routing
@@ -88,28 +91,28 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
           )}
 
           <div style={{ position: 'relative' }}>
-            <button className="topbar__firm" onClick={() => setFirmMenuOpen((v) => !v)}>
+            <button ref={firmTriggerRef} className="topbar__firm" onClick={() => setFirmMenuOpen((v) => !v)}>
               <Building2 size={15} />
               <span>{firm?.name ?? 'Select firm'}</span>
               {firm?.gstin && <span className="topbar__gstin">{firm.gstin}</span>}
               {memberships.length > 1 && <ChevronDown size={14} />}
             </button>
-            {firmMenuOpen && memberships.length > 1 && (
-              <div
-                className="card"
-                style={{ position: 'absolute', top: '110%', left: 0, zIndex: 30, minWidth: 220, padding: 6 }}
-              >
-                {memberships.map((m) => (
-                  <button
-                    key={m.firm_id}
-                    className={`nav-item ${m.firm_id === firmId ? 'nav-item--active' : ''}`}
-                    onClick={() => { setFirmId(m.firm_id); setFirmMenuOpen(false) }}
-                  >
-                    <Building2 size={14} /> <span>{m.firms?.name ?? m.firm_id}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <FloatingPanel
+              triggerRef={firmTriggerRef} open={firmMenuOpen && memberships.length > 1}
+              onClose={() => setFirmMenuOpen(false)} className="card"
+              menuWidth={220} menuHeight={Math.min(memberships.length * 38 + 12, 280)}
+              style={{ padding: 6 }}
+            >
+              {memberships.map((m) => (
+                <button
+                  key={m.firm_id}
+                  className={`nav-item ${m.firm_id === firmId ? 'nav-item--active' : ''}`}
+                  onClick={() => { setFirmId(m.firm_id); setFirmMenuOpen(false) }}
+                >
+                  <Building2 size={14} /> <span>{m.firms?.name ?? m.firm_id}</span>
+                </button>
+              ))}
+            </FloatingPanel>
           </div>
 
           <div className="topbar__user">
@@ -132,6 +135,7 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
             <NotificationBell onNavigate={onNavigate} />
             <div style={{ position: 'relative' }}>
               <button
+                ref={profileTriggerRef}
                 className="theme-toggle"
                 onClick={() => setProfileOpen((v) => !v)}
                 title="Profile"
@@ -139,13 +143,14 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
               >
                 <CircleUserRound size={16} />
               </button>
-              {profileOpen && (
-                <div className="mention-menu" style={{ left: 'auto', right: 0, padding: 12, minWidth: 220 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{memberName || 'Unnamed member'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--paper-dim)', marginBottom: 3 }}>Designation: {role}</div>
-                  <div style={{ fontSize: 12, color: 'var(--paper-dim)' }}>Mail ID: {userEmail || '—'}</div>
-                </div>
-              )}
+              <FloatingPanel
+                triggerRef={profileTriggerRef} open={profileOpen} onClose={() => setProfileOpen(false)}
+                align="right" menuWidth={220} menuHeight={110} style={{ padding: 12 }}
+              >
+                <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{memberName || 'Unnamed member'}</div>
+                <div style={{ fontSize: 12, color: 'var(--paper-dim)', marginBottom: 3 }}>Designation: {role}</div>
+                <div style={{ fontSize: 12, color: 'var(--paper-dim)' }}>Mail ID: {userEmail || '—'}</div>
+              </FloatingPanel>
             </div>
             <button className="theme-toggle" onClick={onSignOut} title="Sign out" aria-label="Sign out">
               <LogOut size={16} />

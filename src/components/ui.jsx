@@ -1,6 +1,56 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronRight, ChevronDown, ChevronLeft, Check, CalendarDays } from 'lucide-react'
 import { inr, toISODate, formatDateDisplay } from '../lib/format'
+import { useFloatingPosition } from '../hooks/useFloatingPosition'
+
+// Portal-based replacement for a position:absolute flyout - renders into
+// document.body instead of inline, so it's never clipped by a scrollable
+// ancestor (a table's own overflow box, a card, anything), and opens
+// upward automatically when there's no room below (see
+// useFloatingPosition.js for the full reasoning). Every dropdown/menu in
+// the app goes through this now: Dropdown and DatePicker below, plus the
+// bespoke Assign/Remind/@mention flyouts and the header's Profile/Firm/
+// Notification menus, wherever they render a .mention-menu.
+//
+// triggerRef: ref on the element the menu is anchored to (measured for
+// position). open: whether to render at all. onClose: optional, called
+// on outside click/Escape - pass it to get click-outside-to-close;
+// omit it to keep a consumer's existing toggle-only behavior unchanged.
+export function FloatingPanel({ triggerRef, open, onClose, children, className = 'mention-menu', menuWidth = 220, menuHeight = 260, align = 'left', style }) {
+  const panelRef = useRef(null)
+  const coords = useFloatingPosition(triggerRef, open, { menuWidth, menuHeight, align })
+
+  useEffect(() => {
+    if (!open || !onClose) return undefined
+    const handlePointerDown = (e) => {
+      if (panelRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return
+      onClose()
+    }
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open, onClose, triggerRef])
+
+  if (!open || !coords) return null
+  return createPortal(
+    <div
+      ref={panelRef}
+      className={className}
+      style={{
+        position: 'fixed', left: coords.left, top: coords.top, bottom: coords.bottom,
+        width: coords.width, maxHeight: coords.maxHeight, minWidth: 0, ...style,
+      }}
+    >
+      {children}
+    </div>,
+    document.body
+  )
+}
 
 export function Stamp({ ok }) {
   return (
@@ -170,6 +220,7 @@ export function SkeletonRows({ rows = 5, columns = 3 }) {
 export function Dropdown({ value, options, onChange, placeholder = 'Select…', className = 'select select--sm', disabled = false, menuAlign = 'left', searchable = false, style }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const triggerRef = useRef(null)
   const normalized = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o))
   const current = normalized.find((o) => o.value === value)
   const label = current ? current.label : placeholder
@@ -190,6 +241,7 @@ export function Dropdown({ value, options, onChange, placeholder = 'Select…', 
   return (
     <div className={extraClasses || undefined} style={{ position: 'relative', flex: className.includes('select--sm') ? 1 : undefined, ...style }}>
       <button
+        ref={triggerRef}
         type="button" className={className} disabled={disabled}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: disabled ? 'default' : 'pointer', overflow: 'hidden' }}
         onClick={toggle}
@@ -197,39 +249,33 @@ export function Dropdown({ value, options, onChange, placeholder = 'Select…', 
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
-      {open && (
-        <div
-          className="mention-menu"
-          style={{
-            ...(menuAlign === 'right' ? { left: 'auto', right: 0 } : {}),
-            minWidth: '100%',
-            ...(searchable ? { maxHeight: 'none', overflow: 'visible' } : {}),
-          }}
-        >
-          {searchable && (
-            <input
-              type="text" className="text-input" autoFocus
-              style={{ marginBottom: 4, fontSize: 12.5, padding: '6px 8px' }}
-              placeholder="Type to search…" value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          )}
-          <div style={searchable ? { maxHeight: 220, overflowY: 'auto' } : undefined}>
-            {searchable && filtered.length === 0 && <p className="login-footnote" style={{ padding: '6px 8px' }}>No matches.</p>}
-            {filtered.map((o) => (
-              <button
-                type="button" key={o.value} className="mention-menu__item" disabled={o.disabled}
-                style={o.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
-                onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false) }}
-              >
-                <span className="mention-menu__item-icon">{o.value === value && <Check size={13} />}</span>
-                {o.label}
-              </button>
-            ))}
-          </div>
+      <FloatingPanel
+        triggerRef={triggerRef} open={open} onClose={() => setOpen(false)}
+        align={menuAlign} menuHeight={searchable ? 280 : Math.min(normalized.length * 32 + 12, 260)}
+      >
+        {searchable && (
+          <input
+            type="text" className="text-input" autoFocus
+            style={{ marginBottom: 4, fontSize: 12.5, padding: '6px 8px' }}
+            placeholder="Type to search…" value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        <div style={searchable ? { maxHeight: 220, overflowY: 'auto' } : undefined}>
+          {searchable && filtered.length === 0 && <p className="login-footnote" style={{ padding: '6px 8px' }}>No matches.</p>}
+          {filtered.map((o) => (
+            <button
+              type="button" key={o.value} className="mention-menu__item" disabled={o.disabled}
+              style={o.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
+              onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false) }}
+            >
+              <span className="mention-menu__item-icon">{o.value === value && <Check size={13} />}</span>
+              {o.label}
+            </button>
+          ))}
         </div>
-      )}
+      </FloatingPanel>
     </div>
   )
 }
@@ -251,6 +297,7 @@ const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 // classes the native inputs already used across the app.
 export function DatePicker({ value, onChange, className = 'date-input', placeholder = 'dd-mm-yyyy', disabled = false, allowClear = false, menuAlign = 'left', title, style }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const todayISO = toISODate(today)
   const parsed = value ? new Date(value + 'T00:00:00') : today
@@ -278,6 +325,7 @@ export function DatePicker({ value, onChange, className = 'date-input', placehol
   return (
     <div style={{ position: 'relative', display: 'inline-block', width: className.includes('text-input') ? '100%' : undefined, ...style }}>
       <button
+        ref={triggerRef}
         type="button" className={className} disabled={disabled} title={title}
         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, cursor: disabled ? 'default' : 'pointer' }}
         onClick={openCalendar}
@@ -285,44 +333,46 @@ export function DatePicker({ value, onChange, className = 'date-input', placehol
         <CalendarDays size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'inherit' : 'var(--paper-dim)' }}>{value ? formatDateDisplay(value) : placeholder}</span>
       </button>
-      {open && (
-        <div className="mention-menu" style={menuAlign === 'right' ? { left: 'auto', right: 0, padding: 8, minWidth: 240, maxWidth: 260 } : { padding: 8, minWidth: 240, maxWidth: 260 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <button type="button" className="link-btn" style={{ padding: 4 }} onClick={goPrevMonth}><ChevronLeft size={14} /></button>
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{monthLabel}</span>
-            <button type="button" className="link-btn" style={{ padding: 4 }} onClick={goNextMonth}><ChevronRight size={14} /></button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, fontSize: 10.5, textAlign: 'center', color: 'var(--paper-dim)', marginBottom: 4 }}>
-            {WEEKDAY_LABELS.map((d, i) => <span key={i}>{d}</span>)}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
-            {cells.map((day, i) => {
-              if (day === null) return <span key={i} />
-              const iso = toISODate(new Date(viewYear, viewMonth, day))
-              const isSelected = iso === value
-              const isToday = iso === todayISO
-              return (
-                <button
-                  type="button" key={i} onClick={() => pick(day)}
-                  style={{
-                    padding: '5px 0', fontSize: 12, borderRadius: 6, border: 'none', cursor: 'pointer',
-                    background: isSelected ? 'var(--brass)' : 'transparent',
-                    color: isSelected ? 'var(--ink)' : 'var(--paper)',
-                    fontWeight: isSelected ? 600 : (isToday ? 700 : 400),
-                    boxShadow: isToday && !isSelected ? 'inset 0 0 0 1px var(--brass)' : 'none',
-                  }}
-                >
-                  {day}
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, borderTop: '1px solid var(--rule)', paddingTop: 6 }}>
-            <button type="button" className="link-btn" onClick={() => { onChange(todayISO); setOpen(false) }}>Today</button>
-            {allowClear && value && <button type="button" className="link-btn" onClick={() => { onChange(''); setOpen(false) }}>Clear</button>}
-          </div>
+      <FloatingPanel
+        triggerRef={triggerRef} open={open} onClose={() => setOpen(false)}
+        align={menuAlign} menuWidth={240} menuHeight={320}
+        style={{ padding: 8, maxWidth: 260 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <button type="button" className="link-btn" style={{ padding: 4 }} onClick={goPrevMonth}><ChevronLeft size={14} /></button>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>{monthLabel}</span>
+          <button type="button" className="link-btn" style={{ padding: 4 }} onClick={goNextMonth}><ChevronRight size={14} /></button>
         </div>
-      )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, fontSize: 10.5, textAlign: 'center', color: 'var(--paper-dim)', marginBottom: 4 }}>
+          {WEEKDAY_LABELS.map((d, i) => <span key={i}>{d}</span>)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+          {cells.map((day, i) => {
+            if (day === null) return <span key={i} />
+            const iso = toISODate(new Date(viewYear, viewMonth, day))
+            const isSelected = iso === value
+            const isToday = iso === todayISO
+            return (
+              <button
+                type="button" key={i} onClick={() => pick(day)}
+                style={{
+                  padding: '5px 0', fontSize: 12, borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: isSelected ? 'var(--brass)' : 'transparent',
+                  color: isSelected ? 'var(--ink)' : 'var(--paper)',
+                  fontWeight: isSelected ? 600 : (isToday ? 700 : 400),
+                  boxShadow: isToday && !isSelected ? 'inset 0 0 0 1px var(--brass)' : 'none',
+                }}
+              >
+                {day}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, borderTop: '1px solid var(--rule)', paddingTop: 6 }}>
+          <button type="button" className="link-btn" onClick={() => { onChange(todayISO); setOpen(false) }}>Today</button>
+          {allowClear && value && <button type="button" className="link-btn" onClick={() => { onChange(''); setOpen(false) }}>Clear</button>}
+        </div>
+      </FloatingPanel>
     </div>
   )
 }

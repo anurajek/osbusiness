@@ -1,7 +1,7 @@
 import { useState, useRef, Fragment } from 'react'
 import { X, ChevronDown, Clock, CalendarClock, Check } from 'lucide-react'
 import { inr, toISODate, isPlausibleDate, formatDateDisplay } from '../lib/format'
-import { StatusPill, Dropdown, DatePicker } from './ui'
+import { StatusPill, Dropdown, DatePicker, FloatingPanel } from './ui'
 import { celebrate } from '../lib/celebrate'
 
 const CHANNELS = ['Call', 'Email', 'WhatsApp', 'Note']
@@ -60,6 +60,7 @@ function buildRemindOptions(nearestDueDate) {
 // down), so a time can be added to any preset, not just a "custom" one.
 function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const options = buildRemindOptions(nearestDueDate)
 
   const matched = options.find((o) => o.date === remindOn)
@@ -68,6 +69,7 @@ function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
   return (
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
       <button
+        ref={triggerRef}
         type="button" className="select select--sm"
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
         onClick={() => setOpen((o) => !o)}
@@ -75,25 +77,23 @@ function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
-      {open && (
-        <div className="mention-menu">
-          {options.map((o) => (
-            <button type="button" key={o.key} className="mention-menu__item" onClick={() => { onPick(o.date); setOpen(false) }}>
-              <span className="mention-menu__item-icon">{o.key === 'tomorrow' ? <Clock size={14} /> : <CalendarClock size={14} />}</span>
-              {o.label}
+      <FloatingPanel triggerRef={triggerRef} open={open} onClose={() => setOpen(false)} menuHeight={remindOn ? 280 : 240}>
+        {options.map((o) => (
+          <button type="button" key={o.key} className="mention-menu__item" onClick={() => { onPick(o.date); setOpen(false) }}>
+            <span className="mention-menu__item-icon">{o.key === 'tomorrow' ? <Clock size={14} /> : <CalendarClock size={14} />}</span>
+            {o.label}
+          </button>
+        ))}
+        {remindOn && (
+          <>
+            <div className="mention-menu__divider" />
+            <button type="button" className="mention-menu__item" onClick={() => { onClear(); setOpen(false) }}>
+              <span className="mention-menu__item-icon"><X size={14} /></span>
+              Clear reminder
             </button>
-          ))}
-          {remindOn && (
-            <>
-              <div className="mention-menu__divider" />
-              <button type="button" className="mention-menu__item" onClick={() => { onClear(); setOpen(false) }}>
-                <span className="mention-menu__item-icon"><X size={14} /></span>
-                Clear reminder
-              </button>
-            </>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </FloatingPanel>
     </div>
   )
 }
@@ -107,6 +107,7 @@ function RemindDropdown({ nearestDueDate, remindOn, onPick, onClear }) {
 // need more than one person looped in.
 function TaskAssignDropdown({ members, selectedIds, onToggle }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const label = selectedIds.length === 0
     ? 'Assign to…'
     : members.filter((m) => selectedIds.includes(m.id)).map((m) => m.full_name).join(', ')
@@ -116,6 +117,7 @@ function TaskAssignDropdown({ members, selectedIds, onToggle }) {
   return (
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 200 }}>
       <button
+        ref={triggerRef}
         type="button" className="select select--sm"
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
         onClick={() => setOpen((o) => !o)}
@@ -123,21 +125,19 @@ function TaskAssignDropdown({ members, selectedIds, onToggle }) {
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
-      {open && (
-        <div className="mention-menu">
-          {members.map((m) => (
-            <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
-              <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
-              {m.full_name}
-            </button>
-          ))}
-          <div className="mention-menu__divider" />
-          <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
-            <span className="mention-menu__item-icon" />
-            Done
+      <FloatingPanel triggerRef={triggerRef} open={open} onClose={() => setOpen(false)} menuHeight={Math.min(members.length * 34 + 44, 280)}>
+        {members.map((m) => (
+          <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
+            <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
+            {m.full_name}
           </button>
-        </div>
-      )}
+        ))}
+        <div className="mention-menu__divider" />
+        <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
+          <span className="mention-menu__item-icon" />
+          Done
+        </button>
+      </FloatingPanel>
     </div>
   )
 }

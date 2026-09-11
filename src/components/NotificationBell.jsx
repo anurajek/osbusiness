@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
+import { FloatingPanel } from './ui'
 
 // Lives in the header (see AppShell.jsx), not the Dashboard - this is what
 // "Recent activity" moved into, alongside the new personal assignment
@@ -11,6 +12,7 @@ import { useFirm } from '../context/FirmContext'
 export default function NotificationBell({ onNavigate }) {
   const { firmId, membershipId } = useFirm()
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const [notifications, setNotifications] = useState([])
   const [activity, setActivity] = useState([])
 
@@ -77,6 +79,7 @@ export default function NotificationBell({ onNavigate }) {
   return (
     <div style={{ position: 'relative' }}>
       <button
+        ref={triggerRef}
         className="theme-toggle" style={{ position: 'relative' }}
         onClick={toggleOpen}
         title="Notifications" aria-label="Notifications"
@@ -84,40 +87,41 @@ export default function NotificationBell({ onNavigate }) {
         <Bell size={16} />
         {unreadCount > 0 && <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
-      {open && (
-        <div className="mention-menu" style={{ left: 'auto', right: 0, minWidth: 320, maxWidth: 360, maxHeight: 'none', overflow: 'visible', padding: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--rule)' }}>
-            <span style={{ fontWeight: 600, fontSize: 13 }}>Notifications</span>
-            {unreadCount > 0 && <button type="button" className="link-btn" style={{ padding: 0, fontSize: 11.5 }} onClick={markAllRead}>Mark all read</button>}
-          </div>
-          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-            {notifications.length === 0 && <p className="empty-state" style={{ padding: '14px 12px' }}>Nothing yet.</p>}
-            {notifications.map((n) => (
-              <button
-                type="button" key={n.id} onClick={() => handleClick(n)}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
-                  background: n.read ? 'none' : 'color-mix(in srgb, var(--brass) 12%, transparent)',
-                  borderBottom: '1px solid var(--rule)', cursor: 'pointer', color: 'var(--paper)', fontSize: 12.5,
-                }}
-              >
-                {n.message}
-                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--paper-dim)', marginTop: 2 }}>{new Date(n.created_at).toLocaleString()}</span>
-              </button>
-            ))}
-          </div>
-          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--rule)', maxHeight: 200, overflowY: 'auto' }}>
-            <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6, color: 'var(--paper-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent activity</div>
-            {activity.length === 0 && <p className="empty-state" style={{ padding: 0 }}>Nothing logged yet.</p>}
-            {activity.map((a) => (
-              <div key={a.id} style={{ fontSize: 12, padding: '4px 0' }}>
-                {a.description}
-                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--paper-dim)' }}>{new Date(a.created_at).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
+      <FloatingPanel
+        triggerRef={triggerRef} open={open} onClose={() => setOpen(false)}
+        align="right" menuWidth={340} menuHeight={420} style={{ padding: 0 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--rule)' }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Notifications</span>
+          {unreadCount > 0 && <button type="button" className="link-btn" style={{ padding: 0, fontSize: 11.5 }} onClick={markAllRead}>Mark all read</button>}
         </div>
-      )}
+        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          {notifications.length === 0 && <p className="empty-state" style={{ padding: '14px 12px' }}>Nothing yet.</p>}
+          {notifications.map((n) => (
+            <button
+              type="button" key={n.id} onClick={() => handleClick(n)}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none',
+                background: n.read ? 'none' : 'color-mix(in srgb, var(--brass) 12%, transparent)',
+                borderBottom: '1px solid var(--rule)', cursor: 'pointer', color: 'var(--paper)', fontSize: 12.5,
+              }}
+            >
+              {n.message}
+              <span style={{ display: 'block', fontSize: 10.5, color: 'var(--paper-dim)', marginTop: 2 }}>{new Date(n.created_at).toLocaleString()}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: '10px 12px', borderTop: '1px solid var(--rule)', maxHeight: 160, overflowY: 'auto' }}>
+          <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6, color: 'var(--paper-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent activity</div>
+          {activity.length === 0 && <p className="empty-state" style={{ padding: 0 }}>Nothing logged yet.</p>}
+          {activity.map((a) => (
+            <div key={a.id} style={{ fontSize: 12, padding: '4px 0' }}>
+              {a.description}
+              <span style={{ display: 'block', fontSize: 10.5, color: 'var(--paper-dim)' }}>{new Date(a.created_at).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </FloatingPanel>
     </div>
   )
 }

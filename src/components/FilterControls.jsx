@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Search, X, Plus, ChevronDown, Check } from 'lucide-react'
-import { Dropdown, DatePicker } from './ui'
+import { Dropdown, DatePicker, FloatingPanel } from './ui'
 
 export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last year', 'Custom']
 
@@ -15,12 +15,14 @@ export const PERIOD_OPTIONS = ['All time', 'Last month', 'Last quarter', 'Last y
 // calendar in, rather than fighting two into a half-width column.
 function PeriodField({ label, period, options = PERIOD_OPTIONS, className }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const isCustom = period.value === 'Custom'
 
   return (
     <div className={className ?? 'filter-field'} style={{ position: 'relative' }}>
       <label>{label ?? 'Period'}</label>
       <button
+        ref={triggerRef}
         type="button" className="select select--sm"
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', overflow: 'hidden' }}
         onClick={() => setOpen((o) => !o)}
@@ -28,35 +30,41 @@ function PeriodField({ label, period, options = PERIOD_OPTIONS, className }) {
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{period.value}</span>
         <ChevronDown size={13} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
-      {open && (
-        <div className="mention-menu" style={{ minWidth: isCustom ? 240 : '100%', maxHeight: 'none', overflow: 'visible' }}>
-          {options.map((o) => (
-            <button
-              type="button" key={o} className="mention-menu__item"
-              onClick={() => { period.onChange(o); if (o !== 'Custom') setOpen(false) }}
-            >
-              <span className="mention-menu__item-icon">{o === period.value && <Check size={13} />}</span>
-              {o}
-            </button>
-          ))}
-          {isCustom && (
-            <>
-              <div className="mention-menu__divider" />
-              <div style={{ padding: '4px 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>From</label>
-                  <DatePicker className="text-input" value={period.customFrom} onChange={period.setCustomFrom} />
-                </div>
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>To</label>
-                  <DatePicker className="text-input" value={period.customTo} onChange={period.setCustomTo} />
-                </div>
-                <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, alignSelf: 'flex-end' }} onClick={() => setOpen(false)}>Done</button>
+      {/* No onClose here (unlike Dropdown/DatePicker) - this popup nests
+          two DatePickers of its own, and each of those now opens its own
+          portal too. A portalled child isn't a DOM descendant of this
+          panel even though it's a React one, so an outside-click check
+          here would misfire and close this whole popup the moment
+          someone clicked into the nested From/To calendar. Manual
+          toggle-only closing (button click / Done) sidesteps that
+          entirely - same as this already worked before. */}
+      <FloatingPanel triggerRef={triggerRef} open={open} menuWidth={isCustom ? 240 : 180} menuHeight={isCustom ? 340 : 220}>
+        {options.map((o) => (
+          <button
+            type="button" key={o} className="mention-menu__item"
+            onClick={() => { period.onChange(o); if (o !== 'Custom') setOpen(false) }}
+          >
+            <span className="mention-menu__item-icon">{o === period.value && <Check size={13} />}</span>
+            {o}
+          </button>
+        ))}
+        {isCustom && (
+          <>
+            <div className="mention-menu__divider" />
+            <div style={{ padding: '4px 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>From</label>
+                <DatePicker className="text-input" value={period.customFrom} onChange={period.setCustomFrom} />
               </div>
-            </>
-          )}
-        </div>
-      )}
+              <div>
+                <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>To</label>
+                <DatePicker className="text-input" value={period.customTo} onChange={period.setCustomTo} />
+              </div>
+              <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: 12, alignSelf: 'flex-end' }} onClick={() => setOpen(false)}>Done</button>
+            </div>
+          </>
+        )}
+      </FloatingPanel>
     </div>
   )
 }

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState, Fragment } from 'react'
+import { useCallback, useEffect, useRef, useState, Fragment } from 'react'
 import { Plus, Bell, Check, ChevronDown, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useFirm } from '../context/FirmContext'
 import { inr, toISODate, getPeriodRange, isResolved, balanceDue, isPlausibleDate, computeStatus, statusForStorage, MANUAL_STATUSES, formatDateDisplay } from '../lib/format'
 import { FilterBar } from '../components/FilterControls'
-import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh, SkeletonRows } from '../components/ui'
+import { SectionHeader, EmptyRow, StatCard, Dropdown, DatePicker, SortableTh, SkeletonRows, FloatingPanel } from '../components/ui'
 import CommDrawer from '../components/CommDrawer'
 import { downloadCsv } from '../lib/exportCsv'
 import { downloadListPdf, previewDocumentPdf, itemTaxFieldsFromRow } from '../lib/pdf'
@@ -23,6 +23,7 @@ const STAGE_LABEL = { gentle: 'Gentle nudge', reminder: 'Reminder', due: 'Due no
 // OS context menu rather than a form checkbox list.
 function AssignDropdown({ members, selectedIds, onToggle }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const label = selectedIds.length === 0
     ? 'Assign to…'
     : members.filter((m) => selectedIds.includes(m.id)).map((m) => m.full_name).join(', ')
@@ -30,6 +31,7 @@ function AssignDropdown({ members, selectedIds, onToggle }) {
   return (
     <div style={{ position: 'relative', display: 'inline-block', minWidth: 160 }}>
       <button
+        ref={triggerRef}
         type="button" className="select select--sm"
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer', overflow: 'hidden' }}
         onClick={() => setOpen((o) => !o)}
@@ -37,21 +39,19 @@ function AssignDropdown({ members, selectedIds, onToggle }) {
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
-      {open && (
-        <div className="mention-menu">
-          {members.map((m) => (
-            <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
-              <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
-              {m.full_name}
-            </button>
-          ))}
-          <div className="mention-menu__divider" />
-          <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
-            <span className="mention-menu__item-icon" />
-            Done
+      <FloatingPanel triggerRef={triggerRef} open={open} onClose={() => setOpen(false)} menuHeight={Math.min(members.length * 34 + 44, 280)}>
+        {members.map((m) => (
+          <button type="button" key={m.id} className="mention-menu__item" onClick={() => onToggle(m.id)}>
+            <span className="mention-menu__item-icon">{selectedIds.includes(m.id) && <Check size={14} />}</span>
+            {m.full_name}
           </button>
-        </div>
-      )}
+        ))}
+        <div className="mention-menu__divider" />
+        <button type="button" className="mention-menu__item" onClick={() => setOpen(false)}>
+          <span className="mention-menu__item-icon" />
+          Done
+        </button>
+      </FloatingPanel>
     </div>
   )
 }
@@ -106,6 +106,10 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
   // form - lets ownership be set/changed on an existing row in one click,
   // without opening the full Edit form for an otherwise-unrelated change.
   const [assigningRowId, setAssigningRowId] = useState(null)
+  // One ref per row for the document-level Assign… flyout below to anchor
+  // to - a plain object keyed by row id rather than a single ref, since
+  // every row's Actions cell needs its own independent anchor point.
+  const actionsCellRefs = useRef({})
   const [assigningIds, setAssigningIds] = useState([])
   const [assigningBusy, setAssigningBusy] = useState(false)
 
@@ -1021,7 +1025,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           allowClear
                         />
                       </td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+                      <td ref={(el) => { actionsCellRefs.current[r.id] = el }} onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
                         <Dropdown
                           value="" disabled={busy}
                           placeholder={busy ? 'Working…' : 'Actions…'}
@@ -1040,29 +1044,31 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
                           onChange={(action) => { if (action) handleAction(r, action) }}
                           menuAlign="right"
                         />
-                        {assigningRowId === r.id && (
-                          <div className="mention-menu" style={{ left: 'auto', right: 0 }}>
-                            {members.length === 0 && <p className="login-footnote" style={{ padding: '4px 10px' }}>No firm members yet — invite teammates from Users &amp; Permissions.</p>}
-                            {members.map((m) => (
-                              <button
-                                type="button" key={m.id} className="mention-menu__item"
-                                onClick={() => setAssigningIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
-                              >
-                                <span className="mention-menu__item-icon">{assigningIds.includes(m.id) && <Check size={14} />}</span>
-                                {m.full_name}
-                              </button>
-                            ))}
-                            <div className="mention-menu__divider" />
-                            <button type="button" className="mention-menu__item" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
-                              <span className="mention-menu__item-icon"><Check size={14} /></span>
-                              {assigningBusy ? 'Saving…' : 'Save'}
+                        <FloatingPanel
+                          triggerRef={{ current: actionsCellRefs.current[r.id] }} open={assigningRowId === r.id}
+                          onClose={() => setAssigningRowId(null)} align="right"
+                          menuHeight={Math.min(members.length * 34 + 90, 320)}
+                        >
+                          {members.length === 0 && <p className="login-footnote" style={{ padding: '4px 10px' }}>No firm members yet — invite teammates from Users &amp; Permissions.</p>}
+                          {members.map((m) => (
+                            <button
+                              type="button" key={m.id} className="mention-menu__item"
+                              onClick={() => setAssigningIds((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                            >
+                              <span className="mention-menu__item-icon">{assigningIds.includes(m.id) && <Check size={14} />}</span>
+                              {m.full_name}
                             </button>
-                            <button type="button" className="mention-menu__item" onClick={() => setAssigningRowId(null)}>
-                              <span className="mention-menu__item-icon"><X size={14} /></span>
-                              Cancel
-                            </button>
-                          </div>
-                        )}
+                          ))}
+                          <div className="mention-menu__divider" />
+                          <button type="button" className="mention-menu__item" disabled={assigningBusy} onClick={() => handleSaveAssign(r)}>
+                            <span className="mention-menu__item-icon"><Check size={14} /></span>
+                            {assigningBusy ? 'Saving…' : 'Save'}
+                          </button>
+                          <button type="button" className="mention-menu__item" onClick={() => setAssigningRowId(null)}>
+                            <span className="mention-menu__item-icon"><X size={14} /></span>
+                            Cancel
+                          </button>
+                        </FloatingPanel>
                       </td>
                     </tr>
                     {msg && (
