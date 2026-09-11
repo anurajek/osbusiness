@@ -223,14 +223,22 @@ function renderNoteWithMentions(note, members) {
 // someone dismisses a pending "Remind me on" tag, with an optional note
 // on what actually happened (or null for a plain dismiss with nothing to
 // report).
-export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions, onRecordPayment, bankAccounts, members, onResolveReminder }) {
+//
+// currentMembershipId: the logged-in person's own firm_members id - used
+// only to pre-select them in "Assign this reminder as a task to" by
+// default (see taskAssignedIds below). Every update now requires a
+// reminder date, so it should also default to having an owner rather
+// than requiring a second manual step to assign it to yourself - picking
+// someone else (instead of, or in addition to) works exactly the same as
+// before, this only changes what's pre-checked when the form opens.
+export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', comms, onAddComm, onClose, saving, links, onSetStatus, manualStatusOptions, onRecordPayment, bankAccounts, members, onResolveReminder, currentMembershipId }) {
   const [text, setText] = useState('')
   const [channel, setChannel] = useState(CHANNELS[0])
   const [tag, setTag] = useState(STATUS_TAGS[0])
   const [remindOn, setRemindOn] = useState('')
   const [remindTime, setRemindTime] = useState('')
   const [remindError, setRemindError] = useState(null)
-  const [taskAssignedIds, setTaskAssignedIds] = useState([])
+  const [taskAssignedIds, setTaskAssignedIds] = useState(() => (currentMembershipId ? [currentMembershipId] : []))
 
   // Mention autocomplete state - mentionStart is the index of the "@" that
   // triggered the current query, so selecting a suggestion knows exactly
@@ -320,7 +328,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
       mentionedIds: extractMentionedIds(text.trim()),
     })
     setText('')
-    setTaskAssignedIds([])
+    setTaskAssignedIds(currentMembershipId ? [currentMembershipId] : [])
     setRemindOn('')
     setRemindTime('')
     setMentionQuery(null)

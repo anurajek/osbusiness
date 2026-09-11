@@ -634,6 +634,7 @@ export default function ReceivablesScreen({ navParams, clearNavParams, onNavigat
           manualStatusOptions={[...MANUAL_STATUSES, 'Cancelled']}
           members={members}
           onResolveReminder={resolveReminder}
+          currentMembershipId={membershipId}
           links={onNavigate ? [
             { label: 'Invoice Follow-up →', onClick: () => onNavigate('arap', 'invoice-followup', { customerId: selectedCustomer.id }) },
             { label: 'PI Follow-up →', onClick: () => onNavigate('arap', 'pi-followup', { customerId: selectedCustomer.id }) },

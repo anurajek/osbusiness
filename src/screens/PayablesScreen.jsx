@@ -312,6 +312,7 @@ export default function PayablesScreen({ navParams, clearNavParams }) {
           saving={saving}
           members={members}
           onResolveReminder={resolveReminder}
+          currentMembershipId={membershipId}
         />
       )}
     </>

@@ -1293,6 +1293,7 @@ export default function PaymentFollowUpScreen({ docType, navParams, clearNavPara
           saving={saving}
           members={members}
           onResolveReminder={resolveReminder}
+          currentMembershipId={membershipId}
         />
       )}
     </>

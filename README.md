@@ -2361,7 +2361,34 @@ document level (no comm-log row to resolve), "Mark done" becomes
 `assigned_to_ids` directly, no note prompt (there's nothing to attach a
 note to).
 
+## Update form now defaults to assigning yourself
+
+No migration needed - UI-only.
+
+Real cause: "Assign this reminder as a task to" always started empty, so
+leaving it untouched meant the update got saved with no assignee at
+all - not self-assigned, not assigned to anyone. Now that every update
+requires a reminder date, that meant it was easy to log a fully mandatory
+"remind me on X" that nobody, including yourself, actually owned.
+
+The form now starts with you already checked in that dropdown - visible
+in the UI, not a hidden default, so it's obvious rather than surprising.
+Assigning someone else (instead of, or alongside you) works exactly as
+it already did; nothing about explicit assignment changed. Needed a new
+`currentMembershipId` prop threaded into `CommDrawer` from all three
+screens that use it (Invoice/PI Follow-up, Receivables, Payables), since
+the drawer didn't previously know which firm member was the one looking
+at it.
+
 ## Status
+
+- [x] **Update form defaults to assigning yourself (Sep 2026):** "Assign
+      this reminder as a task to" always started empty, meaning an
+      untouched update saved with no owner at all, self included - now
+      it starts with you pre-checked (visible in the UI, not hidden),
+      so a mandatory reminder always has an owner unless you deliberately
+      change it. See "Update form now defaults to assigning yourself"
+      above.
 
 - [x] **Fixed: document-level assignment invisible on Assigned Tasks
       (Sep 2026):** Add PI/Assign… assignment (no comm-log entry, no
