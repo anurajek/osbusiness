@@ -309,7 +309,8 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
 
   const submit = async () => {
     if (!text.trim()) return
-    if (remindOn && !isPlausibleDate(remindOn)) { setRemindError("That reminder date doesn't look right - check the year."); return }
+    if (!remindOn) { setRemindError('Pick a date to remind you about this follow-up before saving.'); return }
+    if (!isPlausibleDate(remindOn)) { setRemindError("That reminder date doesn't look right - check the year."); return }
     setRemindError(null)
     await onAddComm({
       channel, tag, note: text.trim(),
@@ -512,7 +513,7 @@ export default function CommDrawer({ customer, openDocs, docLabel = 'Invoice', c
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Remind me on (optional)</label>
+              <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: 'var(--paper-dim)' }}>Remind me on<span style={{ color: 'var(--brick)' }}> *</span></label>
               <RemindDropdown
                 nearestDueDate={nearestDueDate}
                 remindOn={remindOn}

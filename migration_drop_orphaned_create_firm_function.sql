@@ -1,0 +1,25 @@
+-- ============================================================================
+-- Migration: Drop the orphaned create_firm_with_owner(firm_name text)
+-- Run this in Supabase's SQL Editor. Safe - confirmed unused first.
+--
+-- create_firm_with_owner has been redefined several times across earlier
+-- migrations (migration_create_firm_rpc.sql, migration_credit_debit_notes.sql,
+-- migration_general_ledger.sql, migration_import.sql,
+-- migration_quotations.sql, migration_owner_permissions_toggle.sql), always
+-- as "create or replace function create_firm_with_owner(p_firm_name text,
+-- p_full_name text, p_gstin text default null)". Postgres only replaces a
+-- function with the exact same parameter list, though - a version with a
+-- *different* signature becomes a separate function object that "create or
+-- replace" never touches. Somewhere back before this migration history
+-- started, a single-argument create_firm_with_owner(firm_name text) was
+-- created, and it's been sitting there ever since: dead code, still
+-- publicly callable, doing nothing any part of the app actually uses.
+--
+-- Confirmed unused before writing this - src/hooks/useAuth.js's two RPC
+-- calls both pass p_firm_name/p_full_name/p_gstin, matching only the real
+-- three-argument version. Dropping the one-argument version removes it
+-- from Security Advisor's "Public Can Execute SECURITY DEFINER Function"
+-- list entirely rather than trying to lock down a function nothing calls.
+-- ============================================================================
+
+drop function if exists public.create_firm_with_owner(text);

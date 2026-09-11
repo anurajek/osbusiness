@@ -94,7 +94,6 @@ export default function DashboardScreen({ onNavigate }) {
         { data: accounts, error: accErr },
         { data: invoices, error: invErr },
         { data: bills, error: billErr },
-        { data: activity, error: actErr },
         { data: bankTxns, error: txnErr },
         { count: arTaskCount, error: arCountErr },
         { count: apTaskCount, error: apCountErr },
@@ -102,7 +101,6 @@ export default function DashboardScreen({ onNavigate }) {
         supabase.from('bank_accounts').select('id, balance').eq('firm_id', firmId),
         supabase.from('sales_invoices').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
         supabase.from('purchase_bills').select('id, due_date, issued_date, amount, paid_amount, status, is_cancelled').eq('firm_id', firmId),
-        supabase.from('activity_log').select('id, description, created_at').eq('firm_id', firmId).order('created_at', { ascending: false }).limit(6),
         supabase.from('bank_transactions').select('id, txn_date, amount').eq('firm_id', firmId),
         // Just a count for the "My Tasks" summary card below - the full,
         // balance-aware breakdown (Overdue/Today/Pending/Upcoming) lives on
@@ -116,7 +114,7 @@ export default function DashboardScreen({ onNavigate }) {
       ])
 
       if (cancelled) return
-      const err = accErr || invErr || billErr || actErr || txnErr || arCountErr || apCountErr
+      const err = accErr || invErr || billErr || txnErr || arCountErr || apCountErr
       if (err) { setError(err.message); setLoading(false); return }
 
       const openInvoices = (invoices ?? []).filter((i) => !i.is_cancelled && computeStatus(i, 'Sent') !== 'Paid')
@@ -130,7 +128,6 @@ export default function DashboardScreen({ onNavigate }) {
         accountCount: (accounts ?? []).length,
         arAgeing: buildAgeing(openInvoices),
         apAgeing: buildAgeing(openBills),
-        activity: activity ?? [],
         bankTxns: bankTxns ?? [],
         myTaskCount: (arTaskCount ?? 0) + (apTaskCount ?? 0),
       })
@@ -259,19 +256,6 @@ export default function DashboardScreen({ onNavigate }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="section-header" style={{ marginBottom: 8 }}><h2>Recent activity</h2></div>
-        {data.activity.length === 0 && <p className="empty-state">Nothing logged yet.</p>}
-        <ul className="activity-list">
-          {data.activity.map((a) => (
-            <li key={a.id} className="activity-row">
-              <span className="activity-dot" />
-              <span>{a.description}</span>
-              <span className="activity-when">{new Date(a.created_at).toLocaleString()}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
     </>
   )
 }

@@ -2297,7 +2297,64 @@ before running it.
   someone else's row doesn't need this, it only affects what they see
   next time they load the app.
 
+## Notifications - assignment alerts, and Recent Activity moved into a bell
+
+**Run `migration_notifications.sql` before deploying this one.**
+
+Two things bundled together since they share one dropdown:
+
+- **Assignment notifications.** Get assigned a task or document ownership
+  (via any of the four places that happens - a comm-log "Remind me on"
+  task, Add PI, the Assign… action, or Edit) and you get a notification -
+  "Sneha N assigned you a task: Called, will pay by Friday" or "Anuraj
+  assigned you to Invoice EST/285/26-27". Built as a database trigger
+  (`notify_on_assignment()`) rather than application code added to every
+  assign path - it fires directly off `assigned_to_ids` changing on
+  `ar_comms`/`supplier_comms`/`sales_invoices`/`proforma_invoices`, so
+  there's exactly one place this logic lives rather than four screens
+  each needing to remember to call it. Notifications are trigger-only by
+  design - no INSERT policy exists for `authenticated`, so nothing in the
+  client can ever write a notification claiming to be from someone else.
+  You're never notified for assigning yourself.
+- **"Recent activity" moved out of the Dashboard**, into the same
+  dropdown as the notifications above (a new bell icon in the header,
+  next to the theme/layout/profile buttons) - unread count badge,
+  click-to-mark-read (clicking a notification also navigates to the
+  relevant customer/supplier), "Mark all read". The Dashboard itself no
+  longer fetches `activity_log` at all - that query moved into the new
+  `NotificationBell` component along with the feed it was already
+  showing.
+
+## "Remind me on" is now mandatory on every Update
+
+No migration needed - UI-only.
+
+Logging an update now requires a "Remind me on" date - trying to save
+without one shows "Pick a date to remind you about this follow-up before
+saving" instead of submitting. The point: every logged update now
+carries a next check-in date by default, so nothing gets logged and then
+quietly forgotten - matches the "aggressive follow-up" spirit the whole
+comm-log feature was built for. Assign stays exactly as it was -
+genuinely optional, since not every reminder needs a specific person
+attached to it.
+
 ## Status
+
+- [x] **"Remind me on" made mandatory (Sep 2026):** logging an update now
+      requires a reminder date - saving without one is blocked with a
+      clear message instead of silently going through. Assign remains
+      optional, unchanged. See "'Remind me on' is now mandatory on every
+      Update" above.
+
+- [x] **Notifications: assignment alerts, Recent Activity moved to a bell
+      (Sep 2026):** new `notifications` table + a database trigger that
+      fires whenever `assigned_to_ids` gains a member on any of the four
+      assign paths (comm-log tasks, Add PI, Assign…, Edit) - one shared
+      trigger function, not duplicated application code. New bell icon in
+      the header shows unread count, click-to-mark-read, "Mark all read".
+      "Recent activity" moved out of the Dashboard into the same
+      dropdown. Requires `migration_notifications.sql`. See "Notifications
+      - assignment alerts, and Recent Activity moved into a bell" above.
 
 - [x] **Invite form vertical; Owner permissions actually toggle (Sep
       2026):** Invite a teammate's fields stacked vertically to fit the

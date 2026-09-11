@@ -1,0 +1,24 @@
+-- ============================================================================
+-- Migration: Drop the redundant UPDATE policy on ar_comms
+-- Run this in Supabase's SQL Editor. Safe - confirmed via pg_policies
+-- before writing this (see chat).
+--
+-- migration_comm_followup_reminders.sql added "members can update their
+-- firm's ar comms" on the assumption ar_comms only had select/insert
+-- policies (true of supplier_comms, its Payables-side counterpart, which
+-- is why that migration added the same thing there too - but wrong for
+-- ar_comms specifically). ar_comms already had a broader FOR ALL policy,
+-- "members can access their firm's AR comms", with the exact same
+-- condition (is_firm_member(firm_id)) - which already covered UPDATE
+-- (and SELECT/INSERT/DELETE) on its own. The one this migration added was
+-- 100% redundant with it: same table, same command, same condition, no
+-- narrower scope or extra restriction - Postgres was evaluating both on
+-- every single query against this table for zero additional benefit.
+--
+-- Supabase's Performance Advisor flagged this as "Multiple Permissive
+-- Policies". supplier_comms is NOT touched here - it wasn't flagged, so
+-- its own update policy there is doing real work, not duplicating
+-- anything.
+-- ============================================================================
+
+drop policy if exists "members can update their firm's ar comms" on ar_comms;

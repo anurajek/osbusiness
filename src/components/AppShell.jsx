@@ -5,6 +5,7 @@ import {
   PanelLeft, PanelTop, CircleUserRound,
 } from 'lucide-react'
 import { useFirm } from '../context/FirmContext'
+import NotificationBell from './NotificationBell'
 
 // Refocused on AR/AP collections (Aug 2026) - Quotations, Credit/Debit
 // Notes, and the General Ledger are deliberately hidden from nav, not
@@ -128,6 +129,7 @@ export default function AppShell({ activeModule, onNavigate, onSignOut, theme, t
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <NotificationBell onNavigate={onNavigate} />
             <div style={{ position: 'relative' }}>
               <button
                 className="theme-toggle"
