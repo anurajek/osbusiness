@@ -2474,7 +2474,50 @@ Apologies for shipping this with the last round without catching it
 first - z-index conflicts with modals/drawers specifically weren't part
 of what I tested before delivering.
 
+## Fixed the actual root cause - a leftover CSS rule fighting the new positioning
+
+No migration needed - client-side only.
+
+The z-index fix from last round was real and needed, but it wasn't the
+whole story - there was a second, more precise bug underneath it, found
+thanks to a very specific detail: the menu failed to open specifically
+for a row sitting right at the bottom edge of the browser window, and
+scrolling that same row up (removing the need to flip upward) made it
+work immediately.
+
+Root cause: `.mention-menu`'s CSS class still had the *original*
+positioning rules hardcoded from before the portal rewrite -
+`position: absolute; top: 100%; left: 0;`. Opening downward sets an
+inline `top` value, which correctly overrides that old rule - so that
+direction worked fine. Opening upward deliberately leaves `top` unset
+(using `bottom` instead) - and the moment it's unset, the leftover class
+rule `top: 100%` takes over instead. On a `position: fixed` element,
+`top: 100%` means "start at the very bottom of the screen" - combined
+with a `bottom` value also anchoring near the bottom, the box's top and
+bottom edges ended up on the wrong sides of each other, collapsing it to
+zero height. Not clipped, not behind anything this time - genuinely
+invisible because its own computed height was invalid.
+
+Fixed by removing the leftover `position`/`left`/`top`/`margin-top` from
+the CSS class entirely - every dropdown in the app is fully portal-based
+now, so nothing depends on that old absolute-positioning fallback
+anymore; all positioning comes from `FloatingPanel`'s own inline styles,
+with nothing left in the CSS to conflict with whichever direction it
+picks.
+
 ## Status
+
+- [x] **Fixed root cause: leftover CSS fighting the new positioning (Sep
+      2026):** `.mention-menu` still had `position: absolute; top:
+      100%; left: 0;` hardcoded from before the portal rewrite. Opening
+      downward overrides it fine (inline top wins); opening upward
+      leaves top unset on purpose, so the leftover `top: 100%` took
+      over instead - on a `position: fixed` element that's "start at
+      the screen's bottom edge," which combined with the inline
+      `bottom` value collapsed the box to zero height. Removed the
+      leftover rule entirely - all positioning now comes only from
+      FloatingPanel's inline styles. See "Fixed the actual root cause -
+      a leftover CSS rule fighting the new positioning" above.
 
 - [x] **Fixed regression: dropdowns invisible behind drawer/modal (Sep
       2026):** last round's floating-menu rewrite gave `.mention-menu`

@@ -17,9 +17,9 @@ import { useFloatingPosition } from '../hooks/useFloatingPosition'
 // position). open: whether to render at all. onClose: optional, called
 // on outside click/Escape - pass it to get click-outside-to-close;
 // omit it to keep a consumer's existing toggle-only behavior unchanged.
-export function FloatingPanel({ triggerRef, open, onClose, children, className = 'mention-menu', menuWidth = 220, menuHeight = 260, align = 'left', style }) {
+export function FloatingPanel({ triggerRef, open, onClose, children, className = 'mention-menu', menuWidth = 220, align = 'left', style }) {
   const panelRef = useRef(null)
-  const coords = useFloatingPosition(triggerRef, open, { menuWidth, menuHeight, align })
+  const { coords, phase } = useFloatingPosition(triggerRef, panelRef, open, { menuWidth, align })
 
   useEffect(() => {
     if (!open || !onClose) return undefined
@@ -36,14 +36,27 @@ export function FloatingPanel({ triggerRef, open, onClose, children, className =
     }
   }, [open, onClose, triggerRef])
 
-  if (!open || !coords) return null
+  if (phase === 'closed') return null
+  // 'measuring': laid out for real (so it has a real size to measure -
+  // visibility:hidden keeps it invisible without collapsing it to zero
+  // size the way display:none would) but not yet positioned or
+  // interactive. 'positioned': the real, measured placement, visible.
+  const measuring = phase === 'measuring'
   return createPortal(
     <div
       ref={panelRef}
       className={className}
       style={{
-        position: 'fixed', left: coords.left, top: coords.top, bottom: coords.bottom,
-        width: coords.width, maxHeight: coords.maxHeight, minWidth: 0, ...style,
+        position: 'fixed',
+        visibility: measuring ? 'hidden' : 'visible',
+        pointerEvents: measuring ? 'none' : 'auto',
+        left: measuring ? 0 : coords?.left,
+        top: measuring ? 0 : coords?.top,
+        bottom: measuring ? undefined : coords?.bottom,
+        width: measuring ? menuWidth : coords?.width,
+        maxHeight: measuring ? undefined : coords?.maxHeight,
+        minWidth: 0,
+        ...style,
       }}
     >
       {children}
